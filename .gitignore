@@ -1,0 +1,15 @@
+# Ignore experimental files
+.playground/
+
+# Ignore obsolete files
+.obsolete/
+
+# Ignore own test images
+.own-images/
+
+# Ignore environment files
+**/*.env
+
+
+
+
