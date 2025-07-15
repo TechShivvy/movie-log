@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
     )
     app.middleware('http')(middleware.log_request_info)
 
-    app.include_router(root.router, prefix=f'{api_prefix}')
+    app.include_router(root.router)
     app.include_router(movie_metadata.router, prefix=f'{api_prefix}/movie-metadata')
 
     return app
