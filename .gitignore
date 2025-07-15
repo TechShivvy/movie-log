@@ -10,6 +10,11 @@
 # Ignore environment files
 **/*.env
 
+# Ignore venv
+.venv/
+
+# Ignore conda
+.conda/
 
 
 
