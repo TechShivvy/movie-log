@@ -1,0 +1,7 @@
+fastapi==0.116.1
+gunicorn==23.0.0
+loguru==0.7.3
+pipdeptree==2.27.0
+python-dotenv==1.1.1
+setuptools==65.5.0
+uvicorn==0.35.0
