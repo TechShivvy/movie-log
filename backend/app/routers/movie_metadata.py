@@ -43,6 +43,7 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)):
     response_description='Movie Metadata',
     response_model=MovieMetadata,
     responses=responses['/extract'],
+    operation_id="ExtractTicketImage",
 )
 async def extract_movie_metadata(
     file: UploadFile = File(..., description='Ticket image file'),
