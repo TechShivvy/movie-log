@@ -47,7 +47,7 @@ if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]]; then
     if ! docker buildx inspect --bootstrap >/dev/null 2>&1; then
         docker buildx create --use
     fi
-    docker buildx build --platform linux/amd64 --build-arg API_VERSION="$ver" -t "$app":"$ver" -f dev.Dockerfile --load .
+    docker buildx build --platform linux/amd64 --build-arg API_VERSION="$ver" -t "$app":"$ver" -f Dockerfile.dev --load .
 else
-    docker build --platform linux/amd64 --build-arg API_VERSION="$ver" -t "$app":"$ver" -f dev.Dockerfile --load .
+    docker build --platform linux/amd64 --build-arg API_VERSION="$ver" -t "$app":"$ver" -f Dockerfile.dev --load .
 fi

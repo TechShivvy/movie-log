@@ -3,7 +3,7 @@ services:
     image: registry-1.docker.io/brokolee/movie-log-backend:dev
     build:
       context: .
-      dockerfile: dev.Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8080:8080"
     container_name: movie-log-backend-dev
@@ -17,5 +17,5 @@ services:
     tty: true
     platform: linux/amd64
 
-# sudo docker-compose -f dev-docker-compose.yaml build
+# sudo docker-compose -f docker-compose.dev.yaml build
 # sudo docker run -p 8080:8080 --rm registry-1.docker.io/brokolee/movie-log-backend:dev
