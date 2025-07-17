@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# IMPORTANT: this script must be run from the **backend/** directory (e.g. `./scripts/push.sh`)
+# DO NOT execute from scripts/ directory.
+
 set -euo pipefail
 
 : '
@@ -9,9 +13,9 @@ Usage:
     ./push.sh
 
 Prerequisites:
-    - The image must be built locally using ./build.sh before running this.
+    - The image must be built locally before running this.
     - Docker must be logged in.
-    - REGISTRY_HOST must be set (for eg via: source login-docker.sh).
+    - REGISTRY_HOST must be set (for eg via: source ./scripts/login-docker.sh).
 '
 
 IFS=' ' read -r app ver < <("../get-version.sh" -q)

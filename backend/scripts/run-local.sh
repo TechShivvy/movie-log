@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/run-local.sh`)
+# DO NOT execute from scripts/ directory.
+
 IFS=' ' read -r app ver < <("../get-version.sh" -q)
 
 app="${app}-backend"

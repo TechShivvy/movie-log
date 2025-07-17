@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/login-docker.sh`)
+# DO NOT execute from scripts/ directory.
+
 set -euo pipefail
 
 : '

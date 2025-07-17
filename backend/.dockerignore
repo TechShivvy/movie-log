@@ -40,13 +40,8 @@ coverage.xml
 **/.ipynb_checkpoints/
 
 # ─── Dev/CI scripts (local only) ────────────────────────────────────────────────
-build.sh
-run-local.sh
-test-run-prod.sh
-generate-req.sh
-login-docker.sh
-push.sh
-get-version.sh
+**/scripts/
+!**/scripts/docker-entry.sh
 
 # ─── Docker orchestration files ────────────────────────────────────────────────
 docker-compose*.yml
