@@ -3,6 +3,8 @@ services:
     image: registry-1.docker.io/brokolee/movie-log-backend:prod
     build:
       context: .
+      args:
+        API_VERSION: v1.1.0
       dockerfile: prod.Dockerfile
     container_name: movie-log-backend-prod
     platform: linux/amd64

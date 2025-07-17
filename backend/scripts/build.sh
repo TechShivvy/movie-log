@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/build.sh`)
+# DO NOT execute from scripts/ directory.
+
 : '
 Description:
     Retrieves the application name and version by invoking the
@@ -11,11 +14,11 @@ Usage:
     SUFFIX   (optional) String to append to the app name.
 
 Example:
-    ./build.sh
+    ./scripts/build.sh
     App: myrepo
     Version: v1.2.3
 
-    ./build.sh backend
+    ./scripts/build.sh backend
     App: myrepo-backend
     Version: v1.2.3
 '
