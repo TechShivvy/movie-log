@@ -19,7 +19,7 @@ Behavior:
     - Sets the API version from the get-version.sh script.
 
 Prerequisites:
-    - The image must be built locally using "./scripts/build.sh" or "docker-compose -f dev-docker-compose.yml build" before running this.
+    - The image must be built locally using "./scripts/build.sh" or "docker-compose -f docker-compose.dev.yaml build" before running this.
 '
 
 

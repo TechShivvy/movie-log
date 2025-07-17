@@ -20,7 +20,7 @@ Behavior:
     - Sets the API version from the get-version.sh script.
 
 Prerequisites:
-    - The image must be built locally using "docker-compose -f prod-docker-compose.yml build" before running this.
+    - The image must be built locally using "docker-compose -f docker-compose.prod.yaml build" before running this.
 '
 
 docker rm -f movie-log-backend-prod || true

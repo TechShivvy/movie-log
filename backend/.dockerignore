@@ -44,8 +44,10 @@ coverage.xml
 !**/scripts/docker-entry.sh
 
 # ─── Docker orchestration files ────────────────────────────────────────────────
-docker-compose*.yml
+**/*.docker-compose.yaml
+**/docker-compose*.yaml
 **/*.Dockerfile*
+**/Dockerfile.*
 
 # ─── Documentation ──────────────────────────────────────────────────────────────
 *.md
