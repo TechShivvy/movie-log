@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+# set -x  # Uncomment for verbose output during debugging
 
 # IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/build.sh`)
 # DO NOT execute from scripts/ directory.
@@ -27,8 +29,6 @@ Example:
     App: myrepo-backend
     Version: v1.2.3
 '
-
-set -euox pipefail
 
 IFS=' ' read -r app ver < <("../get-version.sh" -q)
 
