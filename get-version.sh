@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# NOTE: This script can be run from anywhere as long as the directory you are running it from is inside this git repo.
+
 : '
 Description:
     Extracts the application name (from the Git remote URL) and version (from Git tags).
@@ -7,6 +9,13 @@ Description:
 Usage:
     ./get-version.sh [-q]
     -q    Quiet output: prints only "<app> <version>"
+
+Behavior:
+    - If no arguments are provided, it prints the app name and version in a formatted output
+    - If "-q" is provided, it prints only the app name and version separated by a space.
+    - The app name is derived from the Git remote URL.
+    - The version is derived from the latest Git tag or defaults to "dev". If no tags are found, it also defaults to "dev".
+    - If the app name cannot be determined, it exits with an error message.
 
 Example:
     ./get-version.sh

@@ -1,4 +1,19 @@
 #!/bin/bash
+
+# NOTE: This script is not meant to be run directly. It is intended to be used as an ENTRYPOINT in a Dockerfile.
+
+: '
+Description:
+    Entrypoint for the Docker container, setting up the environment and starting the application.
+
+Usage:
+    ENTRYPOINT ["./scripts/docker-entry.sh"]
+
+Behavior:
+    - Sets the environment variable ENV based on the provided argument (DEV or PROD).
+    - Starts the application using uvicorn for DEV or gunicorn for PROD.
+'
+
 set -euox pipefail
 
 # uvicorn app:app --host "::" --port 8080 --timeout-keep-alive 60 --workers 1

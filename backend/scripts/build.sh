@@ -13,6 +13,11 @@ Usage:
     ./build.sh [SUFFIX]
     SUFFIX   (optional) String to append to the app name.
 
+Behavior:
+    - If no suffix is provided, the app name will be derived from the get-version.sh script.
+    - If a suffix is provided, it will be appended to the app name.
+    - The script builds a Docker image using the specified Dockerfile and tags it with the app name and version.
+
 Example:
     ./scripts/build.sh
     App: myrepo

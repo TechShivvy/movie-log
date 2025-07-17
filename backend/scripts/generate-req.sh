@@ -9,6 +9,11 @@ Description:
 
 Usage:
     ./generate-req.sh
+
+Behavior:
+    - Uses "uv sync" to synchronize the environment.
+    - Exports the requirements to "requirements.txt" in a format suitable for pip.
+    - Excludes hashes from the output.
 '
 
 uv sync

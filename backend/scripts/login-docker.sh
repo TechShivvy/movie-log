@@ -3,6 +3,18 @@
 # IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/login-docker.sh`)
 # DO NOT execute from scripts/ directory.
 
+: '
+Description:
+    Logs into Docker Hub and sets the REGISTRY_HOST environment variable for image pushes under the "brokolee" namespace.
+
+Usage:
+    source ./login-docker.sh
+
+Behavior:
+    - prompts for Docker Hub credentials if needed
+    - sets REGISTRY_HOST to "registry-1.docker.io/brokolee"
+'
+
 set -euo pipefail
 
 : '
