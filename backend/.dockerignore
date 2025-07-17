@@ -1,17 +1,56 @@
-**/__pycache__/
-**/*py[cod]
+# ─── Version control ─────────────────────────────────────────────────────────────
+**/.git
+.gitignore
+.gitattributes
 
+# ─── IDE & OS artifacts ─────────────────────────────────────────────────────────
+**/.vscode/
+**/.idea/
+.DS_Store
+Thumbs.db
+.history
+
+# ─── Python cache/build artifacts ───────────────────────────────────────────────
+**/__pycache__/
+**/*.py[cod]
+*.so
+.Python
+build/
+dist/
+downloads/
+*.egg-info/
+.cache/
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.log
+.mypy_cache/
+.pytest_cache/
+coverage.xml
+
+# ─── Virtual environments & local env vars ──────────────────────────────────────
 **/venv/
 **/.venv/
+**/.env
+**/.env*
 
-**/env
-**/*.env
+# ─── Notebook and temporary files ───────────────────────────────────────────────
+**/*.ipynb
+**/.ipynb_checkpoints/
 
-**/*.ipynb_checkpoints/
-**/.ipynb
+# ─── Dev/CI scripts (local only) ────────────────────────────────────────────────
+build.sh
+run-local.sh
+test-run-prod.sh
+generate-req.sh
+login-docker.sh
+push.sh
+get-version.sh
 
-**/.history
+# ─── Docker orchestration files ────────────────────────────────────────────────
+docker-compose*.yml
+**/*.Dockerfile*
 
-
-**/.DS_Store
-**/Thumbs.db
+# ─── Documentation ──────────────────────────────────────────────────────────────
+*.md

@@ -1,26 +1,61 @@
-FROM python:3.11.4-bookworm
+# syntax=docker/dockerfile:1.4
+
+########################################
+# Base image: minimal Debian with Python
+FROM python:3.11.4-slim-bookworm AS base
+
+RUN : \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        net-tools \
+        tini \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && :
+
+########################################
+# Builder stage: install uv, dependencies, and project code
+FROM base AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:0.7.21 /uv /usr/local/bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /opt/src/app
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-dev --no-editable
+
+COPY app/ ./
+COPY docker-entry.sh ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
+
+########################################
+# Runtime stage: minimal container run environment
+FROM base AS runtime
 
 ARG API_VERSION
 
-COPY requirements.txt /root/requirements.txt
+RUN useradd --system --create-home --shell /bin/bash appuser
 
-RUN /usr/local/bin/pip install --no-cache-dir -r /root/requirements.txt
+COPY --from=builder --chown=appuser:appuser /opt/src /opt/src
 
-RUN /usr/local/bin/pip cache purge
+USER appuser
+WORKDIR /opt/src/app
+ENV PATH="/opt/src/app/.venv/bin:$PATH"
 
-COPY app/ /opt/src/app
-
-COPY docker-entry.sh /opt/src/app/docker-entry.sh
-
-RUN chmod +x /opt/src/app/docker-entry.sh
-
-WORKDIR "/opt/src/app"
-
-ENV ENV="PROD"
-ENV API_VERSION=${API_VERSION:-v9.9.9}
-ENV LOGURU_LEVEL="INFO"
-ENV LOGURU_FORMAT="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{process}<m>]</m> | <cyan>{name}</cyan><m>:</m><cyan>{function}</cyan><m>:</m><cyan>{line}</cyan> - '<level>{message}</level>"
+ENV ENV="PROD" \
+    API_VERSION=${API_VERSION:-v9.9.9} \
+    LOGURU_LEVEL="INFO" \
+    LOGURU_FORMAT="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{process}<m>]</m> | <cyan>{name}</cyan><m>:</m><cyan>{function}</cyan><m>:</m><cyan>{line}</cyan> - <level>{message}</level>"
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bin/sh", "-c", "./docker-entry.sh"]
+RUN chmod +x docker-entry.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "./docker-entry.sh"]
+CMD []

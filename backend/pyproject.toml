@@ -1,0 +1,17 @@
+[project]
+name = "movie-log-backend"
+version = "1.0.0"
+description = "movie logger - extract movie and theatre details from movie ticket"
+readme = "README.md"
+requires-python = ">=3.11.4"
+dependencies = [
+    "fastapi==0.116.1",
+    "gunicorn==23.0.0",
+    "loguru==0.7.3",
+    "openai==1.96.0",
+    "pipdeptree==2.27.0",
+    "python-dotenv==1.1.1",
+    "python-multipart==0.0.20",
+    "setuptools==65.5.0",
+    "uvicorn==0.35.0",
+]

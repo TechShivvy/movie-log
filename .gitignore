@@ -17,4 +17,20 @@
 .conda/
 
 
-
+**/__pycache__/
+**/*.py[cod]
+*.so
+.Python
+build/
+dist/
+downloads/
+*.egg-info/
+.cache/
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.log
+.mypy_cache/
+.pytest_cache/
+coverage.xml
