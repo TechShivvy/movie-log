@@ -11,7 +11,7 @@ services:
       ENV: "DEV"
       API_VERSION: "v1.0.0"
       LOGURU_LEVEL: "DEBUG"
-      LOGURU_FORMAT: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{process}<m>]</m> | <cyan>{name}</cyan><m>:</m><cyan>{function}</cyan><m>:</m><cyan>{line}</cyan> - '<level>{message}</level>"
+      LOGURU_FORMAT: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{process}<m>]</m> | <cyan>{name}</cyan><m>:</m><cyan>{function}</cyan><m>:</m><cyan>{line}</cyan> - <level>{message}</level>"
     env_file:
       - .env
     tty: true

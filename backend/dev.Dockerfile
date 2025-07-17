@@ -1,19 +1,54 @@
-FROM python:3.11.4-bookworm
+# syntax=docker/dockerfile:1.4
 
-COPY requirements.txt /root/requirements.txt
+########################################
+# Base image: minimal Debian with Python
+FROM python:3.11.4-slim-bookworm AS base
 
-RUN /usr/local/bin/pip install --no-cache-dir -r /root/requirements.txt
+RUN : \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        net-tools \
+        tini \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && :
 
-RUN /usr/local/bin/pip cache purge
+########################################
+# Builder stage: install uv, dependencies, and project code
+FROM base AS builder
 
-COPY app/ /opt/src/app
+COPY --from=ghcr.io/astral-sh/uv:0.7.21 /uv /usr/local/bin/
 
-COPY docker-entry.sh /opt/src/app/docker-entry.sh
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN chmod +x /opt/src/app/docker-entry.sh
+WORKDIR /opt/src/app
 
-WORKDIR "/opt/src/app"
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-dev --no-editable
+
+COPY app/ ./
+COPY docker-entry.sh ./
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
+
+########################################
+# Runtime stage: minimal container run environment
+FROM base AS runtime
+
+RUN useradd --system --create-home --shell /bin/bash appuser
+
+COPY --from=builder --chown=appuser:appuser /opt/src /opt/src
+
+USER appuser
+WORKDIR /opt/src/app
+ENV PATH="/opt/src/app/.venv/bin:$PATH"
 
 EXPOSE 8080
 
-ENTRYPOINT ["/bin/sh", "-c", "./docker-entry.sh"]
+RUN chmod +x docker-entry.sh
+ENTRYPOINT ["/usr/bin/tini", "--", "./docker-entry.sh"]
+CMD []
