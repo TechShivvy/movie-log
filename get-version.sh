@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+# set -x  # Uncomment for verbose output during debugging
 
 # NOTE: This script can be run from anywhere as long as the directory you are running it from is inside this git repo.
 
@@ -26,8 +28,6 @@ Example:
     myrepo v1.2.3
 '
 
-set -euox pipefail
-
 app=$(git config --get remote.origin.url | awk -F / '{print $NF}' | sed 's/\..*//')
 ver=$(git -c core.filemode=false describe --tags --dirty 2>/dev/null || echo "dev")
 
@@ -36,9 +36,10 @@ if [ -z "$app" ]; then
     exit 1
 fi
 
-if [ "$1" == "-q" ]; then
-    echo "$app $ver"
-    exit 0
+# Use parameter expansion with default to avoid unbound variable
+if [ "${1:-}" = "-q" ]; then
+  echo "$app $ver"
+  exit 0
 fi
 
 echo -e "App:\t\t$app\nVersion:\t$ver"

@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+# set -x  # Uncomment for verbose output during debugging
 
 # NOTE: This script is not meant to be run directly. It is intended to be used as an ENTRYPOINT in a Dockerfile.
 
@@ -14,7 +16,6 @@ Behavior:
     - Starts the application using uvicorn for DEV or gunicorn for PROD.
 '
 
-set -euox pipefail
 
 # uvicorn app:app --host "::" --port 8080 --timeout-keep-alive 60 --workers 1
 # uvicorn app:app --host "0.0.0.0" --port 8080 --timeout-keep-alive 60 --workers 4
