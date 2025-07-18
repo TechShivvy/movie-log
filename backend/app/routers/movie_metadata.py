@@ -1,7 +1,7 @@
-import os
 from typing import Annotated
 
 import magic
+from config import settings
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.security import APIKeyHeader
 from llm.openrouter_client import extract_movie_metadata_from_image
@@ -15,21 +15,29 @@ from utils import image
 
 mime = magic.Magic(mime=True)
 
-MultiPartParser.max_part_size = 5 * 1024 * 1024  # 5 MB
+MultiPartParser.max_part_size = settings.max_part_size * 1024 * 1024
 # To keep the file in memory, loads and processes it very quickly.
-MultiPartParser.spool_max_size = 50 * 1024 * 1024  # 50 MB
+MultiPartParser.spool_max_size = settings.spool_max_size * 1024 * 1024
 
 router = APIRouter()
 
 openrouter_api_key_header = APIKeyHeader(name='X-OpenRouter-API-Key', auto_error=False)
 
 
-def get_api_key(api_key: str = Depends(openrouter_api_key_header)):
+def get_api_key(api_key: str = Depends(openrouter_api_key_header)) -> str:
     if api_key:
         return api_key
-    api_key = os.getenv('OPENROUTER_API_KEY')
+    api_key = (
+        settings.openrouter_api_key.get_secret_value()
+        if settings.openrouter_api_key
+        else None
+    )
     if not api_key:
-        raise HTTPException(status_code=500, detail='API key not configured')
+        LOGGER.error('OpenRouter API key is not configured')
+        raise HTTPException(
+            status_code=500,
+            detail='OpenRouter API key is missing. Please provide it in the header or configure it in the backend settings.',
+        )
     return api_key
 
 
@@ -37,15 +45,15 @@ async def validate_content_length(
     content_length: Annotated[
         int | None,
         Header(
-            description="Ticket image size in bytes (must be ≤ 10 MB)",
+            description=f'Ticket image size in bytes (must be ≤ {settings.max_file_size} MB)',
         ),
     ] = None,
 ) -> None:
-    limit = 10 * 1024 * 1024
+    limit = settings.max_file_size * 1024 * 1024
     if content_length is not None and content_length >= limit:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail='Ticket image must be smaller than 10 MB',
+            detail=f'Ticket image must be smaller than {settings.max_file_size} MB',
         )
 
 
