@@ -100,6 +100,16 @@ class DevelopmentSettings(Settings):
 class ProductionSettings(Settings):
     loguru_level: Literal['INFO', 'WARNING', 'ERROR', 'CRITICAL'] = 'INFO'  # type: ignore[reportIncompatibleVariableOverride]
 
+    @field_validator('loguru_level', mode='before')
+    @classmethod
+    def ensure_prod_level(
+        cls, v
+    ) -> Literal['INFO'] | Literal['WARNING'] | Literal['ERROR'] | Literal['CRITICAL']:
+        v_str = v.upper()
+        if v_str not in ('INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+            return 'INFO'
+        return v_str
+
 
 def get_settings() -> Settings | DevelopmentSettings | ProductionSettings:
     config = dict(LOCAL=Settings, DEV=DevelopmentSettings, PROD=ProductionSettings)
