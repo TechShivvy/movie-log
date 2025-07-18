@@ -1,4 +1,5 @@
 import os
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import APIKeyHeader
@@ -8,8 +9,8 @@ from loguru_setup import LOGGER
 from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata
-from utils import image
 from starlette.formparsers import MultiPartParser
+from utils import image
 
 MultiPartParser.max_part_size = 5 * 1024 * 1024  # 5 MB
 # To keep the file in memory, loads and processes it very quickly.
@@ -51,22 +52,30 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)):
     operation_id="ExtractTicketImage",
 )
 async def extract_movie_metadata(
-    file: UploadFile = File(
-        ...,
-        description="Ticket image (JPEG, PNG, or WebP)",
-        media_type="image/*",
-    ),
+    ticket_image: Annotated[
+        UploadFile,
+        File(
+            ...,
+            description="Upload a movie ticket (JPEG, PNG, or WebP) image to extract metadata",
+            media_type="image/*",
+        ),
+    ],
     openrouter_api_key: str = Depends(get_api_key),
 ) -> MovieMetadata:
-    if file.content_type not in {'image/jpeg', 'image/jpg', 'image/png', 'image/webp'}:
+    if ticket_image.content_type not in {
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+    }:
         raise HTTPException(
             400, "Invalid file type: only JPEG, JPG, PNG, or WebP allowed"
         )
 
-    LOGGER.debug(f'{file._in_memory = }')
+    LOGGER.debug(f'{ticket_image._in_memory = }')
 
     try:
-        image_data_uri = await image.image_to_data_uri(file)
+        image_data_uri = await image.image_to_data_uri(ticket_image)
     except Exception as e:
         LOGGER.error(f'Failed to read uploaded file: {e}')
         raise HTTPException(status_code=400, detail='Invalid image file')
