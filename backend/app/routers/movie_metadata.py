@@ -49,15 +49,15 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)):
     response_description='Movie Metadata',
     response_model=MovieMetadata,
     responses=responses['/extract'],
-    operation_id="ExtractTicketImage",
+    operation_id='ExtractTicketImage',
 )
 async def extract_movie_metadata(
     ticket_image: Annotated[
         UploadFile,
         File(
             ...,
-            description="Upload a movie ticket (JPEG, PNG, or WebP) image to extract metadata",
-            media_type="image/*",
+            description='Upload a movie ticket (JPEG, PNG, or WebP) image to extract metadata',
+            media_type='image/*',
         ),
     ],
     openrouter_api_key: str = Depends(get_api_key),
@@ -69,7 +69,7 @@ async def extract_movie_metadata(
         'image/webp',
     }:
         raise HTTPException(
-            400, "Invalid file type: only JPEG, JPG, PNG, or WebP allowed"
+            400, 'Invalid file type: only JPEG, JPG, PNG, or WebP allowed'
         )
 
     LOGGER.debug(f'{ticket_image._in_memory = }')
