@@ -58,6 +58,8 @@ pydantic-core==2.33.2
     # via pydantic
 python-dotenv==1.1.1
     # via movie-log-backend
+python-magic==0.4.27
+    # via movie-log-backend
 python-multipart==0.0.20
     # via movie-log-backend
 setuptools==65.5.0
