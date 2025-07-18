@@ -9,6 +9,11 @@ from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata
 from utils import image
+from starlette.formparsers import MultiPartParser
+
+MultiPartParser.max_part_size = 5 * 1024 * 1024  # 5 MB
+# To keep the file in memory, loads and processes it very quickly.
+MultiPartParser.spool_max_size = 50 * 1024 * 1024  # 50 MB
 
 router = APIRouter()
 
@@ -57,6 +62,8 @@ async def extract_movie_metadata(
         raise HTTPException(
             400, "Invalid file type: only JPEG, JPG, PNG, or WebP allowed"
         )
+
+    LOGGER.debug(f'{file._in_memory = }')
 
     try:
         image_data_uri = await image.image_to_data_uri(file)
