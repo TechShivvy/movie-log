@@ -25,8 +25,6 @@ def create_app() -> FastAPI:
         FastAPI: Configured FastAPI application instance.
     """
 
-    load_dotenv(find_dotenv(), override=True)
-
     api_prefix = os.getenv('API_PREFIX', '/api/v1')
 
     app = FastAPI(

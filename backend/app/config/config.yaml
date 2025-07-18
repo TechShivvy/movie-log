@@ -1,0 +1,7 @@
+env: local
+loguru_format: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+loguru_level: debug
+max_file_size: 25 # 25 MB
+max_part_size: 5 # 5 MB
+openrouter_api_key: null
+spool_max_size: 50 # 50 MB
