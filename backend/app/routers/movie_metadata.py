@@ -1,8 +1,5 @@
-from typing import Annotated
-
-import magic
 from config import settings
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.security import APIKeyHeader
 from llm.openrouter_client import extract_movie_metadata_from_image
 from llm.prompts import movie_metadata
@@ -13,11 +10,11 @@ from schemas.movie_metadata import MovieMetadata
 from starlette.formparsers import MultiPartParser
 from utils import image
 
-mime = magic.Magic(mime=True)
 
 MultiPartParser.max_part_size = settings.max_part_size * 1024 * 1024
 # To keep the file in memory, loads and processes it very quickly.
 MultiPartParser.spool_max_size = settings.spool_max_size * 1024 * 1024
+
 
 router = APIRouter()
 
@@ -39,43 +36,6 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)) -> str:
             detail='OpenRouter API key is missing. Please provide it in the header or configure it in the backend settings.',
         )
     return api_key
-
-
-async def validate_content_length(
-    content_length: Annotated[
-        int | None,
-        Header(
-            description=f'Ticket image size in bytes (must be ≤ {settings.max_file_size} MB)',
-        ),
-    ] = None,
-) -> None:
-    limit = settings.max_file_size * 1024 * 1024
-    if content_length is not None and content_length >= limit:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f'Ticket image must be smaller than {settings.max_file_size} MB',
-        )
-
-
-async def validate_image_file(
-    ticket_image: Annotated[
-        UploadFile,
-        File(
-            ...,
-            description='Upload a movie ticket (JPEG, PNG, or WebP) image to extract metadata',
-            media_type='image/*',
-        ),
-    ],
-) -> UploadFile:
-    chunk = await ticket_image.read(1024)
-    detected = mime.from_buffer(chunk)
-    await ticket_image.seek(0)
-    if not detected.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f'Invalid file type: detected {detected}. Only images allowed.',
-        )
-    return ticket_image
 
 
 @router.post(
@@ -100,8 +60,8 @@ async def validate_image_file(
     operation_id='ExtractTicketImage',
 )
 async def extract_movie_metadata(
-    ticket_image: UploadFile = Depends(validate_image_file),
-    _cl: None = Depends(validate_content_length),
+    ticket_image: UploadFile = Depends(image.validate_image_file),
+    _cl: None = Depends(image.validate_content_length),
     openrouter_api_key: str = Depends(get_api_key),
 ) -> MovieMetadata:
     if ticket_image.content_type not in {
