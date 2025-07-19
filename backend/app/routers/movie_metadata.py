@@ -83,7 +83,7 @@ async def extract_movie_metadata(
         raise HTTPException(status_code=400, detail='Invalid image file')
 
     try:
-        ticket: MovieMetadata = extract_movie_metadata_from_image(
+        ticket: MovieMetadata = await extract_movie_metadata_from_image(
             image_data_uri=image_data_uri,
             api_key=openrouter_api_key,
             system_prompt=movie_metadata.SYSTEM_PROMPT,
