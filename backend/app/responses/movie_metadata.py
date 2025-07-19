@@ -25,12 +25,41 @@ responses = {
                 'application/json': {'example': {'detail': 'Invalid image file'}}
             },
         },
-        500: {
-            'description': 'Internal server error occurred during movie metadata extraction.',
+        413: {
+            'description': 'Uploaded file is too large.',
+            'content': {
+                'application/json': {
+                    'example': {'detail': 'Ticket image must be smaller than X MB'}
+                }
+            },
+        },
+        415: {
+            'description': 'Uploaded file is not a supported image type.',
             'content': {
                 'application/json': {
                     'example': {
-                        'detail': 'Failed to parse movie metadata from response or Movie metadata extraction failed',
+                        'detail': 'Invalid file type: detected text/plain. Only images allowed.'
+                    }
+                }
+            },
+        },
+        500: {
+            'description': 'Internal server error or missing OpenRouter API key.',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'parse_error': {
+                            'summary': 'Metadata extraction failure',
+                            'value': {
+                                'detail': 'Failed to parse movie metadata from response or Movie metadata extraction failed',
+                            },
+                        },
+                        'missing_api_key': {
+                            'summary': 'Missing OpenRouter API key',
+                            'value': {
+                                'detail': 'OpenRouter API key is missing. Please provide it in the header or configure it in the backend settings.'
+                            },
+                        },
                     }
                 }
             },
