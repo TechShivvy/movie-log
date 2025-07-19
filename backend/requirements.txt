@@ -7,19 +7,37 @@ anyio==4.9.0
     #   httpx
     #   openai
     #   starlette
+appnope==0.1.4 ; sys_platform == 'darwin'
+    # via ipykernel
+asttokens==3.0.0
+    # via stack-data
 certifi==2025.7.14
     # via
     #   httpcore
     #   httpx
+    #   requests
+cffi==1.17.1 ; implementation_name == 'pypy'
+    # via pyzmq
+charset-normalizer==3.4.2
+    # via requests
 click==8.2.1
     # via uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
     # via
     #   click
+    #   ipython
     #   loguru
     #   tqdm
+comm==0.2.2
+    # via ipykernel
+debugpy==1.8.15
+    # via ipykernel
+decorator==5.2.1
+    # via ipython
 distro==1.9.0
     # via openai
+executing==2.2.0
+    # via stack-data
 fastapi==0.116.1
     # via movie-log-backend
 gunicorn==23.0.0
@@ -36,20 +54,59 @@ idna==3.10
     # via
     #   anyio
     #   httpx
+    #   requests
+ipykernel==6.29.5
+ipython==9.4.0
+    # via ipykernel
+ipython-pygments-lexers==1.1.1
+    # via ipython
+jedi==0.19.2
+    # via ipython
 jiter==0.10.0
     # via openai
+jupyter-client==8.6.3
+    # via ipykernel
+jupyter-core==5.8.1
+    # via
+    #   ipykernel
+    #   jupyter-client
 loguru==0.7.3
     # via movie-log-backend
+matplotlib-inline==0.1.7
+    # via
+    #   ipykernel
+    #   ipython
+nest-asyncio==1.6.0
+    # via ipykernel
 openai==1.96.0
     # via movie-log-backend
 packaging==25.0
     # via
     #   gunicorn
+    #   ipykernel
     #   pipdeptree
+parso==0.8.4
+    # via jedi
+pexpect==4.9.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
+    # via ipython
+pillow==11.3.0
+    # via movie-log-backend
 pip==25.1.1
     # via pipdeptree
 pipdeptree==2.27.0
     # via movie-log-backend
+platformdirs==4.3.8
+    # via jupyter-core
+prompt-toolkit==3.0.51
+    # via ipython
+psutil==7.0.0
+    # via ipykernel
+ptyprocess==0.7.0 ; sys_platform != 'emscripten' and sys_platform != 'win32'
+    # via pexpect
+pure-eval==0.2.3
+    # via stack-data
+pycparser==2.22 ; implementation_name == 'pypy'
+    # via cffi
 pydantic==2.11.7
     # via
     #   fastapi
@@ -59,6 +116,12 @@ pydantic-core==2.33.2
     # via pydantic
 pydantic-settings==2.10.1
     # via movie-log-backend
+pygments==2.19.2
+    # via
+    #   ipython
+    #   ipython-pygments-lexers
+python-dateutil==2.9.0.post0
+    # via jupyter-client
 python-dotenv==1.1.1
     # via
     #   movie-log-backend
@@ -67,22 +130,47 @@ python-magic==0.4.27
     # via movie-log-backend
 python-multipart==0.0.20
     # via movie-log-backend
+pywin32==311 ; platform_python_implementation != 'PyPy' and sys_platform == 'win32'
+    # via jupyter-core
 pyyaml==6.0.2
     # via pydantic-settings
+pyzmq==27.0.0
+    # via
+    #   ipykernel
+    #   jupyter-client
+requests==2.32.4
+    # via movie-log-backend
 setuptools==65.5.0
     # via movie-log-backend
+six==1.17.0
+    # via python-dateutil
 sniffio==1.3.1
     # via
     #   anyio
     #   openai
+stack-data==0.6.3
+    # via ipython
 starlette==0.47.1
     # via fastapi
+tornado==6.5.1
+    # via
+    #   ipykernel
+    #   jupyter-client
 tqdm==4.67.1
     # via openai
+traitlets==5.14.3
+    # via
+    #   comm
+    #   ipykernel
+    #   ipython
+    #   jupyter-client
+    #   jupyter-core
+    #   matplotlib-inline
 typing-extensions==4.14.1
     # via
     #   anyio
     #   fastapi
+    #   ipython
     #   openai
     #   pydantic
     #   pydantic-core
@@ -92,7 +180,11 @@ typing-inspection==0.4.1
     # via
     #   pydantic
     #   pydantic-settings
+urllib3==2.5.0
+    # via requests
 uvicorn==0.35.0
     # via movie-log-backend
+wcwidth==0.2.13
+    # via prompt-toolkit
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru
