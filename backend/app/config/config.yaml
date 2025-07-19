@@ -1,5 +1,5 @@
 api_prefix: /api/v1
-api_version: v1.1.5
+api_version: v1.1.6
 env: local
 loguru_format: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 loguru_level: debug
