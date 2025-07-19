@@ -1,5 +1,3 @@
-import os
-
 from fastapi import APIRouter
 from schemas.root import HealthResponse, RootResponse
 from responses.root import responses
