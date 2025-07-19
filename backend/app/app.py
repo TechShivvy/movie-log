@@ -8,13 +8,12 @@ This script contains a FastAPI application for that extracts movie metadata from
 __author__ = 'Shivcharan Thirunavukkarasu'
 __date__ = 'Jul 2025'
 
-import os
 
-from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from middlewares import middleware
 from routers import movie_metadata, root
+from config import settings
 
 
 def create_app() -> FastAPI:
@@ -25,12 +24,22 @@ def create_app() -> FastAPI:
         FastAPI: Configured FastAPI application instance.
     """
 
-    api_prefix = os.getenv('API_PREFIX', '/api/v1')
+    api_prefix = settings.api_prefix
 
     app = FastAPI(
         title='Movie Log API',
-        version=os.environ.get('API_VERSION', 'v1.0.0'),
-        description='API for extracting movie metadata from ticket images.',
+        version=settings.api_version,
+        description='API for extracting movie metadata from ticket images.\n\nGitHub: [TechShivvy/movie-log](https://github.com/TechShivvy/movie-log)',
+        contact={
+            'name': 'Shivcharan Thirunavukkarasu',
+            'Github repository': 'https://github.com/TechShivvy/movie-log',
+        },
+        openapi_tags=[
+            {
+                'name': 'Extract Movie Metadata',
+                'description': 'Endpoints for extracting movie metadata from ticket images.',
+            },
+        ],
     )
 
     app.add_middleware(

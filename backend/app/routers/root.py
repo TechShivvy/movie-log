@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter
 from schemas.root import HealthResponse, RootResponse
 from responses.root import responses
+from config import settings
 
 router = APIRouter()
 
@@ -17,7 +18,7 @@ router = APIRouter()
 def root() -> RootResponse:
     return RootResponse(
         message='Welcome to the Movie Log API! Use the endpoints to extract movie metadata from ticket images.',
-        version=os.environ.get('API_VERSION', 'v1.0.0'),
+        version=settings.api_version,
     )
 
 

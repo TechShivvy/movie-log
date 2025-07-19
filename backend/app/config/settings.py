@@ -27,6 +27,22 @@ from pydantic_settings import (
 
 
 class Settings(BaseSettings):
+    api_prefix: Annotated[
+        str,
+        Field(
+            ...,
+            description='API prefix for all endpoints(except root, health check and docs)',
+            title='API Prefix',
+        ),
+    ]
+    api_version: Annotated[
+        str,
+        Field(
+            ...,
+            description='API version of the application',
+            title='API Version',
+        ),
+    ]
     env: Annotated[
         str,
         Field(
