@@ -9,7 +9,7 @@ services:
     container_name: movie-log-backend-dev
     environment:
       ENV: "DEV"
-      API_VERSION: "v1.1.4"
+      API_VERSION: "v1.1.5"
       LOGURU_LEVEL: "DEBUG"
       LOGURU_FORMAT: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{process}<m>]</m> | <cyan>{name}</cyan><m>:</m><cyan>{function}</cyan><m>:</m><cyan>{line}</cyan> - <level>{message}</level>"
     env_file:
