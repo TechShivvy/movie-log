@@ -9,11 +9,11 @@ __author__ = 'Shivcharan Thirunavukkarasu'
 __date__ = 'Jul 2025'
 
 
+from config import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from middlewares import middleware
 from routers import movie_metadata, root
-from config import settings
 
 
 def create_app() -> FastAPI:

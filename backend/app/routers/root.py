@@ -1,7 +1,7 @@
-from fastapi import APIRouter
-from schemas.root import HealthResponse, RootResponse
-from responses.root import responses
 from config import settings
+from fastapi import APIRouter
+from responses.root import responses
+from schemas.root import HealthResponse, RootResponse
 
 router = APIRouter()
 

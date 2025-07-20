@@ -1,3 +1,5 @@
+from fastapi import HTTPException, status
+from loguru_setup import LOGGER
 from openai import (
     APIConnectionError,
     APITimeoutError,
@@ -8,9 +10,6 @@ from openai import (
     PermissionDeniedError,
     RateLimitError,
 )
-from fastapi import HTTPException, status
-from loguru_setup import LOGGER
-
 
 OPENAI_ERROR_MAP = {
     AuthenticationError: (status.HTTP_401_UNAUTHORIZED, 'Invalid API key.'),

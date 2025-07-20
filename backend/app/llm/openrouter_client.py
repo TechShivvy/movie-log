@@ -1,5 +1,6 @@
 import asyncio
 
+from config import settings
 from loguru_setup import LOGGER
 from openai import (
     AsyncOpenAI,
@@ -7,7 +8,6 @@ from openai import (
     OpenAIError,
 )
 from utils import openai_utils, retry
-from config import settings
 
 
 async def _call_model(

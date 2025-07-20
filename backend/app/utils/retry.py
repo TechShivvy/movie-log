@@ -1,8 +1,9 @@
 import random
-from fastapi import HTTPException, status
-from utils.image import optimize_image_data_uri
-from loguru_setup import LOGGER
+
 from config import settings
+from fastapi import HTTPException, status
+from loguru_setup import LOGGER
+from utils.image import optimize_image_data_uri
 
 
 def calculate_backoff(attempt: int) -> float:

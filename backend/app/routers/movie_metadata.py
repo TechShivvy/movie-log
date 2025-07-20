@@ -12,6 +12,7 @@ from starlette.formparsers import MultiPartParser
 from utils import image
 from utils.openai_utils import openai_error_to_http
 
+
 MultiPartParser.max_part_size = settings.max_part_size * 1024 * 1024
 # To keep the file in memory, loads and processes it very quickly.
 MultiPartParser.spool_max_size = settings.spool_max_size * 1024 * 1024

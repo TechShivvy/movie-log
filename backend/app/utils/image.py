@@ -1,12 +1,12 @@
 import base64
+import io
 from typing import Annotated
 
 from config import settings
 from fastapi import File, Header, HTTPException, UploadFile, status
 from magic import Magic
-
-import io
 from PIL import Image
+
 
 mime = Magic(mime=True)
 
