@@ -1,5 +1,5 @@
 from config import settings
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from fastapi.security import APIKeyHeader
 from llm.openrouter_client import extract_movie_metadata_from_image
 from llm.prompts import movie_metadata
@@ -11,6 +11,8 @@ from schemas.movie_metadata import MovieMetadata
 from starlette.formparsers import MultiPartParser
 from utils import image
 from utils.openai_utils import openai_error_to_http
+
+from rate_limit import limiter
 
 
 MultiPartParser.max_part_size = settings.max_part_size * 1024 * 1024
@@ -61,7 +63,9 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)) -> str:
     responses=responses['/extract'],
     operation_id='ExtractTicketImage',
 )
+@limiter.limit("2/minute")
 async def extract_movie_metadata(
+    request: Request,
     ticket_image: UploadFile = Depends(image.validate_image_file),
     _cl: None = Depends(image.validate_content_length),
     openrouter_api_key: str = Depends(get_api_key),
