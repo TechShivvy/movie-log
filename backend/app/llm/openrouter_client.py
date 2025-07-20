@@ -1,4 +1,53 @@
-from openai import AsyncOpenAI
+import asyncio
+
+from loguru_setup import LOGGER
+from openai import (
+    AsyncOpenAI,
+    BadRequestError,
+    OpenAIError,
+)
+from utils import openai_utils, retry
+from config import settings
+
+
+async def _call_model(
+    client,
+    image_data_uri: str,
+    system_prompt: str,
+    user_prompt: str,
+    response_model,
+    model_name: str,
+):
+    """Call the model with the given parameters
+
+    Args:
+        client (_type_): The OpenAI client
+        image_data_uri (str): The image data URI
+        system_prompt (str): The system prompt
+        user_prompt (str): The user prompt
+        response_model (_type_): The response model (Pydantic model)
+        model_name (str): The model name
+
+    Returns:
+        response_model: The model response which is a Pydantic model instance (response_model)
+    """
+
+    response = await client.beta.chat.completions.parse(
+        model=model_name,
+        messages=[
+            {'role': 'system', 'content': system_prompt},
+            {
+                'role': 'user',
+                'content': [
+                    {'type': 'text', 'text': user_prompt},
+                    {'type': 'image_url', 'image_url': {'url': image_data_uri}},
+                ],
+            },
+        ],
+        response_format=response_model,
+    )
+    LOGGER.debug(f'API response parsed successfully: {response}')
+    return response.choices[0].message.parsed
 
 
 async def extract_movie_metadata_from_image(
@@ -9,107 +58,63 @@ async def extract_movie_metadata_from_image(
     response_model,
     model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
 ):
+    """Extract movie metadata from an image using OpenRouter API
+
+    Args:
+        image_data_uri (str): The data URI of the image to analyze
+        api_key (str): The API key for authentication
+        system_prompt (str): The system prompt to guide the model
+        user_prompt (str): The user prompt with specific questions
+        response_model (_type_): The expected response model
+        model_name (str, optional): The name of the model to use. Defaults to 'qwen/qwen2.5-vl-72b-instruct:free'
+
+    Raises:
+        openai_error_to_http: If the OpenAI API returns an error
+        http_exc: If there is an HTTP error
+
+    Returns:
+        response_model: The extracted movie metadata as a Pydantic model instance (response_model)
+    """
+
     client = AsyncOpenAI(base_url='https://openrouter.ai/api/v1', api_key=api_key)
-    response = await client.beta.chat.completions.parse(
-        model=model_name,
-        messages=[
-            {'role': 'system', 'content': system_prompt},
-            {
-                'role': 'user',
-                'content': [
-                    {'type': 'text', 'text': user_prompt},
-                    {
-                        'type': 'image_url',
-                        'image_url': {'url': image_data_uri},
-                    },
-                ],
-            },
-        ],
-        response_format=response_model,
-    )
-    return response.choices[0].message.parsed
 
+    for attempt in range(1, settings.max_attempts + 1):
+        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts})')
 
-# import io, base64, logging
-# from PIL import Image
-# from tenacity import (
-#     retry,
-#     stop_after_attempt,
-#     wait_exponential,
-#     retry_if_exception_type,
-#     before_sleep_log,
-#     RetryCallState,
-# )
-# from openai import OpenAI, BadRequestError, RateLimitError, APIError
-# from pydantic import ValidationError
+        try:
+            return await _call_model(
+                client,
+                image_data_uri,
+                system_prompt,
+                user_prompt,
+                response_model,
+                model_name,
+            )
 
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO)
+        except BadRequestError as exc:
+            LOGGER.warning(f'BadRequestError: {exc}')
+            # only shrink image on context errors
+            if openai_utils.is_context_error(exc):
+                image_data_uri = retry.shrink_or_fail(
+                    image_data_uri, attempt, settings.max_attempts
+                )
+                continue
 
-# client = OpenAI(api_key=OPENROUTER_API_KEY)
+            raise openai_utils.openai_error_to_http(exc)
 
+        except OpenAIError as exc:
+            http_exc = openai_utils.openai_error_to_http(exc)
 
-# def optimized_img_to_data_url(
-#     path: str, max_size: int = 800, quality: int = 80, fmt: str = "JPEG"
-# ) -> str:
-#     img = Image.open(path)
-#     img.thumbnail((max_size, max_size), Image.LANCZOS)
-#     buf = io.BytesIO()
-#     img.convert("RGB").save(buf, format=fmt, quality=quality, optimize=True)
-#     return base64.b64encode(buf.getvalue()).decode()
+            # Don't retry 4xx errors
+            if http_exc.status_code < 500:
+                raise http_exc
 
+            LOGGER.warning(f'Retryable OpenAIError on attempt {attempt}: {exc}')
 
-# def is_context_error(exc: Exception) -> bool:
-#     return isinstance(exc, BadRequestError) and "maximum context length" in str(exc)
+            if attempt == settings.max_attempts:
+                LOGGER.error('Model call failed after all retries')
+                raise http_exc
 
-
-# def set_optimize_arg(retry_state: RetryCallState):
-#     if is_context_error(retry_state.outcome.exception()):
-#         retry_state.kwargs["optimize"] = True
-#         logger.info(
-#             "Detected context-length error → switching to optimized image on retry"
-#         )
-
-
-# @retry(
-#     retry=retry_if_exception_type((RateLimitError, APIError, BadRequestError)),
-#     wait=wait_exponential(multiplier=1, min=1, max=30),
-#     stop=stop_after_attempt(3),
-#     before_sleep=before_sleep_log(logger, logging.INFO),
-#     after=set_optimize_arg,
-#     reraise=True,
-# )
-# def _call_with_retry(path: str, optimize: bool = False):
-#     if optimize:
-#         logger.info("Using optimized image for this attempt")
-#         img_data = optimized_img_to_data_url(path)
-#     else:
-#         logger.info("Using original image for this attempt")
-#         img_data = optimized_img_to_data_url(path, max_size=1600, quality=95)
-#     return client.beta.chat.completions.parse(
-#         model="qwen/qwen2.5-vl-72b-instruct:free",
-#         messages=[
-#             {"role": "system", "content": SYSTEM_PROMPT},
-#             {
-#                 "role": "user",
-#                 "content": [
-#                     {"type": "text", "text": USER_PROMPT},
-#                     {
-#                         "type": "image_url",
-#                         "image_url": {"url": f"data:image/jpeg;base64,{img_data}"},
-#                     },
-#                 ],
-#             },
-#         ],
-#         response_format=MovieMetadata,
-#     )
-
-
-# def extract_ticket(path: str):
-#     try:
-#         resp = _call_with_retry(path, optimize=False)
-#         return resp.choices[0].message.parsed
-#     except BadRequestError as e:
-#         raise RuntimeError("Still context-limited after optimization") from e
-#     except ValidationError as e:
-#         raise RuntimeError(f"Schema validation failed: {e}") from e
+            sleep_duration = retry.calculate_backoff(attempt)
+            LOGGER.info(f'Retrying after {sleep_duration:.1f}s')
+            await asyncio.sleep(sleep_duration)

@@ -4,12 +4,13 @@ from fastapi.security import APIKeyHeader
 from llm.openrouter_client import extract_movie_metadata_from_image
 from llm.prompts import movie_metadata
 from loguru_setup import LOGGER
+from openai import OpenAIError
 from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata
 from starlette.formparsers import MultiPartParser
 from utils import image
-
+from utils.openai_utils import openai_error_to_http
 
 MultiPartParser.max_part_size = settings.max_part_size * 1024 * 1024
 # To keep the file in memory, loads and processes it very quickly.
@@ -98,9 +99,8 @@ async def extract_movie_metadata(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail='Failed to parse movie metadata from response',
         )
+    except OpenAIError as e:
+        raise openai_error_to_http(e)
     except Exception as e:
-        LOGGER.error(f'Error during movie metadata extraction: {e}')
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Movie metadata extraction failed',
-        )
+        LOGGER.error(f'Unexpected error during metadata extraction: {e}')
+        raise e

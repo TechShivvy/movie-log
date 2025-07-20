@@ -5,6 +5,8 @@ from config import settings
 from fastapi import File, Header, HTTPException, UploadFile, status
 from magic import Magic
 
+import io
+from PIL import Image
 
 mime = Magic(mime=True)
 
@@ -76,3 +78,41 @@ async def validate_image_file(
         )
 
     return ticket_image
+
+
+def optimize_image_data_uri(
+    image_data_uri: str,
+    max_size: int = 800,
+    quality: int = 80,
+    method: int = 3,
+    lossless_webp: bool = False,
+) -> str:
+    """
+    Downscale & compress, preserving original MIME. Supports JPEG, PNG, WebP.
+    """
+    header, b64 = image_data_uri.split(",", 1)
+    mime = header.split(";")[0].split(":", 1)[1]  # e.g. image/jpeg or image/webp
+
+    img = Image.open(io.BytesIO(base64.b64decode(b64)))
+    img.thumbnail((max_size, max_size), Image.LANCZOS)
+    buf = io.BytesIO()
+
+    fmt = None
+    save_kwargs = {"optimize": True}
+    if mime.lower() in ("image/jpeg", "image/jpg"):
+        fmt = "JPEG"
+        save_kwargs["quality"] = quality
+    elif mime.lower() == "image/webp":
+        fmt = "WEBP"
+        if lossless_webp:
+            save_kwargs["lossless"] = True
+        else:
+            save_kwargs["quality"] = quality
+            save_kwargs["method"] = method
+    elif mime.lower() == "image/png":
+        fmt = img.format or "PNG"
+
+    img = img.convert("RGB") if fmt in ("JPEG", "WEBP") else img
+    img.save(buf, format=fmt, **save_kwargs)
+    encoded = base64.b64encode(buf.getvalue()).decode('utf-8')
+    return f"data:{mime};base64,{encoded}"

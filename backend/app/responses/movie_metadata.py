@@ -20,21 +20,56 @@ responses = {
             },
         },
         400: {
-            'description': 'Invalid image file uploaded or bad request.',
+            'description': 'Invalid image file or bad request.',
             'content': {
-                'application/json': {'example': {'detail': 'Invalid image file'}}
+                'application/json': {
+                    'example': {'detail': 'Bad request. Please check input format.'}
+                }
+            },
+        },
+        401: {
+            'description': 'OpenAI API authentication failed.',
+            'content': {
+                'application/json': {'example': {'detail': 'Invalid API key.'}}
+            },
+        },
+        403: {
+            'description': 'OpenAI permission denied.',
+            'content': {
+                'application/json': {'example': {'detail': 'Permission denied.'}}
+            },
+        },
+        408: {
+            'description': 'OpenAI request timed out.',
+            'content': {
+                'application/json': {
+                    'example': {'detail': 'Request to OpenAI timed out.'}
+                }
             },
         },
         413: {
-            'description': 'Uploaded file is too large.',
+            'description': 'Uploaded file is too large or exceeds context limits.',
             'content': {
                 'application/json': {
-                    'example': {'detail': 'Ticket image must be smaller than X MB'}
+                    'examples': {
+                        'too_large': {
+                            'summary': 'File too large',
+                            'value': {
+                                'detail': 'Ticket image must be smaller than X MB'
+                            },
+                        },
+                        'context_limit': {
+                            'summary': 'Context limit exceeded after optimization',
+                            'value': {
+                                'detail': 'Image could not be optimized to fit context limits. Try a smaller or simpler image.'
+                            },
+                        },
+                    }
                 }
             },
         },
         415: {
-            'description': 'Uploaded file is not a supported image type.',
+            'description': 'Unsupported file type.',
             'content': {
                 'application/json': {
                     'example': {
@@ -43,15 +78,23 @@ responses = {
                 }
             },
         },
+        429: {
+            'description': 'Rate limit exceeded.',
+            'content': {
+                'application/json': {
+                    'example': {'detail': 'Too many requests. Please try again later.'}
+                }
+            },
+        },
         500: {
-            'description': 'Internal server error or missing OpenRouter API key.',
+            'description': 'Internal server error or parsing failure.',
             'content': {
                 'application/json': {
                     'examples': {
                         'parse_error': {
-                            'summary': 'Metadata extraction failure',
+                            'summary': 'Response parsing failed',
                             'value': {
-                                'detail': 'Failed to parse movie metadata from response or Movie metadata extraction failed',
+                                'detail': 'Failed to parse movie metadata from response',
                             },
                         },
                         'missing_api_key': {
@@ -60,9 +103,25 @@ responses = {
                                 'detail': 'OpenRouter API key is missing. Please provide it in the header or configure it in the backend settings.'
                             },
                         },
+                        'generic': {
+                            'summary': 'Unexpected internal error',
+                            'value': {
+                                'detail': 'Unexpected error from upstream service.'
+                            },
+                        },
                     }
                 }
             },
         },
-    },
+        502: {
+            'description': 'Connection failure or OpenAI error.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'detail': 'Unable to connect to OpenAI. Please retry later.'
+                    }
+                }
+            },
+        },
+    }
 }
