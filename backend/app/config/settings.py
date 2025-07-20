@@ -43,6 +43,14 @@ class Settings(BaseSettings):
             title='API Version',
         ),
     ]
+    base_delay: Annotated[
+        float,
+        Field(
+            ...,
+            description='Base delay for retry attempts (seconds)',
+            title='Base Delay',
+        ),
+    ]
     env: Annotated[
         str,
         Field(
@@ -56,6 +64,9 @@ class Settings(BaseSettings):
     loguru_level: Annotated[
         Literal['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         Field(description='Log verbosity level'),
+    ]
+    max_attempts: Annotated[
+        int, Field(description='Maximum number of retry attempts for API calls', gt=0)
     ]
     max_file_size: Annotated[
         float, Field(description='Maximum single file upload size (MB)', gt=0, le=100)
