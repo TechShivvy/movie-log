@@ -75,6 +75,17 @@ class Settings(BaseSettings):
         float,
         Field(description='Max form part size before parser error (MB)', gt=0, le=100),
     ]
+    rate_limit_enabled: Annotated[
+        bool, Field(description='Enable rate limiting for API requests')
+    ]
+    rate_limit_per_minute: Annotated[
+        int,
+        Field(
+            description='Maximum number of requests allowed per minute',
+            gt=0,
+            le=100,
+        ),
+    ]
     spool_max_size: Annotated[
         float, Field(description='In-memory spool threshold (MB)', gt=0, le=100)
     ]
