@@ -4,7 +4,7 @@ services:
     build:
       context: .
       args:
-        API_VERSION: v1.1.7
+        API_VERSION: v1.1.8
       dockerfile: Dockerfile.prod
     container_name: movie-log-backend-prod
     platform: linux/amd64
