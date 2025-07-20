@@ -1,6 +1,6 @@
 [project]
 name = "movie-log-backend"
-version = "1.1.8"
+version = "1.1.9"
 description = "movie logger - extract movie and theatre details from movie ticket"
 readme = "README.md"
 requires-python = ">=3.11.4"
