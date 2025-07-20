@@ -35,11 +35,11 @@ def shrink_or_fail(image_data_uri: str, attempt: int, max_attempts: int) -> str:
         str: The shrunk image data URI
     """
     if attempt >= max_attempts:
-        LOGGER.error("Context limit exceeded after all attempts")
+        LOGGER.error('Context limit exceeded after all attempts')
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Image could not be optimized to fit context limits. Try a smaller image.",
+            detail='Image could not be optimized to fit context limits. Try a smaller image.',
         )
 
-    LOGGER.info(f"ContextError: shrinking payload (attempt {attempt})")
+    LOGGER.info(f'ContextError: shrinking payload (attempt {attempt})')
     return optimize_image_data_uri(image_data_uri, max_size=600, quality=70)
