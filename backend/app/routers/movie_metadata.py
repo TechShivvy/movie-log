@@ -63,7 +63,7 @@ def get_api_key(api_key: str = Depends(openrouter_api_key_header)) -> str:
     responses=responses['/extract'],
     operation_id='ExtractTicketImage',
 )
-@limiter.limit("2/minute")
+@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
 async def extract_movie_metadata(
     request: Request,
     ticket_image: UploadFile = Depends(image.validate_image_file),

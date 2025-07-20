@@ -8,4 +8,6 @@ max_attempts: 5
 max_file_size: 25 # 25 MB
 max_part_size: 5 # 5 MB
 openrouter_api_key: null
+rate_limit_enabled: true
+rate_limit_per_minute: 5
 spool_max_size: 50 # 50 MB
