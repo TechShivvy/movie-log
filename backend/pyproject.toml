@@ -23,4 +23,5 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
+    "pre-commit-hooks>=5.0.0",
 ]
