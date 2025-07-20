@@ -28,7 +28,7 @@ def setup_logging() -> 'loguru.Logger':
 
     def handle_exception(exc_type, exc_value, exc_traceback):
         logger.debug(
-            f"HOOK: exc_type={exc_type}, exc_value={exc_value}, trace={exc_traceback}"
+            f'HOOK: exc_type={exc_type}, exc_value={exc_value}, trace={exc_traceback}'
         )
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
