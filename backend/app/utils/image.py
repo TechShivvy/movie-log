@@ -7,8 +7,14 @@ from fastapi import File, Header, HTTPException, UploadFile, status
 from magic import Magic
 from PIL import Image
 
-
 mime = Magic(mime=True)
+
+# Guard against decompression-bomb images (e.g. tiny file, enormous pixel count).
+Image.MAX_IMAGE_PIXELS = 50_000_000  # ~50 MP
+
+# Only raster formats the vision model accepts. SVG and other 'image/*' types
+# (which magic would otherwise pass) are rejected here as defense in depth.
+ALLOWED_IMAGE_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
 
 
 async def image_to_data_uri(file: UploadFile) -> str:
@@ -71,10 +77,10 @@ async def validate_image_file(
     chunk = await ticket_image.read(1024)
     detected = mime.from_buffer(chunk)
     await ticket_image.seek(0)
-    if not detected.startswith('image/'):
+    if detected not in ALLOWED_IMAGE_MIME_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f'Invalid file type: detected {detected}. Only images allowed.',
+            detail=f'Invalid file type: detected {detected}. Only JPEG, PNG or WebP allowed.',
         )
 
     return ticket_image

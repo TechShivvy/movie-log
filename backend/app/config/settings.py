@@ -21,6 +21,7 @@ from pydantic import (
 )
 from pydantic_settings import (
     BaseSettings,
+    NoDecode,
     PydanticBaseSettingsSource,
     YamlConfigSettingsSource,
 )
@@ -41,6 +42,14 @@ class Settings(BaseSettings):
             ...,
             description='API version of the application',
             title='API Version',
+        ),
+    ]
+    allowed_origins: Annotated[
+        tuple[str, ...],
+        NoDecode,
+        Field(
+            ...,
+            description='Allowed CORS origins',
         ),
     ]
     base_delay: Annotated[
@@ -92,6 +101,55 @@ class Settings(BaseSettings):
     openrouter_api_key: Optional[SecretStr] = Field(
         ..., exclude=True, description='API key for OpenRouter'
     )
+    supabase_jwt_secret: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='Legacy Supabase JWT secret used for HS256 token verification fallback',
+    )
+    supabase_service_role_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='Legacy Supabase service role key used for privileged backend RPC calls',
+    )
+    supabase_secret_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='Supabase secret key for privileged backend RPC calls',
+    )
+    supabase_url: Optional[str] = Field(
+        default=None,
+        description='Supabase project URL',
+    )
+    supabase_publishable_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='Supabase publishable/anon key used as the apikey header for '
+        'PostgREST calls made with the user access token',
+    )
+    daily_free_limit: Annotated[
+        int,
+        Field(
+            default=5,
+            description='Maximum daily free extractions per user when using server key',
+            gt=0,
+            le=1000,
+        ),
+    ]
+    default_free_model: Annotated[
+        str,
+        Field(
+            default='qwen/qwen2.5-vl-72b-instruct:free',
+            description='Default free OpenRouter model',
+        ),
+    ]
+    free_models: Annotated[
+        tuple[str, ...],
+        NoDecode,
+        Field(
+            default=('qwen/qwen2.5-vl-72b-instruct:free',),
+            description='Allowed shared-key free models',
+        ),
+    ]
 
     class Config:
         extra = 'ignore'
@@ -128,6 +186,24 @@ class Settings(BaseSettings):
     def validate_loguru_level(cls, value: str) -> str:
         if isinstance(value, str):
             return value.upper()
+        return value
+
+    @field_validator('allowed_origins', mode='before')
+    @classmethod
+    def validate_allowed_origins(cls, value: str | tuple[str, ...] | list[str]):
+        if isinstance(value, str):
+            return tuple(v.strip() for v in value.split(',') if v.strip())
+        if isinstance(value, list):
+            return tuple(v.strip() for v in value if v.strip())
+        return value
+
+    @field_validator('free_models', mode='before')
+    @classmethod
+    def validate_free_models(cls, value: str | tuple[str, ...] | list[str]):
+        if isinstance(value, str):
+            return tuple(v.strip() for v in value.split(',') if v.strip())
+        if isinstance(value, list):
+            return tuple(v.strip() for v in value if v.strip())
         return value
 
 

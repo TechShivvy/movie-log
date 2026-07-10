@@ -1,0 +1,277 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;family=JetBrains+Mono:wght@500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed": "#07006c",
+                      "tertiary-fixed": "#e1e0ff",
+                      "surface-dim": "#0b1326",
+                      "surface-container-low": "#131b2e",
+                      "primary-fixed-dim": "#ffb4aa",
+                      "tertiary-container": "#5e61ec",
+                      "on-primary-container": "#fff7f6",
+                      "on-secondary-fixed-variant": "#5b4300",
+                      "on-error-container": "#ffdad6",
+                      "on-tertiary-container": "#fcf8ff",
+                      "on-tertiary-fixed-variant": "#2f2ebe",
+                      "surface-variant": "#2d3449",
+                      "background": "#0b1326",
+                      "on-primary-fixed": "#410001",
+                      "primary-container": "#e50914",
+                      "secondary": "#ffdf9e",
+                      "error": "#ffb4ab",
+                      "inverse-on-surface": "#283044",
+                      "on-surface": "#dae2fd",
+                      "on-error": "#690005",
+                      "on-secondary": "#3f2e00",
+                      "surface-container-highest": "#2d3449",
+                      "on-tertiary": "#1000a9",
+                      "error-container": "#93000a",
+                      "on-background": "#dae2fd",
+                      "primary-fixed": "#ffdad5",
+                      "surface-bright": "#31394d",
+                      "tertiary": "#c0c1ff",
+                      "on-primary-fixed-variant": "#930007",
+                      "on-secondary-fixed": "#261a00",
+                      "secondary-fixed": "#ffdf9e",
+                      "inverse-primary": "#c0000c",
+                      "surface": "#0b1326",
+                      "surface-tint": "#ffb4aa",
+                      "secondary-container": "#fabd00",
+                      "surface-container-lowest": "#060e20",
+                      "on-surface-variant": "#e9bcb6",
+                      "on-primary": "#690003",
+                      "outline-variant": "#5e3f3b",
+                      "outline": "#af8782",
+                      "primary": "#ffb4aa",
+                      "tertiary-fixed-dim": "#c0c1ff",
+                      "secondary-fixed-dim": "#fabd00",
+                      "inverse-surface": "#dae2fd",
+                      "surface-container-high": "#222a3d",
+                      "surface-container": "#171f33",
+                      "on-secondary-container": "#6a4e00"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "container-max-width": "1280px",
+                      "grid-margin": "2rem",
+                      "gutter": "1.5rem",
+                      "card-gap": "2rem"
+              },
+              "fontFamily": {
+                      "headline-md": ["Sora"],
+                      "label-sm": ["JetBrains Mono"],
+                      "body-lg": ["Plus Jakarta Sans"],
+                      "display-lg-mobile": ["Sora"],
+                      "display-lg": ["Sora"],
+                      "body-md": ["Plus Jakarta Sans"]
+              },
+              "fontSize": {
+                      "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                      "display-lg-mobile": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
+                      "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background text-on-background min-h-screen font-body-md selection:bg-primary-container selection:text-white pb-32">
+<!-- Top AppBar Component -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm">
+<div class="flex items-center justify-between px-grid-margin h-16 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-headline-md" data-icon="movie_filter" data-original-icon="movie_filter">movie_filter</span>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary tracking-tighter">CineLog</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" data-icon="search">search</button>
+<div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/20 hover:border-primary transition-colors cursor-pointer active:scale-95">
+<img class="w-full h-full object-cover" data-alt="A cinematic, close-up portrait of a professional film critic wearing stylish dark glasses. The lighting is high-contrast with deep blues and vivid red highlights, echoing a dark theater atmosphere. The background shows blurred neon movie posters. The aesthetic is modern, professional, and sophisticated." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgUTKEOYZjhxSm9Q3p3Y2r_znAFUx-9A0JGJfOjVgCSd5hUbqJt9ggL4_Oq4i5ZT22xWwyd2eVycfV0n6j2p5RsHNUkeviW3U2cavGG6tV4lcewkQAU15Yeshw_7AGQbueLeAug7cynKtupeQ7i-NqDQunU5MI3U0FkVnQghNZvWgBVz4PGot5xlAHhDgKIGwNZQd7piC71pv9Nnqp9AjS-8KVIX3JvLu64UOohRrYDAMxdL4XYWcgvYXqPct8Vr-lsBrCQGrQ3lx_">
+</div>
+</div>
+</div>
+</header>
+<main class="pt-24 px-4 md:px-grid-margin max-w-container-max-width mx-auto">
+<!-- Breadcrumbs / Header Section -->
+<div class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-2">
+<div class="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span>LIBRARY</span>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-primary">ADD NEW ENTRY</span>
+</div>
+<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface tracking-tight">Log a <span class="text-primary italic">Masterpiece</span></h1>
+</div>
+<div class="flex gap-3">
+<button class="px-6 py-3 rounded-xl font-label-sm text-label-sm bg-surface-container-high text-on-surface-variant border border-outline-variant/30 hover:bg-surface-bright/20 transition-all active:scale-95">
+                    DISCARD
+                </button>
+<button class="px-8 py-3 rounded-xl font-label-sm text-label-sm bg-primary-container text-on-primary-container font-bold btn-primary-glow transition-all active:scale-95 flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="save" style="font-variation-settings: 'FILL' 1;">save</span>
+                    SAVE MOVIE
+                </button>
+</div>
+</div>
+<!-- Form Layout: Bento Grid Style -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Poster Upload & Visuals (4 cols) -->
+<div class="lg:col-span-4 space-y-gutter">
+<div class="glass-panel p-6 rounded-3xl overflow-hidden group">
+<div class="relative aspect-[2/3] rounded-2xl bg-surface-container-lowest border-2 border-dashed border-outline-variant/50 flex flex-col items-center justify-center text-center p-8 transition-all hover:border-primary/50 group-hover:bg-surface-container-low/50 cursor-pointer">
+<div class="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity">
+
+</div>
+<span class="material-symbols-outlined text-6xl text-primary mb-4" data-icon="add_a_photo">add_a_photo</span>
+<h3 class="font-headline-md text-headline-md mb-2">Upload Poster</h3>
+<p class="text-on-surface-variant font-body-md text-body-md">JPG, PNG, or WebP. Max 10MB.<br>Recommended 2:3 ratio.</p>
+<input class="absolute inset-0 opacity-0 cursor-pointer" type="file">
+</div>
+</div>
+<div class="glass-panel p-6 rounded-3xl space-y-4">
+<h4 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">AI Ticket Extraction</h4>
+<div class="flex flex-wrap gap-2">
+<div class="bg-tertiary/10 text-tertiary px-3 py-1.5 rounded-lg font-label-sm text-label-sm border border-tertiary/20 flex items-center gap-1.5 btn-primary-glow bg-tertiary/20">
+<span class="material-symbols-outlined text-[16px]" data-icon="auto_awesome">auto_awesome</span>
+                            AI AUTO-FILL
+                        </div>
+
+</div>
+</div>
+</div>
+<!-- Right Column: Main Content (8 cols) -->
+<div class="lg:col-span-8 space-y-gutter">
+<div class="glass-panel p-8 md:p-10 rounded-3xl space-y-8">
+<!-- Section: Core Details -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="md:col-span-2 space-y-2">
+<label class="font-label-sm text-label-sm text-primary tracking-widest uppercase ml-1">Movie Title</label>
+<input class="w-full bg-surface-container-lowest text-on-surface border-outline-variant/30 rounded-2xl px-6 py-4 font-headline-md text-headline-md input-glow transition-all placeholder:text-on-surface-variant/30" placeholder="e.g. Interstellar" type="text">
+</div>
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant tracking-widest uppercase ml-1">Release Year</label>
+<input class="w-full bg-surface-container-lowest text-on-surface border-outline-variant/30 rounded-2xl px-6 py-4 font-body-lg text-body-lg input-glow transition-all" placeholder="2024" type="number">
+</div>
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant tracking-widest uppercase ml-1">Runtime (min)</label>
+<input class="w-full bg-surface-container-lowest text-on-surface border-outline-variant/30 rounded-2xl px-6 py-4 font-body-lg text-body-lg input-glow transition-all" placeholder="120" type="number">
+</div>
+</div>
+<!-- Section: Narrative -->
+<div class="space-y-2">
+<label class="font-label-sm text-label-sm text-on-surface-variant tracking-widest uppercase ml-1">Synopsis</label>
+<textarea class="w-full bg-surface-container-lowest text-on-surface border-outline-variant/30 rounded-2xl px-6 py-4 font-body-md text-body-md input-glow transition-all resize-none" placeholder="Briefly describe the cinematic journey..." rows="4"></textarea>
+</div>
+<!-- Section: Tags & Rating -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
+<div class="space-y-4">
+<label class="font-label-sm text-label-sm text-on-surface-variant tracking-widest uppercase ml-1">Genre Labels</label>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full border border-outline-variant/30 bg-surface-container-low text-on-surface hover:border-tertiary transition-all">Sci-Fi</button>
+<button class="px-4 py-2 rounded-full border border-outline-variant/30 bg-surface-container-low text-on-surface hover:border-tertiary transition-all">Drama</button>
+<button class="px-4 py-2 rounded-full border border-outline-variant/30 bg-surface-container-low text-on-surface hover:border-tertiary transition-all">Thriller</button>
+<button class="px-4 py-2 rounded-full border border-primary/50 bg-primary-container/10 text-primary flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                                    Add
+                                </button>
+</div>
+</div>
+<div class="space-y-4">
+<label class="font-label-sm text-label-sm text-on-surface-variant tracking-widest uppercase ml-1">Your Rating</label>
+<div class="flex items-center gap-2">
+<div class="flex text-secondary text-3xl">
+<span class="material-symbols-outlined cursor-pointer hover:scale-110 transition-transform" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined cursor-pointer hover:scale-110 transition-transform" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined cursor-pointer hover:scale-110 transition-transform" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined cursor-pointer hover:scale-110 transition-transform" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined cursor-pointer hover:scale-110 transition-transform" data-icon="star">star</span>
+</div>
+<span class="font-headline-md text-headline-md text-secondary ml-2">4.0</span>
+</div>
+</div>
+</div>
+<!-- Footer Options -->
+<div class="pt-6 border-t border-outline-variant/20 flex flex-wrap gap-6 items-center">
+<label class="flex items-center gap-3 group cursor-pointer">
+<div class="relative w-12 h-6 bg-surface-container-high rounded-full transition-colors group-hover:bg-surface-variant">
+<div class="absolute left-1 top-1 w-4 h-4 bg-on-surface-variant rounded-full transition-all group-active:translate-x-1"></div>
+</div>
+<span class="font-body-md text-body-md text-on-surface-variant">Mark as "Masterpiece"</span>
+</label>
+<label class="flex items-center gap-3 group cursor-pointer">
+<div class="relative w-12 h-6 bg-primary-container rounded-full">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
+</div>
+<span class="font-body-md text-body-md text-on-surface">Sync to Collection</span>
+</label>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar (Mobile only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-20 bg-surface-container/90 backdrop-blur-lg flex justify-around items-center px-4 pb-safe z-50 rounded-t-xl shadow-[0_-4px_20px_rgba(0,0,0,0.4)]">
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="eject">eject</span>
+<span class="font-label-sm text-label-sm">Library</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container/20 text-primary rounded-xl px-4 py-1 shadow-[0_0_15px_rgba(229,9,20,0.3)]" href="#">
+<span class="material-symbols-outlined" data-icon="add_circle" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+<span class="font-label-sm text-label-sm">Log</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="explore">explore</span>
+<span class="font-label-sm text-label-sm">Discover</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings_suggest">settings_suggest</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // Simple star rating interaction
+        const stars = document.querySelectorAll('.text-secondary .material-symbols-outlined');
+        stars.forEach((star, index) => {
+            star.addEventListener('click', () => {
+                stars.forEach((s, i) => {
+                    if (i <= index) {
+                        s.style.fontVariationSettings = "'FILL' 1";
+                    } else {
+                        s.style.fontVariationSettings = "'FILL' 0";
+                    }
+                });
+                const ratingValue = document.querySelector('.text-secondary.ml-2');
+                if (ratingValue) ratingValue.textContent = (index + 1).toFixed(1);
+            });
+        });
+
+        // Toggle switch logic
+        const switches = document.querySelectorAll('.cursor-pointer.group');
+        switches.forEach(sw => {
+            sw.addEventListener('click', () => {
+                const knob = sw.querySelector('.rounded-full.transition-all');
+                const track = sw.querySelector('.rounded-full.transition-colors');
+                if (knob && track) {
+                    const isActive = track.classList.contains('bg-primary-container');
+                    if (isActive) {
+                        track.classList.replace('bg-primary-container', 'bg-surface-container-high');
+                        knob.classList.replace('right-1', 'left-1');
+                        knob.classList.replace('bg-white', 'bg-on-surface-variant');
+                    } else {
+                        track.classList.replace('bg-surface-container-high', 'bg-primary-container');
+                        knob.classList.replace('left-1', 'right-1');
+                        knob.classList.replace('bg-on-surface-variant', 'bg-white');
+                    }
+                }
+            });
+        });
+    </script>
+
+</body></html>

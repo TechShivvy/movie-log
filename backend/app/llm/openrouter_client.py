@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from config import settings
 from loguru_setup import LOGGER
@@ -7,6 +8,7 @@ from openai import (
     BadRequestError,
     OpenAIError,
 )
+from pydantic import ValidationError
 from utils import openai_utils, retry
 
 
@@ -32,22 +34,63 @@ async def _call_model(
         response_model: The model response which is a Pydantic model instance (response_model)
     """
 
-    response = await client.beta.chat.completions.parse(
+    messages = [
+        {'role': 'system', 'content': system_prompt},
+        {
+            'role': 'user',
+            'content': [
+                {'type': 'text', 'text': user_prompt},
+                {'type': 'image_url', 'image_url': {'url': image_data_uri}},
+            ],
+        },
+    ]
+
+    try:
+        response = await client.beta.chat.completions.parse(
+            model=model_name,
+            messages=messages,
+            response_format=response_model,
+        )
+        LOGGER.debug(f'API response parsed successfully: {response}')
+        return response.choices[0].message.parsed
+    except (ValidationError, TypeError, IndexError, AttributeError) as exc:
+        LOGGER.warning(
+            f'Structured parse unavailable for model {model_name}; falling back to JSON mode. Error: {exc}'
+        )
+
+    fallback = await client.chat.completions.create(
         model=model_name,
-        messages=[
-            {'role': 'system', 'content': system_prompt},
-            {
-                'role': 'user',
-                'content': [
-                    {'type': 'text', 'text': user_prompt},
-                    {'type': 'image_url', 'image_url': {'url': image_data_uri}},
-                ],
-            },
-        ],
-        response_format=response_model,
+        messages=messages,
+        response_format={'type': 'json_object'},
     )
-    LOGGER.debug(f'API response parsed successfully: {response}')
-    return response.choices[0].message.parsed
+
+    choices = fallback.choices or []
+    if not choices or not choices[0].message:
+        raise ValueError('Model returned no completion choices')
+
+    content = choices[0].message.content
+    if isinstance(content, list):
+        text_chunks = []
+        for part in content:
+            if isinstance(part, dict) and part.get('type') == 'text':
+                text_chunks.append(part.get('text', ''))
+        content_text = ''.join(text_chunks).strip()
+    else:
+        content_text = (content or '').strip()
+
+    if not content_text:
+        raise ValueError('Model returned empty response content')
+
+    # Some providers may still wrap JSON in fences despite JSON mode.
+    content_text = re.sub(r'^```(?:json)?\s*|\s*```$', '', content_text).strip()
+
+    # If the provider prepends text, try extracting the first JSON object.
+    if not content_text.startswith('{'):
+        json_match = re.search(r'\{[\s\S]*\}', content_text)
+        if json_match:
+            content_text = json_match.group(0)
+
+    return response_model.model_validate_json(content_text)
 
 
 async def extract_movie_metadata_from_image(
@@ -114,6 +157,27 @@ async def extract_movie_metadata_from_image(
             if attempt == settings.max_attempts:
                 LOGGER.error('Model call failed after all retries')
                 raise http_exc
+
+            sleep_duration = retry.calculate_backoff(attempt)
+            LOGGER.info(f'Retrying after {sleep_duration:.1f}s')
+            await asyncio.sleep(sleep_duration)
+
+        except (
+            ValidationError,
+            TypeError,
+            ValueError,
+            IndexError,
+            AttributeError,
+        ) as exc:
+            LOGGER.warning(
+                f'Failed to parse model response on attempt {attempt}/{settings.max_attempts}: {exc}'
+            )
+
+            if attempt == settings.max_attempts:
+                LOGGER.error('Model response could not be parsed after all retries')
+                raise RuntimeError(
+                    'Failed to parse model response as MovieMetadata'
+                ) from exc
 
             sleep_duration = retry.calculate_backoff(attempt)
             LOGGER.info(f'Retrying after {sleep_duration:.1f}s')

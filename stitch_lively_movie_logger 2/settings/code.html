@@ -1,0 +1,301 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;family=Plus+Jakarta+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary-fixed": "#07006c",
+                    "tertiary-fixed": "#e1e0ff",
+                    "surface-dim": "#0b1326",
+                    "surface-container-low": "#131b2e",
+                    "primary-fixed-dim": "#ffb4aa",
+                    "tertiary-container": "#5e61ec",
+                    "on-primary-container": "#fff7f6",
+                    "on-secondary-fixed-variant": "#5b4300",
+                    "on-error-container": "#ffdad6",
+                    "on-tertiary-container": "#fcf8ff",
+                    "on-tertiary-fixed-variant": "#2f2ebe",
+                    "surface-variant": "#2d3449",
+                    "background": "#0b1326",
+                    "on-primary-fixed": "#410001",
+                    "primary-container": "#e50914",
+                    "secondary": "#ffdf9e",
+                    "error": "#ffb4ab",
+                    "inverse-on-surface": "#283044",
+                    "on-surface": "#dae2fd",
+                    "on-error": "#690005",
+                    "on-secondary": "#3f2e00",
+                    "surface-container-highest": "#2d3449",
+                    "on-tertiary": "#1000a9",
+                    "error-container": "#93000a",
+                    "on-background": "#dae2fd",
+                    "primary-fixed": "#ffdad5",
+                    "surface-bright": "#31394d",
+                    "tertiary": "#c0c1ff",
+                    "on-primary-fixed-variant": "#930007",
+                    "on-secondary-fixed": "#261a00",
+                    "secondary-fixed": "#ffdf9e",
+                    "inverse-primary": "#c0000c",
+                    "surface": "#0b1326",
+                    "surface-tint": "#ffb4aa",
+                    "secondary-container": "#fabd00",
+                    "surface-container-lowest": "#060e20",
+                    "on-surface-variant": "#e9bcb6",
+                    "on-primary": "#690003",
+                    "outline-variant": "#5e3f3b",
+                    "outline": "#af8782",
+                    "primary": "#ffb4aa",
+                    "tertiary-fixed-dim": "#c0c1ff",
+                    "secondary-fixed-dim": "#fabd00",
+                    "inverse-surface": "#dae2fd",
+                    "surface-container-high": "#222a3d",
+                    "surface-container": "#171f33",
+                    "on-secondary-container": "#6a4e00"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "container-max-width": "1280px",
+                    "grid-margin": "2rem",
+                    "gutter": "1.5rem",
+                    "card-gap": "2rem"
+            },
+            "fontFamily": {
+                    "headline-md": ["Sora"],
+                    "label-sm": ["JetBrains Mono"],
+                    "body-lg": ["Plus Jakarta Sans"],
+                    "display-lg": ["Sora"],
+                    "body-md": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background text-on-background font-body-md selection:bg-primary/30 custom-scrollbar overflow-x-hidden">
+<!-- TopAppBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-sm flex items-center justify-between px-8 h-16 w-full">
+<div class="flex items-center gap-3 active:scale-95 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="movie_filter" data-original-icon="movie_filter">movie_filter</span>
+<span class="font-headline-md text-headline-md font-bold text-primary tracking-tighter">CineLog</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full border-2 border-primary/20 overflow-hidden hover:bg-surface-bright/10 transition-colors cursor-pointer">
+<img class="w-full h-full object-cover" data-alt="A cinematic, high-resolution portrait of a movie enthusiast in a moody, dark-lit studio. The lighting features soft red and deep blue neon accents reflecting off a pair of modern glasses. The background is a blurred collection of classic film posters and vintage camera lenses, emphasizing a professional yet passionate cinematic aesthetic consistent with a premium dark-themed media application." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtGYm60nGKMt71B55nFLbu7uCN-hxUYfqiVR4kIXmFk3iHaC0gKb8doOjrbEDRPKdiImKFD4YsW6XZGy_Jb8IneoWUcprhf2Zyz-9FsYBKwmf3OBqiy5Z_o--8yoFAq0rgPDo72tagFTQ3T49ssQM1Cew5hGKKhtunlJ_PNqc-DRmZc39ZVPkhiKz-6Jg4WHqSRw5HECFHwV6Nr8bg3O6MWPn_XPWaJWUViqNNBoy8v1J2jjDSA-hFtB9ewUht5cdP9VwcJUYrpeuV">
+</div>
+</div>
+</nav>
+<main class="pt-24 pb-32 px-grid-margin max-w-container-max-width mx-auto">
+<header class="mb-12">
+<h1 class="font-display-lg text-display-lg text-on-surface mb-2">Settings</h1>
+<p class="text-on-surface-variant font-body-lg">Manage your cinema collection and app experience.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Sidebar / Groups (Left) -->
+<aside class="lg:col-span-4 space-y-4">
+<div class="glass-panel rounded-xl p-4 sticky top-24 border border-outline-variant/10">
+<nav class="space-y-1">
+<button class="w-full flex items-center gap-4 px-4 py-3 rounded-lg bg-primary-container/20 text-primary font-bold shadow-[0_0_15px_rgba(229,9,20,0.1)] transition-all">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-body-md">Appearance</span>
+</button>
+<button class="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-all">
+<span class="material-symbols-outlined" data-icon="person_outline">person_outline</span>
+<span class="font-body-md">Account Details</span>
+</button>
+<button class="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-all">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="font-body-md">Notifications</span>
+</button>
+<button class="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 transition-all">
+<span class="material-symbols-outlined" data-icon="verified_user">verified_user</span>
+<span class="font-body-md">Privacy &amp; Safety</span>
+</button>
+</nav>
+</div>
+</aside>
+<!-- Main Content (Right) -->
+<div class="lg:col-span-8 space-y-gutter">
+<!-- Appearance Section -->
+<section class="glass-panel rounded-xl border border-outline-variant/10 overflow-hidden" id="appearance">
+<div class="p-6 border-b border-outline-variant/10">
+<h2 class="font-headline-md text-headline-md text-on-surface">Appearance</h2>
+<p class="text-on-surface-variant text-sm mt-1">Customize the visual identity of your library.</p>
+</div>
+<div class="p-6 space-y-8">
+<!-- Theme Selection (Swatches) -->
+<div class="space-y-4">
+<label class="text-label-sm font-label-sm text-on-surface-variant uppercase">Application Theme</label>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+<!-- Theme Item -->
+<button class="theme-option group relative aspect-video rounded-xl p-3 flex flex-col justify-between border-2 border-primary ring-offset-2 ring-offset-surface ring-primary/40 bg-surface-container-high transition-all" onclick="selectTheme(this)">
+<div class="flex gap-1">
+<div class="w-6 h-6 rounded-sm bg-primary shadow-sm"></div>
+<div class="w-6 h-6 rounded-sm bg-background shadow-sm border border-outline-variant/20"></div>
+</div>
+<span class="font-label-sm text-label-sm text-primary">CineRed (Default)</span>
+<div class="absolute top-2 right-2 opacity-100 group-[.selected]:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</button>
+<!-- Theme Item -->
+<button class="theme-option group relative aspect-video rounded-xl p-3 flex flex-col justify-between border-2 border-transparent bg-surface-container-high hover:border-outline-variant/50 transition-all" onclick="selectTheme(this)">
+<div class="flex gap-1">
+<div class="w-6 h-6 rounded-sm bg-tertiary-container shadow-sm"></div>
+<div class="w-6 h-6 rounded-sm bg-on-tertiary shadow-sm"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Indigo Dusk</span>
+</button>
+<!-- Theme Item -->
+<button class="theme-option group relative aspect-video rounded-xl p-3 flex flex-col justify-between border-2 border-transparent bg-surface-container-high hover:border-outline-variant/50 transition-all" onclick="selectTheme(this)">
+<div class="flex gap-1">
+<div class="w-6 h-6 rounded-sm bg-secondary-container shadow-sm"></div>
+<div class="w-6 h-6 rounded-sm bg-on-secondary shadow-sm"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Amber Glow</span>
+</button>
+<!-- Theme Item -->
+<button class="theme-option group relative aspect-video rounded-xl p-3 flex flex-col justify-between border-2 border-transparent bg-surface-container-high hover:border-outline-variant/50 transition-all" onclick="selectTheme(this)">
+<div class="flex gap-1">
+<div class="w-6 h-6 rounded-sm bg-white shadow-sm"></div>
+<div class="w-6 h-6 rounded-sm bg-surface-bright shadow-sm"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Monochrome</span>
+</button>
+</div>
+</div>
+<!-- Full Row Clickable Selection Controls -->
+<div class="space-y-1">
+<label class="text-label-sm font-label-sm text-on-surface-variant uppercase ml-1 block mb-2">Display Settings</label>
+<label class="flex items-center justify-between p-4 rounded-xl hover:bg-primary/10 cursor-pointer transition-colors group">
+<div class="flex flex-col">
+<span class="font-body-md text-on-surface font-semibold">High Contrast Posters</span>
+<span class="text-sm text-on-surface-variant">Enhance saturation and contrast for movie art.</span>
+</div>
+<div class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value="">
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+</label>
+<label class="flex items-center justify-between p-4 rounded-xl hover:bg-primary/10 cursor-pointer transition-colors group">
+<div class="flex flex-col">
+<span class="font-body-md text-on-surface font-semibold">Autoplay Trailers</span>
+<span class="text-sm text-on-surface-variant">Muted previews start on hover.</span>
+</div>
+<div class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value="">
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+</label>
+<label class="flex items-center justify-between p-4 rounded-xl hover:bg-primary/10 cursor-pointer transition-colors group">
+<div class="flex flex-col">
+<span class="font-body-md text-on-surface font-semibold">Compact Grid Layout</span>
+<span class="text-sm text-on-surface-variant">Show more items at once with reduced padding.</span>
+</div>
+<div class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value="">
+<div class="w-11 h-6 bg-surface-container-highest peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</div>
+</label>
+</div>
+<!-- Form Controls with Glow Focus -->
+<div class="space-y-4 pt-4">
+<div class="flex flex-col gap-2">
+<label class="text-label-sm font-label-sm text-on-surface-variant uppercase ml-1" for="username">Library Display Name</label>
+<div class="glow-focus rounded-xl transition-all">
+<input class="w-full bg-surface-container-low border border-outline-variant/30 text-on-surface px-4 py-3 rounded-xl focus:outline-none transition-all placeholder:text-on-surface-variant/50" id="username" type="text" value="Movie Enthusiast">
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-label-sm font-label-sm text-on-surface-variant uppercase ml-1" for="bio">Profile Bio</label>
+<div class="glow-focus rounded-xl transition-all">
+<textarea class="w-full bg-surface-container-low border border-outline-variant/30 text-on-surface px-4 py-3 rounded-xl focus:outline-none transition-all placeholder:text-on-surface-variant/50" id="bio" rows="3">Curating the ultimate collection of neo-noir and sci-fi masterpieces. 1,240 movies logged and counting.</textarea>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 bg-surface-container-high flex justify-end gap-3">
+<button class="px-6 py-2 rounded-lg text-on-surface-variant hover:bg-surface-variant active:scale-95 transition-all">Discard</button>
+<button class="px-8 py-2 rounded-lg bg-primary-container text-on-primary-container font-semibold hover:shadow-[0_0_20px_rgba(229,9,20,0.5)] active:scale-95 transition-all">Save Changes</button>
+</div>
+</section>
+<!-- Danger Zone -->
+<section class="glass-panel rounded-xl border border-error/20 overflow-hidden">
+<div class="p-6">
+<h3 class="font-headline-md text-headline-md text-error flex items-center gap-2">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+                            Danger Zone
+                        </h3>
+<p class="text-on-surface-variant text-sm mt-1">Actions here are permanent and cannot be undone.</p>
+<div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl bg-error/5 border border-error/10">
+<div>
+<h4 class="font-bold text-on-surface">Delete Library Log</h4>
+<p class="text-sm text-on-surface-variant">Erase all watch history, reviews, and lists.</p>
+</div>
+<button class="w-full sm:w-auto px-6 py-2 rounded-lg border border-error text-error hover:bg-error hover:text-on-error active:scale-95 transition-all">Purge Data</button>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full h-20 bg-surface-container/90 backdrop-blur-lg flex justify-around items-center px-4 pb-safe z-50 rounded-t-xl shadow-[0_-4px_20px_rgba(0,0,0,0.4)] md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="eject">eject</span>
+<span class="font-label-sm text-label-sm mt-1">Library</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+<span class="font-label-sm text-label-sm mt-1">Log</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="explore">explore</span>
+<span class="font-label-sm text-label-sm mt-1">Discover</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-primary-container/20 text-primary rounded-xl px-4 py-1 shadow-[0_0_15px_rgba(229,9,20,0.3)] active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="settings_suggest">settings_suggest</span>
+<span class="font-label-sm text-label-sm mt-1">Settings</span>
+</a>
+</nav>
+<script>
+        function selectTheme(element) {
+            // Remove active classes from all siblings
+            const siblings = document.querySelectorAll('.theme-option');
+            siblings.forEach(sib => {
+                sib.classList.remove('border-primary', 'ring-offset-2', 'ring-offset-surface', 'ring-primary/40');
+                sib.classList.add('border-transparent');
+                
+                const label = sib.querySelector('span');
+                label.classList.remove('text-primary');
+                label.classList.add('text-on-surface-variant');
+
+                const check = sib.querySelector('.material-symbols-outlined');
+                if (check) check.remove();
+            });
+
+            // Add active classes to selected
+            element.classList.add('border-primary', 'ring-offset-2', 'ring-offset-surface', 'ring-primary/40');
+            element.classList.remove('border-transparent');
+            
+            const label = element.querySelector('span');
+            label.classList.add('text-primary');
+            label.classList.remove('text-on-surface-variant');
+
+            // Add check icon
+            const checkContainer = document.createElement('div');
+            checkContainer.className = 'absolute top-2 right-2';
+            checkContainer.innerHTML = '<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: \'FILL\' 1;">check_circle</span>';
+            element.appendChild(checkContainer);
+        }
+    </script>
+</body></html>
