@@ -83,6 +83,24 @@ def decode_access_token(token: str) -> dict:
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
+    # LOCAL/DEV only: if DEV_BYPASS_AUTH=true is set in .env and no token is
+    # provided, return a fixed dev user so you can hit endpoints from curl/Postman
+    # without needing a real Supabase JWT.
+    # NEVER set this in production — the ProductionSettings class won't accept it.
+    if (
+        settings.env in ('LOCAL', 'DEV')
+        and getattr(settings, 'dev_bypass_auth', False)
+        and (not credentials)
+    ):
+        LOGGER.warning(
+            'DEV_BYPASS_AUTH is active — using dev user. Never do this in production.'
+        )
+        return AuthenticatedUser(
+            user_id='00000000-0000-0000-0000-000000000001',
+            email='dev@localhost',
+            access_token='dev-bypass',
+        )
+
     if not credentials or credentials.scheme.lower() != 'bearer':
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -126,6 +126,10 @@ class Settings(BaseSettings):
         description='Supabase publishable/anon key used as the apikey header for '
         'PostgREST calls made with the user access token',
     )
+    dev_bypass_auth: bool = Field(
+        default=False,
+        description='LOCAL/DEV only: skip JWT verification. Never set True in PROD.',
+    )
     daily_free_limit: Annotated[
         int,
         Field(
