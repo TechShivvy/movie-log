@@ -1,0 +1,368 @@
+"""Supabase PostgREST client scoped to the calling user's JWT.
+
+Every request forwards the user's access token, so Supabase Row Level Security
+(RLS) is the single source of truth for authorization. The publishable/anon key
+is sent as the required ``apikey`` header.
+"""
+
+import time
+from typing import Any, Optional
+
+import httpx
+from config import settings
+from loguru_setup import LOGGER
+from utils.errors import APIError
+
+_TABLE = 'movie_logs'
+_TIMEOUT = 15.0
+
+
+def _rest_base() -> str:
+    if not settings.supabase_url:
+        raise APIError(
+            500,
+            'CONFIG_ERROR',
+            'Supabase URL is not configured on the backend.',
+        )
+    return f"{settings.supabase_url.rstrip('/')}/rest/v1"
+
+
+def _apikey() -> str:
+    key = (
+        settings.supabase_publishable_key.get_secret_value()
+        if settings.supabase_publishable_key
+        else None
+    )
+    if not key:
+        raise APIError(
+            500,
+            'CONFIG_ERROR',
+            'Supabase publishable key is not configured on the backend. '
+            'Set SUPABASE_PUBLISHABLE_KEY.',
+        )
+    return key
+
+
+def _headers(user_token: str, *, prefer: Optional[str] = None) -> dict[str, str]:
+    headers = {
+        'apikey': _apikey(),
+        'Authorization': f'Bearer {user_token}',
+        'Content-Type': 'application/json',
+    }
+    if prefer:
+        headers['Prefer'] = prefer
+    return headers
+
+
+def _raise_for_upstream(response: httpx.Response, operation: str) -> None:
+    if response.status_code < 400:
+        return
+
+    LOGGER.error(
+        'PostgREST {} failed: status={} body={}',
+        operation, response.status_code, response.text[:500],
+    )
+    if response.status_code == 401:
+        raise APIError(401, 'UNAUTHORIZED', 'Authentication token is invalid or expired.')
+    if response.status_code == 403:
+        raise APIError(403, 'FORBIDDEN', 'You do not have access to this resource.')
+    if response.status_code == 404:
+        raise APIError(404, 'NOT_FOUND', 'Resource not found.')
+    if response.status_code < 500:
+        raise APIError(400, 'BAD_REQUEST', 'The request could not be processed.')
+    raise APIError(502, 'UPSTREAM_ERROR', 'Database service is unavailable.')
+
+
+async def _request(
+    method: str,
+    path: str,
+    user_token: str,
+    operation: str,
+    *,
+    params: Optional[dict[str, Any]] = None,
+    json: Any = None,
+    prefer: Optional[str] = None,
+) -> httpx.Response:
+    url = f'{_rest_base()}{path}'
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.request(
+                method,
+                url,
+                headers=_headers(user_token, prefer=prefer),
+                params=params,
+                json=json,
+            )
+    except httpx.HTTPError as exc:
+        LOGGER.error('PostgREST {} transport error: {}', operation, exc)
+        raise APIError(
+            502, 'UPSTREAM_ERROR', 'Database service is unavailable.'
+        ) from exc
+
+    duration = time.monotonic() - started
+    LOGGER.debug(
+        'PostgREST {} status={} duration={:.3f}s',
+        operation,
+        response.status_code,
+        duration,
+    )
+    _raise_for_upstream(response, operation)
+    return response
+
+
+async def list_movie_logs(
+    user_token: str,
+    user_id: str,
+    *,
+    limit: int,
+    offset: int,
+    order: str,
+) -> list[dict[str, Any]]:
+    params = {
+        'select': '*',
+        'user_id': f'eq.{user_id}',
+        'order': order,
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _request(
+        'GET', f'/{_TABLE}', user_token, 'list_movie_logs', params=params
+    )
+    return response.json()
+
+
+async def get_movie_log(
+    user_token: str, user_id: str, log_id: str
+) -> Optional[dict[str, Any]]:
+    params = {
+        'select': '*',
+        'id': f'eq.{log_id}',
+        'user_id': f'eq.{user_id}',
+        'limit': '1',
+    }
+    response = await _request(
+        'GET', f'/{_TABLE}', user_token, 'get_movie_log', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def create_movie_log(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST',
+        f'/{_TABLE}',
+        user_token,
+        'create_movie_log',
+        json=row,
+        prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created
+
+
+async def update_movie_log(
+    user_token: str, user_id: str, log_id: str, patch: dict[str, Any]
+) -> Optional[dict[str, Any]]:
+    params = {'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}'}
+    response = await _request(
+        'PATCH',
+        f'/{_TABLE}',
+        user_token,
+        'update_movie_log',
+        params=params,
+        json=patch,
+        prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+async def upsert_venue_rating(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST',
+        '/visit_venue_ratings',
+        user_token,
+        'upsert_venue_rating',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+    )
+    result = response.json()
+    return result[0] if isinstance(result, list) else result
+
+async def delete_movie_log(user_token: str, user_id: str, log_id: str) -> bool:
+    params = {'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}'}
+    response = await _request(
+        'DELETE',
+        f'/{_TABLE}',
+        user_token,
+        'delete_movie_log',
+        params=params,
+        prefer='return=representation',
+    )
+    rows = response.json()
+    return bool(rows)
+
+
+async def export_movie_logs(user_token: str, user_id: str) -> list[dict[str, Any]]:
+    params = {
+        'select': '*',
+        'user_id': f'eq.{user_id}',
+        'order': 'created_at.desc',
+    }
+    response = await _request(
+        'GET', f'/{_TABLE}', user_token, 'export_movie_logs', params=params
+    )
+    return response.json()
+
+
+async def import_movie_logs(
+    user_token: str, rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    response = await _request(
+        'POST',
+        f'/{_TABLE}',
+        user_token,
+        'import_movie_logs',
+        json=rows,
+        prefer='return=representation',
+    )
+    return response.json()
+
+
+async def _anon_headers(*, prefer: Optional[str] = None) -> dict[str, str]:
+    headers = {'apikey': _apikey(), 'Content-Type': 'application/json'}
+    if prefer:
+        headers['Prefer'] = prefer
+    return headers
+
+
+async def _anon_request(
+    method: str, path: str, operation: str,
+    *, params: Optional[dict[str, Any]] = None, json: Any = None,
+) -> httpx.Response:
+    url = f'{_rest_base()}{path}'
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.request(
+                method, url, headers=await _anon_headers(), params=params, json=json
+            )
+    except httpx.HTTPError as exc:
+        LOGGER.error('PostgREST {} transport error: {}', operation, exc)
+        raise APIError(502, 'UPSTREAM_ERROR', 'Database service is unavailable.') from exc
+    _raise_for_upstream(response, operation)
+    return response
+
+
+# ── Theatres / screens ──────────────────────────────────────────────────
+
+async def match_theatres(user_token: str, query: str, city: Optional[str]) -> list[dict]:
+    body = {'p_query': query, 'p_city': city}
+    response = await _request(
+        'POST', '/rpc/match_theatres', user_token, 'match_theatres', json=body
+    )
+    return response.json()
+
+
+async def find_theatre_by_place_id(user_token: str, place_id: str) -> Optional[dict]:
+    params = {'select': '*', 'place_id': f'eq.{place_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/theatres', user_token, 'find_theatre_by_place_id', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def create_theatre(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST', '/theatres', user_token, 'create_theatre',
+        json=row, prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created
+
+
+async def list_screens(user_token: str, theatre_id: str) -> list[dict]:
+    params = {'select': '*', 'theatre_id': f'eq.{theatre_id}'}
+    response = await _request('GET', '/screens', user_token, 'list_screens', params=params)
+    return response.json()
+
+
+async def create_screen(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST', '/screens', user_token, 'create_screen',
+        json=row, prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created
+
+
+async def get_theatre_stats(theatre_id: str) -> Optional[dict]:
+    params = {'select': '*', 'theatre_id': f'eq.{theatre_id}', 'limit': '1'}
+    response = await _anon_request('GET', '/theatre_rating_stats', 'get_theatre_stats', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def get_screen_stats(screen_id: str) -> Optional[dict]:
+    params = {'select': '*', 'screen_id': f'eq.{screen_id}', 'limit': '1'}
+    response = await _anon_request('GET', '/screen_rating_stats', 'get_screen_stats', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+# ── Public profiles ─────────────────────────────────────────────────────
+
+async def search_public_users(query: str) -> list[dict]:
+    response = await _anon_request(
+        'POST', '/rpc/search_public_users', 'search_public_users',
+        json={'p_query': query},
+    )
+    return response.json()
+
+
+async def get_public_profile(username: str) -> Optional[dict]:
+    params = {
+        'select': 'user_id,username,display_name,bio',
+        'username': f'eq.{username}',
+        'is_discoverable': 'eq.true',
+        'limit': '1',
+    }
+    response = await _anon_request('GET', '/user_settings', 'get_public_profile', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def list_public_logs_for_user(user_id: str) -> list[dict]:
+    params = {
+        'select': '*',
+        'user_id': f'eq.{user_id}',
+        'is_public': 'eq.true',
+        'order': 'watched_date.desc',
+    }
+    response = await _anon_request('GET', '/movie_logs', 'list_public_logs_for_user', params=params)
+    return response.json()
+
+
+async def update_username(user_token: str, user_id: str, username: str) -> dict:
+    row = {'user_id': user_id, 'username': username}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_username',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Username update returned no row.')
+    return rows[0]
+
+async def update_discoverability(user_token: str, user_id: str, is_discoverable: bool) -> dict:
+    row = {'user_id': user_id, 'is_discoverable': is_discoverable}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_discoverability',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    return rows[0] if rows else {}

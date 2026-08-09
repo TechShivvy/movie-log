@@ -1,8 +1,23 @@
 api_prefix: /api/v1
 api_version: v1.1.9
+allowed_origins:
+  - http://localhost:8081
+  - http://localhost:19006
+  - http://localhost:3000
+  - http://127.0.0.1:8081
+  - http://127.0.0.1:19006
+  - http://127.0.0.1:3000
 base_delay: 1 # seconds
+daily_free_limit: 1000
+default_free_model: nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 env: local
-loguru_format: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+free_models:
+  - qwen/qwen2.5-vl-72b-instruct:free
+  - google/gemma-4-31b-it:free
+  - openrouter/free
+  - nvidia/nemotron-3.5-content-safety:free
+  - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+loguru_format: '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 loguru_level: debug
 max_attempts: 5
 max_file_size: 25 # 25 MB
@@ -11,3 +26,9 @@ openrouter_api_key: null
 rate_limit_enabled: true
 rate_limit_per_minute: 5
 spool_max_size: 50 # 50 MB
+supabase_jwt_secret: null
+supabase_publishable_key: null
+supabase_secret_key: null
+supabase_service_role_key: null
+supabase_url: null
+dev_bypass_auth: false
