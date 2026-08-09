@@ -258,12 +258,7 @@ function Row({
 }) {
   return (
     <View style={styles.row}>
-      <Ionicons
-        name={icon}
-        size={15}
-        color="#e9bcb6"
-        style={styles.rowIcon}
-      />
+      <Ionicons name={icon} size={15} color="#e9bcb6" style={styles.rowIcon} />
       <View style={styles.rowContent}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={[styles.rowValue, multiline && styles.rowValueMultiline]}>

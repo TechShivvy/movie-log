@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import type { ThemeName } from '../theme/tokens';
+import type { ThemeName } from "../theme/tokens";
 
 interface SettingsState {
   themeName: ThemeName;
@@ -8,7 +8,7 @@ interface SettingsState {
 }
 
 const initialState: SettingsState = {
-  themeName: 'cineRed',
+  themeName: "cineRed",
   autoFill: false,
   preferredModel: "qwen/qwen2.5-vl-72b-instruct:free",
 };
