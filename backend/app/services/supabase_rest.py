@@ -495,3 +495,59 @@ async def update_revisit_prefill(user_token: str, user_id: str, prefill_repeat_v
     )
     rows = response.json()
     return rows[0] if rows else {}
+
+
+# ── Reports ──────────────────────────────────────────────────────────────
+# Existence/visibility checks below all use the anon key deliberately, even
+# though they're called from an authenticated route — they're answering
+# "is this reportable by anyone", the same public-visibility question a
+# signed-out caller would get, not "can *this* user see it". A reporter
+# shouldn't be able to find out something exists (e.g. a private log) just
+# by trying to report it.
+
+async def get_theatre(theatre_id: str) -> Optional[dict]:
+    params = {'select': '*', 'id': f'eq.{theatre_id}', 'limit': '1'}
+    response = await _anon_request('GET', '/theatres', 'get_theatre', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def get_screen(screen_id: str) -> Optional[dict]:
+    params = {'select': '*', 'id': f'eq.{screen_id}', 'limit': '1'}
+    response = await _anon_request('GET', '/screens', 'get_screen', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def is_movie_log_reportable(movie_log_id: str) -> bool:
+    params = {'select': 'id', 'id': f'eq.{movie_log_id}', 'limit': '1'}
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'is_movie_log_reportable', params=params
+    )
+    return bool(response.json())
+
+
+async def is_profile_reportable(user_id: str) -> bool:
+    params = {
+        'select': 'user_id',
+        'user_id': f'eq.{user_id}',
+        'is_discoverable': 'eq.true',
+        'limit': '1',
+    }
+    response = await _anon_request(
+        'GET', '/user_settings', 'is_profile_reportable', params=params
+    )
+    return bool(response.json())
+
+
+async def upsert_report(user_token: str, row: dict[str, Any]) -> dict:
+    response = await _request(
+        'POST', '/reports', user_token, 'upsert_report',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'reporter_user_id,target_type,target_id'},
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Report upsert returned no row.')
+    return rows[0]

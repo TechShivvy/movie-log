@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from middlewares import middleware
-from routers import auth, dev_oauth, movie_logs, movie_metadata, root, venues, public_profile
+from routers import auth, dev_oauth, movie_logs, movie_metadata, reports, root, venues, public_profile
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -69,7 +69,10 @@ def create_app() -> FastAPI:
                 'name': 'Venues',
                 'description': 'Theatre/screen directory, their aggregate rating '
                 "stats, and their reviews. Directory reads, stats, and reviews are "
-                'public; creating theatres/screens requires sign-in.',
+                'public; creating theatres/screens, notes, and Google Places search '
+                'require sign-in. A theatre\'s `source` marks whether it was '
+                "resolved from a real Google Places place_id ('google_places') or "
+                "free-typed with no place_id to back it ('user_submitted').",
             },
             {
                 'name': 'Public',
@@ -78,6 +81,12 @@ def create_app() -> FastAPI:
                 'visible, and only `public`-visibility logs are shown here — '
                 '`anonymous` ones show up on the venue instead (see Venues), never '
                 "attributed to their writer's profile.",
+            },
+            {
+                'name': 'Reports',
+                'description': 'Flag a review, profile, theatre, or screen for '
+                'review. Requires sign-in; no admin UI exists yet, reports are '
+                'triaged directly against the database.',
             },
         ],
         # Pre-fills Swagger's OAuth2 Authorize dialog (client_id is unused by
@@ -118,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
     app.include_router(public_profile.router, prefix=f'{api_prefix}/public')
+    app.include_router(reports.router, prefix=f'{api_prefix}/reports')
 
     app.state.limiter = limiter
     app.add_exception_handler(APIError, api_error_handler)
