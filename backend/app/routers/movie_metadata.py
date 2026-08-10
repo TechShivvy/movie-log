@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata
 from starlette.formparsers import MultiPartParser
-from services import extraction_cache
+from services import extraction_cache, free_models
 from services.quota import ensure_within_daily_quota
 from utils import image
 from utils.openai_utils import openai_error_to_http
@@ -50,8 +50,8 @@ def resolve_shared_api_key() -> str:
     return api_key
 
 
-def resolve_model_name(model: str | None) -> str:
-    selected_model = (model or settings.default_free_model).strip()
+async def resolve_model_name(model: str | None) -> str:
+    selected_model = (model or await free_models.default_free_model()).strip()
     if not selected_model:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -60,19 +60,11 @@ def resolve_model_name(model: str | None) -> str:
     return selected_model
 
 
-def validate_shared_model(model_name: str) -> None:
-    allowed_models = set(settings.free_models)
-    # If an explicit allowlist is configured, trust it as the source of truth.
-    # if allowed_models:
-    #     LOGGER.error(f"{model_name = }")
-    #     if model_name not in allowed_models:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_400_BAD_REQUEST,
-    #             detail='Selected model is not allowed for shared usage.',
-    #         )
-    #     return
-
-    if not model_name.endswith(':free'):
+async def validate_shared_model(model_name: str) -> None:
+    # Checked against the dynamically-fetched free-model snapshot (falls
+    # back to config.yaml, then the `:free` naming convention, if that
+    # snapshot is entirely unavailable — see services/free_models.py).
+    if not await free_models.is_free_model(model_name):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Selected shared model must be a free model.',
@@ -135,7 +127,7 @@ async def extract_movie_metadata(
 
     LOGGER.debug(f'{ticket_image._in_memory = }')
 
-    model_name = resolve_model_name(model)
+    model_name = await resolve_model_name(model)
 
     # Content-addressed cache: the same image bytes + same model always
     # produce the same extraction, so a repeat upload (a user re-uploading
@@ -157,7 +149,7 @@ async def extract_movie_metadata(
     if header_api_key:
         openrouter_api_key = header_api_key
     else:
-        validate_shared_model(model_name)
+        await validate_shared_model(model_name)
         await ensure_within_daily_quota(current_user.user_id)
         openrouter_api_key = resolve_shared_api_key()
 
