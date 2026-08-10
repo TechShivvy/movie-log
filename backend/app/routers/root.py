@@ -1,5 +1,6 @@
 from config import settings
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from rate_limit import limiter
 from responses.root import responses
 from schemas.root import HealthResponse, RootResponse
 
@@ -13,7 +14,8 @@ router = APIRouter()
     description='Root endpoint of the API',
     responses=responses['/'],
 )
-def root() -> RootResponse:
+@limiter.exempt
+def root(request: Request) -> RootResponse:
     return RootResponse(
         message='Welcome to the Movie Log API! Use the endpoints to extract movie metadata from ticket images.',
         version=settings.api_version,
@@ -27,5 +29,6 @@ def root() -> RootResponse:
     description='Health check endpoint to verify API status',
     responses=responses['/health'],
 )
-def health_check() -> HealthResponse:
+@limiter.exempt
+def health_check(request: Request) -> HealthResponse:
     return HealthResponse(message='healthy')

@@ -9,6 +9,7 @@ client, preventing mass-assignment / cross-user writes.
 from typing import Annotated, Any, List, Literal
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
+from config import settings
 from fastapi import APIRouter, Body, Depends, Query, Request, status
 from loguru_setup import LOGGER
 from responses.movie_log import responses
@@ -18,6 +19,8 @@ from services import supabase_rest
 from utils.errors import APIError
 
 from rate_limit import limiter
+
+_DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
 
 router = APIRouter()
 
@@ -52,7 +55,9 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     responses=responses['list_logs'],
     operation_id='ListMovieLogs',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def list_logs(
+    request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -119,7 +124,9 @@ async def create_log(
     responses=responses['export_logs'],
     operation_id='ExportMovieLogs',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def export_logs(
+    request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
     rows = await supabase_rest.export_movie_logs(
@@ -179,7 +186,9 @@ async def import_logs(
     responses=responses['get_log'],
     operation_id='GetMovieLog',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def get_log(
+    request: Request,
     log_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -201,7 +210,9 @@ async def get_log(
     responses=responses['update_log'],
     operation_id='UpdateMovieLog',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def update_log(
+    request: Request,
     log_id: str,
     payload: MovieLogUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -232,7 +243,9 @@ async def update_log(
     responses=responses['upsert_venue_rating'],
     operation_id='UpsertVenueRating',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def upsert_venue_rating(
+    request: Request,
     log_id: str,
     payload: VenueRatingInput,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -267,7 +280,9 @@ async def upsert_venue_rating(
     responses=responses['delete_log'],
     operation_id='DeleteMovieLog',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def delete_log(
+    request: Request,
     log_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> None:

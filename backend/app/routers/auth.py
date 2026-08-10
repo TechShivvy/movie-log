@@ -5,7 +5,9 @@ identity it maps to (useful in Swagger's "Authorize" flow before calling the API
 """
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
-from fastapi import APIRouter, Depends
+from config import settings
+from fastapi import APIRouter, Depends, Request
+from rate_limit import limiter
 from responses.auth import responses
 
 router = APIRouter()
@@ -19,5 +21,8 @@ router = APIRouter()
     responses=responses['me'],
     operation_id='WhoAmI',
 )
-async def me(current_user: AuthenticatedUser = Depends(get_current_user)) -> dict:
+@limiter.limit(f'{settings.default_rate_limit_per_minute}/minute')
+async def me(
+    request: Request, current_user: AuthenticatedUser = Depends(get_current_user)
+) -> dict:
     return {'user_id': current_user.user_id, 'email': current_user.email}

@@ -90,9 +90,25 @@ class Settings(BaseSettings):
     rate_limit_per_minute: Annotated[
         int,
         Field(
-            description='Maximum number of requests allowed per minute',
+            description='Maximum number of requests allowed per minute for '
+            'movie-metadata/extract specifically (LLM-cost-sensitive, kept low)',
             gt=0,
             le=100,
+        ),
+    ]
+    default_rate_limit_per_minute: Annotated[
+        int,
+        Field(
+            default=60,
+            description='Blanket per-minute limit applied to every route that '
+            "doesn't set its own via @limiter.limit(...) — see rate_limit.py. "
+            'Keyed by user id when authenticated, IP address otherwise (see '
+            '_user_aware_rate_limit_key), so this caps both a single abusive '
+            'account and an anonymous caller hitting the public endpoints '
+            '(theatre/screen stats, user search, public profiles) with no '
+            'account at all.',
+            gt=0,
+            le=1000,
         ),
     ]
     spool_max_size: Annotated[

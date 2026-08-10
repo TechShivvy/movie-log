@@ -3,13 +3,17 @@
 from typing import Any, List
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
-from fastapi import APIRouter, Depends, Query, status
+from config import settings
+from fastapi import APIRouter, Depends, Query, Request, status
+from rate_limit import limiter
 from responses.public_profile import responses
 from schemas.public_profile import DiscoverabilityUpdate, PublicProfile, UsernameUpdate
 from services import supabase_rest
 from utils.errors import APIError
 
 router = APIRouter()
+
+_DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
 
 
 @router.get(
@@ -22,7 +26,8 @@ router = APIRouter()
     responses=responses['search_users'],
     operation_id='SearchPublicUsers',
 )
-async def search_users(q: str = Query(..., min_length=2)) -> Any:
+@limiter.limit(_DEFAULT_LIMIT)
+async def search_users(request: Request, q: str = Query(..., min_length=2)) -> Any:
     return await supabase_rest.search_public_users(q)
 
 
@@ -35,7 +40,8 @@ async def search_users(q: str = Query(..., min_length=2)) -> Any:
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
 )
-async def public_profile(username: str) -> Any:
+@limiter.limit(_DEFAULT_LIMIT)
+async def public_profile(request: Request, username: str) -> Any:
     profile = await supabase_rest.get_public_profile(username)
     if not profile:
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
@@ -53,7 +59,9 @@ async def public_profile(username: str) -> Any:
     responses=responses['set_username'],
     operation_id='SetUsername',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def set_username(
+    request: Request,
     payload: UsernameUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -83,7 +91,9 @@ async def set_username(
     responses=responses['set_discoverability'],
     operation_id='SetDiscoverability',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def set_discoverability(
+    request: Request,
     payload: DiscoverabilityUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:

@@ -9,8 +9,10 @@ similarity is only ever used for the prompt, never for auto-merging).
 from typing import Any, List
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
-from fastapi import APIRouter, Depends
+from config import settings
+from fastapi import APIRouter, Depends, Request
 from loguru_setup import LOGGER
+from rate_limit import limiter
 from responses.venues import responses
 from schemas.venues import (
     Screen,
@@ -25,6 +27,8 @@ from utils.errors import APIError
 
 router = APIRouter()
 
+_DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
+
 
 @router.post(
     '/theatres/match',
@@ -38,7 +42,9 @@ router = APIRouter()
     responses=responses['match_theatres'],
     operation_id='MatchTheatres',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def match_theatres(
+    request: Request,
     payload: TheatreMatchRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -59,7 +65,9 @@ async def match_theatres(
     responses=responses['create_theatre'],
     operation_id='CreateTheatre',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def create_theatre(
+    request: Request,
     payload: TheatreCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -89,7 +97,9 @@ async def create_theatre(
     responses=responses['list_screens'],
     operation_id='ListScreens',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def list_screens(
+    request: Request,
     theatre_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -107,7 +117,9 @@ async def list_screens(
     responses=responses['create_screen'],
     operation_id='CreateScreen',
 )
+@limiter.limit(_DEFAULT_LIMIT)
 async def create_screen(
+    request: Request,
     theatre_id: str,
     payload: ScreenCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -127,7 +139,8 @@ async def create_screen(
     responses=responses['theatre_stats'],
     operation_id='GetTheatreStats',
 )
-async def theatre_stats(theatre_id: str) -> Any:
+@limiter.limit(_DEFAULT_LIMIT)
+async def theatre_stats(request: Request, theatre_id: str) -> Any:
     stats = await supabase_rest.get_theatre_stats(theatre_id)
     if stats is None:
         # Same for an unknown theatre_id and a real one with no ratings yet —
@@ -147,7 +160,8 @@ async def theatre_stats(theatre_id: str) -> Any:
     responses=responses['screen_stats'],
     operation_id='GetScreenStats',
 )
-async def screen_stats(screen_id: str) -> Any:
+@limiter.limit(_DEFAULT_LIMIT)
+async def screen_stats(request: Request, screen_id: str) -> Any:
     stats = await supabase_rest.get_screen_stats(screen_id)
     if stats is None:
         raise APIError(404, 'NOT_FOUND', 'No rating stats for this screen yet.')

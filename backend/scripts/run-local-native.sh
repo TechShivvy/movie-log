@@ -94,5 +94,20 @@ else
     echo "note: uv not on PATH, using $UV — consider adding its folder to PATH permanently." >&2
 fi
 
+# Windows only: python-magic-bin isn't tracked in pyproject.toml (it's a
+# Windows-only libmagic shim — Linux/Docker use the real libmagic1 via apt,
+# see the Prerequisites note above), so `uv sync`/`uv run` silently strips
+# it out again every time it touches the venv (a dependency change, or a
+# .python-version bump like this repo just had). Left alone, the next
+# worker start doesn't raise a catchable ImportError — the whole process
+# segfaults on `import magic`, which just looks like uvicorn hanging with
+# no error at all. Self-heal here instead.
+if [ -f "$BACKEND_DIR/.venv/Scripts/python.exe" ]; then
+    if ! "$BACKEND_DIR/.venv/Scripts/python.exe" -c "import magic" >/dev/null 2>&1; then
+        echo "note: python-magic-bin missing (fresh/rebuilt venv) — reinstalling..." >&2
+        "$BACKEND_DIR/.venv/Scripts/python.exe" -m pip install -q python-magic-bin
+    fi
+fi
+
 cd "$BACKEND_DIR/app"
 "$UV" run --project .. uvicorn app:app --host 0.0.0.0 --port 8080 --reload
