@@ -333,13 +333,18 @@ async def get_public_profile(username: str) -> Optional[dict]:
 
 
 async def list_public_logs_for_user(user_id: str) -> list[dict]:
+    # public_movie_log_entries is a view that already filters to is_public =
+    # true and excludes booking_ref/ticket_image_path/seats — see migration
+    # 20260710_000003_movie_rating_half_star_sql.sql. anon has no grant on
+    # movie_logs itself, only on this view.
     params = {
         'select': '*',
         'user_id': f'eq.{user_id}',
-        'is_public': 'eq.true',
         'order': 'watched_date.desc',
     }
-    response = await _anon_request('GET', '/movie_logs', 'list_public_logs_for_user', params=params)
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'list_public_logs_for_user', params=params
+    )
     return response.json()
 
 
