@@ -65,6 +65,18 @@ def create_app() -> FastAPI:
                 'name': 'Auth',
                 'description': 'Verify a Supabase access token and inspect the mapped identity.',
             },
+            {
+                'name': 'Venues',
+                'description': 'Theatre/screen directory and their aggregate rating '
+                'stats. Directory reads and stats are public; creating theatres/'
+                'screens requires sign-in.',
+            },
+            {
+                'name': 'Public',
+                'description': "Public profile search and a user's shared movie logs. "
+                'Reads are public; only opted-in (`is_discoverable`) profiles are '
+                'visible, and only logs marked `is_public` are shown.',
+            },
         ],
         # Pre-fills Swagger's OAuth2 Authorize dialog (client_id is unused by
         # the dev shim — Supabase's /authorize doesn't have a client_id

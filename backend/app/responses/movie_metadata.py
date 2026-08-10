@@ -20,48 +20,97 @@ responses = {
             },
         },
         400: {
-            'description': 'Invalid image file or bad request.',
+            'description': 'Invalid image file, empty/invalid model name, or the '
+            'upstream LLM rejected the request as malformed.',
             'content': {
                 'application/json': {
-                    'example': {'detail': 'Bad request. Please check input format.'}
+                    'examples': {
+                        'invalid_image': {
+                            'summary': 'Unreadable image file',
+                            'value': {'code': 'BAD_REQUEST', 'message': 'Invalid image file'},
+                        },
+                        'shared_model_not_free': {
+                            'summary': 'Non-free model requested without an own API key',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'Selected shared model must be a free model.',
+                            },
+                        },
+                        'upstream_bad_request': {
+                            'summary': 'OpenRouter/OpenAI rejected the request',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'Bad request. Please check input format.',
+                            },
+                        },
+                    }
                 }
             },
         },
         401: {
-            'description': 'OpenAI API authentication failed.',
+            'description': "Missing/invalid sign-in, or (if you supplied your own key) "
+            "OpenRouter rejected it. These are the two independent locks in "
+            "Swagger's Authorize dialog — see the endpoint description.",
             'content': {
-                'application/json': {'example': {'detail': 'Invalid API key.'}}
+                'application/json': {
+                    'examples': {
+                        'not_signed_in': {
+                            'summary': 'No Supabase access token (main "Authorize" not done)',
+                            'value': {'code': 'UNAUTHORIZED', 'message': 'Missing bearer token.'},
+                        },
+                        'expired_session': {
+                            'summary': 'Supabase access token is invalid or expired',
+                            'value': {
+                                'code': 'UNAUTHORIZED',
+                                'message': 'Invalid or expired access token.',
+                            },
+                        },
+                        'bad_openrouter_key': {
+                            'summary': 'X-OpenRouter-API-Key was supplied but rejected upstream',
+                            'value': {'code': 'UNAUTHORIZED', 'message': 'Invalid API key.'},
+                        },
+                    }
+                }
             },
         },
         403: {
-            'description': 'OpenAI permission denied.',
+            'description': 'OpenRouter/OpenAI permission denied for the requested model.',
             'content': {
-                'application/json': {'example': {'detail': 'Permission denied.'}}
+                'application/json': {
+                    'example': {'code': 'FORBIDDEN', 'message': 'Permission denied.'}
+                }
             },
         },
         408: {
-            'description': 'OpenAI request timed out.',
+            'description': 'Upstream LLM request timed out.',
             'content': {
                 'application/json': {
-                    'example': {'detail': 'Request to OpenAI timed out.'}
+                    'example': {
+                        'code': 'REQUEST_TIMEOUT',
+                        'message': 'Request to OpenAI timed out.',
+                    }
                 }
             },
         },
         413: {
-            'description': 'Uploaded file is too large or exceeds context limits.',
+            'description': 'Uploaded file is too large, or exceeds the model context '
+            'limit even after adaptive optimization.',
             'content': {
                 'application/json': {
                     'examples': {
                         'too_large': {
                             'summary': 'File too large',
                             'value': {
-                                'detail': 'Ticket image must be smaller than X MB'
+                                'code': 'PAYLOAD_TOO_LARGE',
+                                'message': 'Ticket image must be smaller than 25 MB',
                             },
                         },
                         'context_limit': {
                             'summary': 'Context limit exceeded after optimization',
                             'value': {
-                                'detail': 'Image could not be optimized to fit context limits. Try a smaller or simpler image.'
+                                'code': 'PAYLOAD_TOO_LARGE',
+                                'message': 'Image could not be optimized to fit context '
+                                'limits. Try a smaller or simpler image.',
                             },
                         },
                     }
@@ -69,44 +118,88 @@ responses = {
             },
         },
         415: {
-            'description': 'Unsupported file type.',
+            'description': 'File content does not match an allowed image type '
+            '(checked via magic bytes, not just the declared Content-Type).',
             'content': {
                 'application/json': {
                     'example': {
-                        'detail': 'Invalid file type: detected text/plain. Only images allowed.'
+                        'code': 'UNSUPPORTED_MEDIA_TYPE',
+                        'message': 'Invalid file type: detected text/plain. Only JPEG, '
+                        'PNG or WebP allowed.',
                     }
                 }
             },
         },
         429: {
-            'description': 'Rate limit exceeded.',
+            'description': 'One of three independent limits — distinguish by `code`, '
+            'not just the 429 status.',
             'content': {
                 'application/json': {
-                    'example': {'detail': 'Too many requests. Please try again later.'}
+                    'examples': {
+                        'per_minute_rate_limit': {
+                            'summary': 'Too many requests in a short window (SlowAPI, per user/IP)',
+                            'value': {
+                                'code': 'RATE_LIMIT_MINUTE',
+                                'message': 'Too many requests in a short time. Please '
+                                'slow down and retry shortly.',
+                                'detail': {'limit': '5'},
+                            },
+                        },
+                        'daily_quota_exceeded': {
+                            'summary': 'Shared-key daily cap reached (only applies without '
+                            'your own X-OpenRouter-API-Key)',
+                            'value': {
+                                'code': 'QUOTA_DAILY_EXCEEDED',
+                                'message': 'Daily free extraction limit reached. Add your '
+                                'own OpenRouter API key in settings or try again tomorrow.',
+                            },
+                        },
+                        'upstream_rate_limited': {
+                            'summary': 'OpenRouter/OpenAI itself rate-limited the request',
+                            'value': {
+                                'code': 'RATE_LIMITED',
+                                'message': 'Too many requests. Please try again later.',
+                            },
+                        },
+                    }
                 }
             },
         },
         500: {
-            'description': 'Internal server error or parsing failure.',
+            'description': 'Internal server error, misconfiguration, or upstream '
+            'response could not be parsed into MovieMetadata.',
             'content': {
                 'application/json': {
                     'examples': {
                         'parse_error': {
                             'summary': 'Response parsing failed',
                             'value': {
-                                'detail': 'Failed to parse movie metadata from response',
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'Failed to parse movie metadata from response',
                             },
                         },
-                        'missing_api_key': {
-                            'summary': 'Missing OpenRouter API key',
+                        'missing_shared_key': {
+                            'summary': 'No X-OpenRouter-API-Key given and no shared key configured',
                             'value': {
-                                'detail': 'OpenRouter API key is missing. Please provide it in the header or configure it in the backend settings.'
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'OpenRouter API key is missing. Please provide '
+                                'it in the header or configure it in the backend settings.',
+                            },
+                        },
+                        'quota_misconfigured': {
+                            'summary': 'Backend is missing Supabase quota settings',
+                            'value': {
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'Supabase quota settings are not configured on '
+                                'the backend. Set SUPABASE_SECRET_KEY (or legacy '
+                                'SUPABASE_SERVICE_ROLE_KEY).',
                             },
                         },
                         'generic': {
                             'summary': 'Unexpected internal error',
                             'value': {
-                                'detail': 'Unexpected error from upstream service.'
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'An unexpected error occurred.',
                             },
                         },
                     }
@@ -114,11 +207,27 @@ responses = {
             },
         },
         502: {
-            'description': 'Connection failure or OpenAI error.',
+            'description': 'Could not reach OpenRouter/OpenAI, or it returned a '
+            'non-JSON / invalid response.',
             'content': {
                 'application/json': {
-                    'example': {
-                        'detail': 'Unable to connect to OpenAI. Please retry later.'
+                    'examples': {
+                        'connection_failure': {
+                            'summary': 'Could not connect to the upstream LLM',
+                            'value': {
+                                'code': 'UPSTREAM_ERROR',
+                                'message': 'Unable to connect to OpenAI. Please retry later.',
+                            },
+                        },
+                        'invalid_response': {
+                            'summary': 'Model returned a non-JSON / unparseable response',
+                            'value': {
+                                'code': 'UPSTREAM_ERROR',
+                                'message': 'Model returned an invalid/non-JSON response. '
+                                'Try a specific free model such as '
+                                'qwen/qwen2.5-vl-72b-instruct:free.',
+                            },
+                        },
                     }
                 }
             },

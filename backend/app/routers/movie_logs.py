@@ -11,6 +11,7 @@ from typing import Annotated, Any, List, Literal
 from auth.supabase_auth import AuthenticatedUser, get_current_user
 from fastapi import APIRouter, Body, Depends, Query, Request, status
 from loguru_setup import LOGGER
+from responses.movie_log import responses
 from schemas.movie_log import WRITABLE_FIELDS, MovieLog, MovieLogInput, MovieLogUpdate
 from schemas.venues import VenueRatingInput
 from services import supabase_rest
@@ -42,7 +43,15 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     return {k: payload[k] for k in WRITABLE_FIELDS if k in payload}
 
 
-@router.get('', response_model=List[MovieLog], tags=['Movie Logs'])
+@router.get(
+    '',
+    response_model=List[MovieLog],
+    tags=['Movie Logs'],
+    description="List the caller's own movie logs, newest first by default.",
+    response_description='A page of movie logs.',
+    responses=responses['list_logs'],
+    operation_id='ListMovieLogs',
+)
 async def list_logs(
     current_user: AuthenticatedUser = Depends(get_current_user),
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
@@ -69,7 +78,19 @@ async def list_logs(
     )
 
 
-@router.post('', response_model=MovieLog, status_code=201, tags=['Movie Logs'])
+@router.post(
+    '',
+    response_model=MovieLog,
+    status_code=201,
+    tags=['Movie Logs'],
+    description='Create a movie log for the caller. `movie` is the only required '
+    'field; everything else — including linking to a theatre/screen via '
+    '`theatre_id`/`screen_id`, or sharing it publicly via `is_public` — can be '
+    'set now or added later with PATCH.',
+    response_description='The created log.',
+    responses=responses['create_log'],
+    operation_id='CreateMovieLog',
+)
 @limiter.limit('30/minute')
 async def create_log(
     request: Request,
@@ -89,7 +110,15 @@ async def create_log(
     return await supabase_rest.create_movie_log(current_user.access_token, row)
 
 
-@router.get('/export', tags=['Movie Logs'])
+@router.get(
+    '/export',
+    tags=['Movie Logs'],
+    description='Export every one of the caller\'s logs as a single JSON payload — '
+    'for backup, or to feed straight into POST /import on another account.',
+    response_description="All of the caller's logs.",
+    responses=responses['export_logs'],
+    operation_id='ExportMovieLogs',
+)
 async def export_logs(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
@@ -100,7 +129,16 @@ async def export_logs(
     return {'count': len(rows), 'items': rows}
 
 
-@router.post('/import', tags=['Movie Logs'])
+@router.post(
+    '/import',
+    tags=['Movie Logs'],
+    description='Bulk-create logs, e.g. from a previous GET /export. Capped at 500 '
+    'items per request; each item goes through the same validation as a single '
+    'POST /, and is assigned to the caller regardless of any user_id in the payload.',
+    response_description='How many logs were created, plus the created rows.',
+    responses=responses['import_logs'],
+    operation_id='ImportMovieLogs',
+)
 @limiter.limit('6/minute')
 async def import_logs(
     request: Request,
@@ -130,7 +168,17 @@ async def import_logs(
     return {'imported': len(created), 'items': created}
 
 
-@router.get('/{log_id}', response_model=MovieLog, tags=['Movie Logs'])
+@router.get(
+    '/{log_id}',
+    response_model=MovieLog,
+    tags=['Movie Logs'],
+    description="Fetch a single log the caller owns. Returns 404 (not 403) if the "
+    "log belongs to someone else — RLS makes 'not yours' and 'does not exist' "
+    "indistinguishable on purpose.",
+    response_description='The requested log.',
+    responses=responses['get_log'],
+    operation_id='GetMovieLog',
+)
 async def get_log(
     log_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -143,7 +191,16 @@ async def get_log(
     return row
 
 
-@router.patch('/{log_id}', response_model=MovieLog, tags=['Movie Logs'])
+@router.patch(
+    '/{log_id}',
+    response_model=MovieLog,
+    tags=['Movie Logs'],
+    description='Partially update a log — only send the fields you want to change. '
+    'At least one field is required.',
+    response_description='The updated log.',
+    responses=responses['update_log'],
+    operation_id='UpdateMovieLog',
+)
 async def update_log(
     log_id: str,
     payload: MovieLogUpdate,
@@ -164,7 +221,17 @@ async def update_log(
     return row
 
 
-@router.put('/{log_id}/venue-rating', tags=['Movie Logs'])
+@router.put(
+    '/{log_id}/venue-rating',
+    tags=['Movie Logs'],
+    description='Rate the venue (screen/speaker/AC/seat, each optional, half-star '
+    '0.5-5.0) for one of the caller\'s own logs. One rating per log — calling this '
+    "again replaces the previous values. Feeds the theatre/screen aggregate stats "
+    'at GET /venues/theatres/{id}/stats and /venues/screens/{id}/stats.',
+    response_description='The stored venue-rating row.',
+    responses=responses['upsert_venue_rating'],
+    operation_id='UpsertVenueRating',
+)
 async def upsert_venue_rating(
     log_id: str,
     payload: VenueRatingInput,
@@ -191,7 +258,15 @@ async def upsert_venue_rating(
     return result
 
 
-@router.delete('/{log_id}', status_code=status.HTTP_204_NO_CONTENT, tags=['Movie Logs'])
+@router.delete(
+    '/{log_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Movie Logs'],
+    description='Permanently delete one of the caller\'s own logs (and its venue '
+    'rating, if any — cascades in the database).',
+    responses=responses['delete_log'],
+    operation_id='DeleteMovieLog',
+)
 async def delete_log(
     log_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),

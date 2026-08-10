@@ -80,16 +80,22 @@ def validate_shared_model(model_name: str) -> None:
     tags=['Extract Movie Metadata'],
     description=(
         'Extract movie metadata from an uploaded ticket image.\n\n'
-        'To use this endpoint, please follow these steps:\n\n'
-        '1. **Create your own OpenRouter API key**:\n'
-        '   - Visit [https://openrouter.ai/settings/keys](https://openrouter.ai/settings/keys).\n'
-        '   - Click on "Create Key".\n'
-        '   - Provide a descriptive name for the key.\n'
-        '   - Click "Create" to generate the key.\n\n'
-        '2. **Authenticate using your API key**:\n'
-        '   - In the Swagger UI, click on the "Authorize" button located at the top right corner.\n'
-        '   - Enter your API key in the "Value" field and click "Authorize".\n\n'
-        'Your API key will be used to authenticate requests to this endpoint.'
+        'This endpoint needs **two separate things** from the "Authorize" button '
+        '(top right) — they are independent locks, both shown in the same dialog:\n\n'
+        '1. **Sign in** (required, `OAuth2AuthorizationCodeBearer`): identifies you as '
+        'a user — needed for every endpoint in this API, not just this one. Either '
+        'click "Authorize" to sign in with Google (LOCAL/DEV only), or paste a '
+        'Supabase access token directly.\n\n'
+        '2. **Your own OpenRouter key** (optional, `APIKeyHeader` / `X-OpenRouter-API-Key`): '
+        'if you provide one here, your requests use *your* key with no daily cap. '
+        'Leave it blank to use the shared free-tier key, which is limited to '
+        '`DAILY_FREE_LIMIT` extractions per user per day '
+        '(`QUOTA_DAILY_EXCEEDED` once you hit it).\n\n'
+        '   - Get a key at [https://openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) '
+        '→ "Create Key".\n'
+        '   - Paste it into the `X-OpenRouter-API-Key` field in the Authorize dialog.\n\n'
+        'With your own key, `model` can be any OpenRouter model your key has access to; '
+        'without one, it must end in `:free` (see `FREE_MODELS` for the allowlist).'
     ),
     response_description='Movie Metadata',
     response_model=MovieMetadata,

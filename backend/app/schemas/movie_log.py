@@ -57,7 +57,29 @@ def _check_half_star(v: Optional[float]) -> Optional[float]:
 class MovieLogInput(BaseModel):
     """Full create payload. Unknown keys are ignored (e.g. pasted exports)."""
 
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(
+        extra='ignore',
+        json_schema_extra={
+            'example': {
+                'movie': 'Ekkadiki Pothavu Chinnavada',
+                'watched_date': '2016-12-19',
+                'watched_time': '21:30',
+                'timezone_abbrv': 'IST',
+                'theater': 'Sri Rama Picture Place: Vizag',
+                'seats': ['L18', 'L19', 'L20'],
+                'language': 'Telugu',
+                'screen': 'Balcony',
+                'booking_ref': 'BMS12345678',
+                'certificate': 'U/A',
+                'notes': 'Great sound, comfy seats.',
+                'rating': 4.5,
+                'ticket_image_path': None,
+                'theatre_id': None,
+                'screen_id': None,
+                'is_public': False,
+            }
+        },
+    )
 
     movie: Optional[str] = Field(default=None, max_length=300)
     watched_date: Optional[str] = Field(default=None, max_length=10)
@@ -127,7 +149,16 @@ class MovieLogInput(BaseModel):
 class MovieLogUpdate(BaseModel):
     """Partial update payload; only provided fields are sent to the database."""
 
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(
+        extra='ignore',
+        json_schema_extra={
+            'example': {
+                'rating': 5,
+                'notes': 'Rewatched on re-release — even better on a second viewing.',
+                'is_public': True,
+            }
+        },
+    )
 
     movie: Optional[str] = Field(default=None, max_length=300)
     watched_date: Optional[str] = Field(default=None, max_length=10)

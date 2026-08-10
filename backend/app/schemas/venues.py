@@ -25,6 +25,22 @@ class TheatreCreate(BaseModel):
     )
     formatted_address: Optional[str] = Field(default=None, max_length=500)
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'name': 'PVR Nexus',
+                'chain': 'PVR',
+                'city': 'Chennai',
+                'state': 'Tamil Nadu',
+                'country': 'IN',
+                'lat': 13.0605,
+                'lng': 80.2087,
+                'place_id': 'ChIJ_______example_______',
+                'formatted_address': 'Nexus Mall, Vadapalani, Chennai, Tamil Nadu 600026',
+            }
+        }
+    )
+
 
 class Theatre(TheatreCreate):
     id: str
@@ -34,6 +50,10 @@ class Theatre(TheatreCreate):
 class TheatreMatchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=300)
     city: Optional[str] = Field(default=None, max_length=150)
+
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'query': 'PVR Nexus', 'city': 'Chennai'}}
+    )
 
 
 class TheatreMatchCandidate(BaseModel):
@@ -49,6 +69,10 @@ class ScreenCreate(BaseModel):
     name: str = Field(..., max_length=100)
     screen_type: Optional[str] = Field(default=None, max_length=50)
 
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'name': 'Screen 4 - IMAX', 'screen_type': 'IMAX'}}
+    )
+
 
 class Screen(ScreenCreate):
     id: str
@@ -61,6 +85,17 @@ class VenueRatingInput(BaseModel):
     speaker_rating: Optional[float] = Field(default=None)
     ac_rating: Optional[float] = Field(default=None)
     seat_rating: Optional[float] = Field(default=None)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'screen_rating': 4.5,
+                'speaker_rating': 5,
+                'ac_rating': 3.5,
+                'seat_rating': 4,
+            }
+        }
+    )
 
     @field_validator('screen_rating', 'speaker_rating', 'ac_rating', 'seat_rating')
     @classmethod

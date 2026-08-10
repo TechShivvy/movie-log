@@ -11,6 +11,7 @@ from typing import Any, List
 from auth.supabase_auth import AuthenticatedUser, get_current_user
 from fastapi import APIRouter, Depends
 from loguru_setup import LOGGER
+from responses.venues import responses
 from schemas.venues import (
     Screen,
     ScreenCreate,
@@ -25,7 +26,16 @@ router = APIRouter()
 
 
 @router.post(
-    '/theatres/match', response_model=List[TheatreMatchCandidate], tags=['Venues']
+    '/theatres/match',
+    response_model=List[TheatreMatchCandidate],
+    tags=['Venues'],
+    description='Find existing theatres whose name is similar to the given query '
+    '(trigram similarity, optionally scoped to a city) — run this against OCR\'d '
+    'ticket text for a "did you mean" prompt before offering to create a new '
+    "theatre. Never used for auto-merging; place_id is the only real dedup key.",
+    response_description='Candidate theatres, most similar first.',
+    responses=responses['match_theatres'],
+    operation_id='MatchTheatres',
 )
 async def match_theatres(
     payload: TheatreMatchRequest,
@@ -36,7 +46,18 @@ async def match_theatres(
     )
 
 
-@router.post('/theatres', response_model=Theatre, status_code=201, tags=['Venues'])
+@router.post(
+    '/theatres',
+    response_model=Theatre,
+    status_code=201,
+    tags=['Venues'],
+    description='Create a theatre, or return the existing one if `place_id` already '
+    'matches one on file. Typically called after the user picks "none of these" on '
+    'the /theatres/match results and selects a place via Google Places.',
+    response_description='The created (or matched existing) theatre.',
+    responses=responses['create_theatre'],
+    operation_id='CreateTheatre',
+)
 async def create_theatre(
     payload: TheatreCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -59,7 +80,13 @@ async def create_theatre(
 
 
 @router.get(
-    '/theatres/{theatre_id}/screens', response_model=List[Screen], tags=['Venues']
+    '/theatres/{theatre_id}/screens',
+    response_model=List[Screen],
+    tags=['Venues'],
+    description='List every screen recorded for a theatre.',
+    response_description='The screens at this theatre.',
+    responses=responses['list_screens'],
+    operation_id='ListScreens',
 )
 async def list_screens(
     theatre_id: str,
@@ -73,6 +100,11 @@ async def list_screens(
     response_model=Screen,
     status_code=201,
     tags=['Venues'],
+    description='Add a screen to a theatre. No dedup here (unlike theatres/place_id) '
+    'beyond a same-theatre unique constraint on the screen name.',
+    response_description='The created screen.',
+    responses=responses['create_screen'],
+    operation_id='CreateScreen',
 )
 async def create_screen(
     theatre_id: str,
@@ -85,11 +117,26 @@ async def create_screen(
     return await supabase_rest.create_screen(current_user.access_token, row)
 
 
-@router.get('/theatres/{theatre_id}/stats', tags=['Venues'])
+@router.get(
+    '/theatres/{theatre_id}/stats',
+    tags=['Venues'],
+    description='Aggregate ratings across every screen at this theatre. Public — no '
+    'sign-in needed, unlike every other endpoint in this API.',
+    response_description='Aggregate rating stats for the theatre.',
+    responses=responses['theatre_stats'],
+    operation_id='GetTheatreStats',
+)
 async def theatre_stats(theatre_id: str) -> Any:
     return await supabase_rest.get_theatre_stats(theatre_id)
 
 
-@router.get('/screens/{screen_id}/stats', tags=['Venues'])
+@router.get(
+    '/screens/{screen_id}/stats',
+    tags=['Venues'],
+    description='Aggregate ratings for a single screen. Public — no sign-in needed.',
+    response_description='Aggregate rating stats for the screen.',
+    responses=responses['screen_stats'],
+    operation_id='GetScreenStats',
+)
 async def screen_stats(screen_id: str) -> Any:
     return await supabase_rest.get_screen_stats(screen_id)
