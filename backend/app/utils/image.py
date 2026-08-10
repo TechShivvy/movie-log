@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import io
 from typing import Annotated
 
@@ -15,6 +16,21 @@ Image.MAX_IMAGE_PIXELS = 50_000_000  # ~50 MP
 # Only raster formats the vision model accepts. SVG and other 'image/*' types
 # (which magic would otherwise pass) are rejected here as defense in depth.
 ALLOWED_IMAGE_MIME_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+
+
+async def hash_upload(file: UploadFile) -> str:
+    """SHA-256 of the raw upload — used as a content-addressed cache key
+    (services/extraction_cache.py). Hashes bytes, not the filename: two
+    different filenames can be the exact same image, and the same
+    filename can be a completely different one, so the filename is never
+    a reliable signal on its own. Seeks back to the start afterward so a
+    later image_to_data_uri() call on the same UploadFile still reads the
+    full content, same re-read pattern validate_image_file already uses.
+    """
+
+    contents = await file.read()
+    await file.seek(0)
+    return hashlib.sha256(contents).hexdigest()
 
 
 async def image_to_data_uri(file: UploadFile) -> str:

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata
 from starlette.formparsers import MultiPartParser
+from services import extraction_cache
 from services.quota import ensure_within_daily_quota
 from utils import image
 from utils.openai_utils import openai_error_to_http
@@ -95,7 +96,13 @@ def validate_shared_model(model_name: str) -> None:
         '→ "Create Key".\n'
         '   - Paste it into the `X-OpenRouter-API-Key` field in the Authorize dialog.\n\n'
         'With your own key, `model` can be any OpenRouter model your key has access to; '
-        'without one, it must end in `:free` (see `FREE_MODELS` for the allowlist).'
+        'without one, it must end in `:free` (see `FREE_MODELS` for the allowlist).\n\n'
+        '**Caching**: results are cached by the exact image content (not filename) '
+        'plus `model` — re-uploading the same ticket image with the same model '
+        'returns the cached result instantly, skips the LLM call entirely, and '
+        "does **not** count against your daily quota (nothing was actually run). "
+        'Uploading the same image with a different `model` is a cache miss and '
+        'runs normally.'
     ),
     response_description='Movie Metadata',
     response_model=MovieMetadata,
@@ -127,6 +134,23 @@ async def extract_movie_metadata(
 
     model_name = resolve_model_name(model)
 
+    # Content-addressed cache: the same image bytes + same model always
+    # produce the same extraction, so a repeat upload (a user re-uploading
+    # their own ticket, or two people sharing/photographing the same
+    # physical ticket) can skip quota, key resolution, and the LLM call
+    # entirely. A cache hit costs nothing real, so it deliberately never
+    # touches ensure_within_daily_quota — that's meant to bound actual LLM
+    # spend, not repeat reads of an already-computed answer.
+    image_hash = await image.hash_upload(ticket_image)
+    cached = await extraction_cache.get_cached_extraction(image_hash, model_name)
+    if cached is not None:
+        LOGGER.info(
+            'extract rid={} model={} cache=hit',
+            getattr(request.state, 'request_id', '-'),
+            model_name,
+        )
+        return cached
+
     if header_api_key:
         openrouter_api_key = header_api_key
     else:
@@ -151,12 +175,14 @@ async def extract_movie_metadata(
             model_name=model_name,
         )
         LOGGER.info(
-            'extract rid={} model={} duration={:.3f}s',
+            'extract rid={} model={} cache=miss duration={:.3f}s',
             getattr(request.state, 'request_id', '-'),
             model_name,
             __import__('time').monotonic() - _llm_start,
         )
-        return ticket.model_dump()
+        result = ticket.model_dump()
+        await extraction_cache.store_extraction(image_hash, model_name, result)
+        return result
     except ValidationError as e:
         LOGGER.error(f'Validation error parsing movie metadata: {e}')
         raise HTTPException(
