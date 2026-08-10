@@ -38,7 +38,7 @@ def shrink_or_fail(image_data_uri: str, attempt: int, max_attempts: int) -> str:
     if attempt >= max_attempts:
         LOGGER.error('Context limit exceeded after all attempts')
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail='Image could not be optimized to fit context limits. Try a smaller image.',
         )
 

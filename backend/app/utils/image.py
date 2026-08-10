@@ -47,7 +47,7 @@ async def validate_content_length(
     limit = settings.max_file_size * 1024 * 1024
     if content_length is not None and content_length >= limit:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f'Ticket image must be smaller than {settings.max_file_size} MB',
         )
 
