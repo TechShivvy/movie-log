@@ -98,6 +98,22 @@ class Settings(BaseSettings):
     spool_max_size: Annotated[
         float, Field(description='In-memory spool threshold (MB)', gt=0, le=100)
     ]
+    max_json_body_size: Annotated[
+        float,
+        Field(
+            default=8,
+            description='Max JSON request body size (MB) for non-multipart '
+            'endpoints — enforced by middlewares/middleware.py:MaxBodySizeMiddleware '
+            'as bytes actually arrive, not just via Content-Length (which a client '
+            'can omit or lie about). Multipart uploads use max_part_size/'
+            'spool_max_size instead and are exempt. 8MB comfortably covers the '
+            'largest legitimate payload (a 500-item POST /movie-logs/import) '
+            'while still capping the memory a single request can force the '
+            'server to buffer before per-field validation ever runs.',
+            gt=0,
+            le=100,
+        ),
+    ]
     openrouter_api_key: Optional[SecretStr] = Field(
         ..., exclude=True, description='API key for OpenRouter'
     )

@@ -100,6 +100,10 @@ def create_app() -> FastAPI:
     app.middleware('http')(middleware.log_request_info)
     app.middleware('http')(middleware.add_security_headers)
     app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(
+        middleware.MaxBodySizeMiddleware,
+        max_bytes=int(settings.max_json_body_size * 1024 * 1024),
+    )
 
     app.include_router(root.router)
     app.include_router(auth.router, prefix=f'{api_prefix}/auth')
