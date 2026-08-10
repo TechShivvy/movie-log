@@ -2,7 +2,7 @@
 
 ########################################
 # Base image: minimal Debian with Python
-FROM python:3.11.4-slim-bookworm AS base
+FROM python:3.11.15-slim-bookworm AS base
 
 RUN : \
     && apt-get update \
