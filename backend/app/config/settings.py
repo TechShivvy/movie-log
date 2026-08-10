@@ -228,6 +228,24 @@ class ProductionSettings(Settings):
             return 'INFO'
         return v_str
 
+    @field_validator('dev_bypass_auth', mode='after')
+    @classmethod
+    def reject_dev_bypass_auth(cls, v: bool) -> bool:
+        # This used to be enforced by exactly one runtime check, in
+        # auth/supabase_auth.py:get_current_user (settings.env in
+        # ('LOCAL', 'DEV')) — which does work, but relying on a single
+        # request-time check for something this sensitive is thin. Fail
+        # loudly at startup instead: a misconfigured DEV_BYPASS_AUTH=true in
+        # a PROD environment should crash immediately and obviously, not
+        # silently do nothing and leave whoever set it assuming it's active.
+        if v:
+            raise ValueError(
+                'DEV_BYPASS_AUTH must never be true when ENV=PROD. Remove it '
+                'from the environment — refusing to start rather than silently '
+                'ignoring a misconfiguration this sensitive.'
+            )
+        return v
+
 
 def get_settings() -> Settings | DevelopmentSettings | ProductionSettings:
     config = dict(LOCAL=Settings, DEV=DevelopmentSettings, PROD=ProductionSettings)

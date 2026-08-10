@@ -33,7 +33,7 @@ inside each handler too, in case that registration guard is ever changed
 without noticing this file depends on it.
 """
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from config import settings
@@ -45,10 +45,36 @@ router = APIRouter()
 
 _CALLBACK_PATH = f'{settings.api_prefix}/auth/dev/google/callback'
 
+# Both handlers below eventually 302 the browser to a caller-supplied
+# redirect_uri/swagger_redirect_uri carrying a real OAuth code. Without this
+# allowlist, that's an open redirect (CWE-601): validated live —
+# /authorize?redirect_uri=https://evil.example/steal ends with the browser
+# actually landing on evil.example holding the auth code. PKCE keeps this
+# from being a full session-hijack (the code alone needs a matching
+# code_verifier that never leaves the legitimate browser), but it's still a
+# real phishing vector and a bad pattern to leave in place. This is a
+# local-dev-only OAuth helper by design, so restricting redirects to
+# localhost/127.0.0.1 isn't a real limitation — it's just closing the hole.
+_ALLOWED_REDIRECT_HOSTS = {'localhost', '127.0.0.1'}
+
 
 def _guard_dev_only() -> None:
     if settings.env not in ('LOCAL', 'DEV'):
         raise HTTPException(status_code=404, detail='Not found.')
+
+
+def _validate_redirect_uri(redirect_uri: str) -> None:
+    parsed = urlparse(redirect_uri)
+    if parsed.scheme not in ('http', 'https') or parsed.hostname not in _ALLOWED_REDIRECT_HOSTS:
+        LOGGER.warning(
+            'dev_oauth: rejected redirect_uri outside the localhost allowlist: {}',
+            redirect_uri,
+        )
+        raise HTTPException(
+            400,
+            'redirect_uri must point at localhost/127.0.0.1 — this is a '
+            'local-dev-only OAuth helper, not a general-purpose redirector.',
+        )
 
 
 @router.get('/dev/google/authorize', include_in_schema=False)
@@ -61,6 +87,7 @@ async def dev_google_authorize(request: Request) -> RedirectResponse:
     redirect_uri = q.get('redirect_uri')
     if not redirect_uri:
         raise HTTPException(400, 'Missing redirect_uri (expected from Swagger UI).')
+    _validate_redirect_uri(redirect_uri)
 
     # Everything Supabase's own redirect needs to hand back to us at
     # /callback below — Supabase appends its own `code` param on top of
@@ -98,6 +125,11 @@ async def dev_google_callback(request: Request) -> RedirectResponse:
             400,
             f"Google/Supabase sign-in didn't return the expected params: {dict(q)}",
         )
+    # Re-validated here, not just in /authorize above — this endpoint is a
+    # separate, independently reachable URL. Nothing stops a request hitting
+    # it directly with an arbitrary swagger_redirect_uri, skipping /authorize
+    # (and its validation) entirely.
+    _validate_redirect_uri(swagger_redirect_uri)
 
     params = {'code': code}
     if q.get('swagger_state'):

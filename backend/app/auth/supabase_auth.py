@@ -99,7 +99,9 @@ def get_current_user(
     # LOCAL/DEV only: if DEV_BYPASS_AUTH=true is set in .env and no token is
     # provided, return a fixed dev user so you can hit endpoints from curl/Postman
     # without needing a real Supabase JWT.
-    # NEVER set this in production — the ProductionSettings class won't accept it.
+    # NEVER set this in production — doubly enforced: ProductionSettings itself
+    # refuses to start if it's true (config/settings.py:reject_dev_bypass_auth),
+    # and this env check is a second, independent layer on top of that.
     if (
         settings.env in ('LOCAL', 'DEV')
         and getattr(settings, 'dev_bypass_auth', False)
