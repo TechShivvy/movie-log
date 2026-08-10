@@ -21,6 +21,7 @@ from schemas.venues import (
     TheatreMatchRequest,
 )
 from services import supabase_rest
+from utils.errors import APIError
 
 router = APIRouter()
 
@@ -127,7 +128,15 @@ async def create_screen(
     operation_id='GetTheatreStats',
 )
 async def theatre_stats(theatre_id: str) -> Any:
-    return await supabase_rest.get_theatre_stats(theatre_id)
+    stats = await supabase_rest.get_theatre_stats(theatre_id)
+    if stats is None:
+        # Same for an unknown theatre_id and a real one with no ratings yet —
+        # distinguishing the two would need an extra existence check for
+        # marginal benefit. Was previously returning `null` with a 200 here,
+        # which is surprising for clients to handle correctly; a real error
+        # code matches every other "not found" case in this API.
+        raise APIError(404, 'NOT_FOUND', 'No rating stats for this theatre yet.')
+    return stats
 
 
 @router.get(
@@ -139,4 +148,7 @@ async def theatre_stats(theatre_id: str) -> Any:
     operation_id='GetScreenStats',
 )
 async def screen_stats(screen_id: str) -> Any:
-    return await supabase_rest.get_screen_stats(screen_id)
+    stats = await supabase_rest.get_screen_stats(screen_id)
+    if stats is None:
+        raise APIError(404, 'NOT_FOUND', 'No rating stats for this screen yet.')
+    return stats

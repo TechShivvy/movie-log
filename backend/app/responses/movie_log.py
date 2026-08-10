@@ -90,6 +90,97 @@ _VALIDATION = {
     }
 }
 
+_VALIDATION_QUERY = {
+    422: {
+        'description': 'A query parameter failed validation (e.g. limit out of '
+        'range, or sort/order not one of the allowed values).',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Request validation failed',
+                    'detail': [
+                        {
+                            'type': 'less_than_equal',
+                            'loc': ['query', 'limit'],
+                            'msg': 'Input should be less than or equal to 100',
+                            'input': '500',
+                        }
+                    ],
+                }
+            }
+        },
+    }
+}
+
+# FastAPI documents a 422 by default on every endpoint that has *any*
+# request parameter, even a plain `str` path param that can't actually fail
+# type coercion. Kept here (rather than omitted) so the response envelope
+# shown matches reality — {code, message, detail} via
+# utils/errors.py:validation_exception_handler — instead of FastAPI's
+# default HTTPValidationError shape ({"detail": [...]}), which is not what
+# this API actually returns.
+_VALIDATION_UNLIKELY = {
+    422: {
+        'description': "Present for completeness — this endpoint's only "
+        'parameter is a plain string, so this is not realistically reachable.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Request validation failed',
+                    'detail': [],
+                }
+            }
+        },
+    }
+}
+
+# Every endpoint here calls services/supabase_rest.py, which forwards to
+# PostgREST and re-raises non-2xx responses as APIError — these three are
+# possible on *every* operation below, not just the app-level checks each
+# one does itself before/after the PostgREST call.
+_UPSTREAM = {
+    403: {
+        'description': "Row Level Security denied the operation. Shouldn't happen "
+        "through normal use of this API — the backend always sets user_id/"
+        'created_by to the caller\'s own id from their verified token — but is a '
+        'real possible response if RLS policies ever diverge from that assumption.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'FORBIDDEN',
+                    'message': 'You do not have access to this resource.',
+                }
+            }
+        },
+    },
+    500: {
+        'description': 'Backend is missing required Supabase configuration '
+        '(SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY).',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'CONFIG_ERROR',
+                    'message': 'Supabase URL is not configured on the backend.',
+                }
+            }
+        },
+    },
+    502: {
+        'description': 'Supabase/PostgREST is unreachable, timed out, or returned a '
+        'server error.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'UPSTREAM_ERROR',
+                    'message': 'Database service is unavailable.',
+                }
+            }
+        },
+    },
+}
+
 responses = {
     'list_logs': {
         200: {
@@ -105,6 +196,8 @@ responses = {
             },
         },
         **_UNAUTHORIZED,
+        **_VALIDATION_QUERY,
+        **_UPSTREAM,
     },
     'create_log': {
         201: {
@@ -132,6 +225,15 @@ responses = {
                                 "user's own storage prefix.",
                             },
                         },
+                        'invalid_theatre_or_screen_id': {
+                            'summary': "theatre_id/screen_id doesn't reference an "
+                            'existing row (not validated client-side — the '
+                            'foreign key constraint is what actually catches this)',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'The request could not be processed.',
+                            },
+                        },
                     }
                 }
             },
@@ -151,6 +253,7 @@ responses = {
         },
         **_UNAUTHORIZED,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'export_logs': {
         200: {
@@ -162,6 +265,7 @@ responses = {
             },
         },
         **_UNAUTHORIZED,
+        **_UPSTREAM,
     },
     'import_logs': {
         200: {
@@ -173,10 +277,27 @@ responses = {
             },
         },
         400: {
-            'description': 'Empty items list.',
+            'description': 'Empty items list, or one of the items has an invalid '
+            'theatre_id/screen_id — the whole batch fails together (not partial).',
             'content': {
                 'application/json': {
-                    'example': {'code': 'BAD_REQUEST', 'message': 'No items to import.'}
+                    'examples': {
+                        'empty': {
+                            'summary': 'No items to import',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'No items to import.',
+                            },
+                        },
+                        'invalid_theatre_or_screen_id': {
+                            'summary': "One item's theatre_id/screen_id doesn't "
+                            'reference an existing row',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'The request could not be processed.',
+                            },
+                        },
+                    }
                 }
             },
         },
@@ -205,6 +326,8 @@ responses = {
             },
         },
         **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
     },
     'get_log': {
         200: {
@@ -213,6 +336,8 @@ responses = {
         },
         **_UNAUTHORIZED,
         **_NOT_FOUND,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
     },
     'update_log': {
         200: {
@@ -224,12 +349,26 @@ responses = {
             },
         },
         400: {
-            'description': 'Empty patch body.',
+            'description': 'Empty patch body, or theatre_id/screen_id in the patch '
+            "doesn't reference an existing row.",
             'content': {
                 'application/json': {
-                    'example': {
-                        'code': 'BAD_REQUEST',
-                        'message': 'No fields provided to update.',
+                    'examples': {
+                        'empty_patch': {
+                            'summary': 'No fields provided',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'No fields provided to update.',
+                            },
+                        },
+                        'invalid_theatre_or_screen_id': {
+                            'summary': "theatre_id/screen_id doesn't reference an "
+                            'existing row',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'The request could not be processed.',
+                            },
+                        },
                     }
                 }
             },
@@ -237,6 +376,7 @@ responses = {
         **_UNAUTHORIZED,
         **_NOT_FOUND,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'upsert_venue_rating': {
         200: {
@@ -272,10 +412,13 @@ responses = {
         **_UNAUTHORIZED,
         **_NOT_FOUND,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'delete_log': {
         204: {'description': 'Deleted — no response body.'},
         **_UNAUTHORIZED,
         **_NOT_FOUND,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
     },
 }

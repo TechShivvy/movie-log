@@ -69,6 +69,74 @@ _VALIDATION = {
     }
 }
 
+# FastAPI documents a 422 by default on every endpoint that has *any*
+# request parameter, even a plain `str` path param that can't actually fail
+# type coercion. Kept here (rather than omitted) so the response envelope
+# shown matches reality — {code, message, detail} via
+# utils/errors.py:validation_exception_handler — instead of FastAPI's
+# default HTTPValidationError shape ({"detail": [...]}), which is not what
+# this API actually returns.
+_VALIDATION_UNLIKELY = {
+    422: {
+        'description': "Present for completeness — this endpoint's only "
+        'parameter is a plain string, so this is not realistically reachable.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'VALIDATION_ERROR',
+                    'message': 'Request validation failed',
+                    'detail': [],
+                }
+            }
+        },
+    }
+}
+
+# Every endpoint here calls services/supabase_rest.py, which forwards to
+# PostgREST/Supabase and re-raises non-2xx responses as APIError — these
+# are possible on every operation below, authenticated or not (the public
+# stats endpoints go through the anon key instead of a user token, but the
+# same error-mapping code path applies).
+_UPSTREAM = {
+    403: {
+        'description': "Row Level Security denied the operation. Shouldn't happen "
+        'through normal use of this API, but is a real possible response if RLS '
+        'policies ever diverge from what the backend assumes.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'FORBIDDEN',
+                    'message': 'You do not have access to this resource.',
+                }
+            }
+        },
+    },
+    500: {
+        'description': 'Backend is missing required Supabase configuration '
+        '(SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY).',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'CONFIG_ERROR',
+                    'message': 'Supabase URL is not configured on the backend.',
+                }
+            }
+        },
+    },
+    502: {
+        'description': 'Supabase/PostgREST is unreachable, timed out, or returned a '
+        'server error.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'UPSTREAM_ERROR',
+                    'message': 'Database service is unavailable.',
+                }
+            }
+        },
+    },
+}
+
 responses = {
     'match_theatres': {
         200: {
@@ -92,6 +160,7 @@ responses = {
         },
         **_UNAUTHORIZED,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'create_theatre': {
         201: {
@@ -103,6 +172,7 @@ responses = {
         },
         **_UNAUTHORIZED,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'list_screens': {
         200: {
@@ -110,14 +180,43 @@ responses = {
             'content': {'application/json': {'example': [_SCREEN_EXAMPLE]}},
         },
         **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
     },
     'create_screen': {
         201: {
             'description': 'The created screen.',
             'content': {'application/json': {'example': _SCREEN_EXAMPLE}},
         },
+        400: {
+            'description': "theatre_id doesn't reference an existing theatre, or "
+            'this theatre already has a screen with the same name (unique per '
+            'theatre, not globally).',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'invalid_theatre_id': {
+                            'summary': "theatre_id doesn't reference an existing theatre",
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'The request could not be processed.',
+                            },
+                        },
+                        'duplicate_screen_name': {
+                            'summary': 'A screen with this name already exists at '
+                            'this theatre',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'The request could not be processed.',
+                            },
+                        },
+                    }
+                }
+            },
+        },
         **_UNAUTHORIZED,
         **_VALIDATION,
+        **_UPSTREAM,
     },
     'theatre_stats': {
         200: {
@@ -139,6 +238,21 @@ responses = {
                 }
             },
         },
+        404: {
+            'description': "No rating stats yet — either the theatre doesn't exist, "
+            "or it does but has no venue ratings yet. (Both look the same here; if "
+            "you need to tell them apart, check GET /theatres/{id}/screens instead.)",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'NOT_FOUND',
+                        'message': 'No rating stats for this theatre yet.',
+                    }
+                }
+            },
+        },
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
     },
     'screen_stats': {
         200: {
@@ -159,5 +273,19 @@ responses = {
                 }
             },
         },
+        404: {
+            'description': "No rating stats yet — either the screen doesn't exist, "
+            'or it does but has no venue ratings yet.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'NOT_FOUND',
+                        'message': 'No rating stats for this screen yet.',
+                    }
+                }
+            },
+        },
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
     },
 }

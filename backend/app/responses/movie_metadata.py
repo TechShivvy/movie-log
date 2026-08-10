@@ -19,6 +19,26 @@ responses = {
                 }
             },
         },
+        422: {
+            'description': 'No ticket_image part in the multipart form (it\'s '
+            'required), or content_length header present and negative/malformed.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'missing',
+                                'loc': ['body', 'ticket_image'],
+                                'msg': 'Field required',
+                                'input': None,
+                            }
+                        ],
+                    }
+                }
+            },
+        },
         400: {
             'description': 'Invalid image file, empty/invalid model name, or the '
             'upstream LLM rejected the request as malformed.',
@@ -193,6 +213,23 @@ responses = {
                                 'message': 'Supabase quota settings are not configured on '
                                 'the backend. Set SUPABASE_SECRET_KEY (or legacy '
                                 'SUPABASE_SERVICE_ROLE_KEY).',
+                            },
+                        },
+                        'quota_rpc_failed': {
+                            'summary': "The quota-check call to Supabase itself failed "
+                            "(only when using the shared key — irrelevant with your own "
+                            "X-OpenRouter-API-Key)",
+                            'value': {
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'Failed to enforce daily usage limit.',
+                            },
+                        },
+                        'quota_response_unparseable': {
+                            'summary': 'Quota-check call succeeded but returned an '
+                            'unexpected response shape',
+                            'value': {
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'Unexpected quota service response.',
                             },
                         },
                         'generic': {

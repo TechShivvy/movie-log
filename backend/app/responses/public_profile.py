@@ -48,6 +48,37 @@ _UNAUTHORIZED = {
     }
 }
 
+# Every endpoint here calls services/supabase_rest.py, which forwards to
+# PostgREST/Supabase and re-raises non-2xx responses as APIError — these
+# are possible on every operation below, authenticated or not.
+_UPSTREAM = {
+    403: {
+        'description': "Row Level Security denied the operation. Shouldn't happen "
+        'through normal use of this API, but is a real possible response if RLS '
+        'policies ever diverge from what the backend assumes.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'FORBIDDEN',
+                    'message': 'You do not have access to this resource.',
+                }
+            }
+        },
+    },
+    502: {
+        'description': 'Supabase/PostgREST is unreachable, timed out, or returned a '
+        'server error.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'UPSTREAM_ERROR',
+                    'message': 'Database service is unavailable.',
+                }
+            }
+        },
+    },
+}
+
 responses = {
     'search_users': {
         200: {
@@ -75,6 +106,7 @@ responses = {
                 }
             },
         },
+        **_UPSTREAM,
     },
     'public_profile': {
         200: {
@@ -99,6 +131,26 @@ responses = {
                 }
             },
         },
+        422: {
+            # FastAPI documents a 422 by default on every endpoint with a request
+            # parameter, even a plain `str` path param like `username` that can't
+            # actually fail type coercion. Kept (rather than omitted) so the
+            # envelope shown matches reality — {code, message, detail} via
+            # utils/errors.py:validation_exception_handler — not FastAPI's
+            # default HTTPValidationError shape.
+            'description': "Present for completeness — username is a plain "
+            'string path param, so this is not realistically reachable.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [],
+                    }
+                }
+            },
+        },
+        **_UPSTREAM,
     },
     'set_username': {
         200: {
@@ -149,7 +201,32 @@ responses = {
                 }
             },
         },
+        500: {
+            'description': 'Backend misconfiguration, or (rare defensive check) the '
+            'upsert reported success but PostgREST returned no row.',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'config_error': {
+                            'summary': 'Backend is missing required Supabase configuration',
+                            'value': {
+                                'code': 'CONFIG_ERROR',
+                                'message': 'Supabase URL is not configured on the backend.',
+                            },
+                        },
+                        'no_row_returned': {
+                            'summary': 'Upsert succeeded but returned no row (should not happen)',
+                            'value': {
+                                'code': 'INTERNAL_ERROR',
+                                'message': 'Username update returned no row.',
+                            },
+                        },
+                    }
+                }
+            },
+        },
         **_UNAUTHORIZED,
+        **_UPSTREAM,
     },
     'set_discoverability': {
         200: {
@@ -163,6 +240,26 @@ responses = {
                 }
             },
         },
+        422: {
+            'description': 'is_discoverable was not a boolean.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'bool_parsing',
+                                'loc': ['body', 'is_discoverable'],
+                                'msg': 'Input should be a valid boolean',
+                                'input': 'yes please',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
         **_UNAUTHORIZED,
+        **_UPSTREAM,
     },
 }
