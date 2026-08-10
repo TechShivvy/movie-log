@@ -27,7 +27,7 @@ _MOVIE_LOG_EXAMPLE = {
     'ticket_image_path': None,
     'theatre_id': None,
     'screen_id': None,
-    'is_public': False,
+    'visibility': 'private',
     'created_at': '2026-08-10T03:30:16.719405+00:00',
     'updated_at': '2026-08-10T03:30:16.719405+00:00',
 }
@@ -344,7 +344,7 @@ responses = {
             'description': 'The updated log.',
             'content': {
                 'application/json': {
-                    'example': {**_MOVIE_LOG_EXAMPLE, 'rating': 5, 'is_public': True}
+                    'example': {**_MOVIE_LOG_EXAMPLE, 'rating': 5, 'visibility': 'public'}
                 }
             },
         },

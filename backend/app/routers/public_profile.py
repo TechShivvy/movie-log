@@ -34,8 +34,9 @@ async def search_users(request: Request, q: str = Query(..., min_length=2)) -> A
 @router.get(
     '/users/{username}',
     tags=['Public'],
-    description="A discoverable user's public profile plus every log they've marked "
-    'is_public. Public — no sign-in required.',
+    description="A discoverable user's public profile plus every log they've set to "
+    "`visibility: public` (not `anonymous` ones — those intentionally never appear "
+    'here). Public — no sign-in required.',
     response_description='The profile and its public logs.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
@@ -86,7 +87,9 @@ async def set_username(
     tags=['Public'],
     description="Toggle whether the caller's profile/username appears in search and "
     'at GET /users/{username}. Off by default. This is the only switch: turning it '
-    "off hides the profile entirely, regardless of individual logs' is_public flags.",
+    "off hides the profile entirely, regardless of individual logs' visibility "
+    "settings — note this doesn't touch `anonymous` reviews either way, they were "
+    'never attributed to the profile in the first place.',
     response_description="The caller's updated settings row.",
     responses=responses['set_discoverability'],
     operation_id='SetDiscoverability',

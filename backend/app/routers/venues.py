@@ -6,11 +6,11 @@ a new one via Google Places (place_id is the real dedup key — name
 similarity is only ever used for the prompt, never for auto-merging).
 """
 
-from typing import Any, List
+from typing import Annotated, Any, List
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
 from config import settings
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.venues import responses
@@ -153,6 +153,29 @@ async def theatre_stats(request: Request, theatre_id: str) -> Any:
 
 
 @router.get(
+    '/theatres/{theatre_id}/reviews',
+    tags=['Venues'],
+    description='Reviews (movie, rating, notes) written about this theatre, newest '
+    'first — both `public` ones (attributed, `username` set) and `anonymous` ones '
+    '(`user_id`/`username` both null). `private` reviews never appear here. This is '
+    'the *only* place an anonymous review is visible — by design it never shows up '
+    "on its writer's own public profile (GET /public/users/{username}). Public — no "
+    'sign-in needed.',
+    response_description='Reviews for this theatre, most recent first.',
+    responses=responses['theatre_reviews'],
+    operation_id='ListTheatreReviews',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def theatre_reviews(
+    request: Request,
+    theatre_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.list_theatre_reviews(theatre_id, limit=limit, offset=offset)
+
+
+@router.get(
     '/screens/{screen_id}/stats',
     tags=['Venues'],
     description='Aggregate ratings for a single screen. Public — no sign-in needed.',
@@ -166,3 +189,23 @@ async def screen_stats(request: Request, screen_id: str) -> Any:
     if stats is None:
         raise APIError(404, 'NOT_FOUND', 'No rating stats for this screen yet.')
     return stats
+
+
+@router.get(
+    '/screens/{screen_id}/reviews',
+    tags=['Venues'],
+    description='Reviews (movie, rating, notes) written about this screen, newest '
+    'first — both `public` (attributed) and `anonymous` (not attributed) ones. Same '
+    'as GET /theatres/{id}/reviews, scoped to one screen. Public — no sign-in needed.',
+    response_description='Reviews for this screen, most recent first.',
+    responses=responses['screen_reviews'],
+    operation_id='ListScreenReviews',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def screen_reviews(
+    request: Request,
+    screen_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.list_screen_reviews(screen_id, limit=limit, offset=offset)

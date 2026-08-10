@@ -24,6 +24,52 @@ _SCREEN_EXAMPLE = {
     'screen_type': 'IMAX',
 }
 
+# One attributed (visibility='public') and one not (visibility='anonymous')
+# — user_id/username are null on the second one, not omitted, so clients
+# can tell "no one set a username" apart from "this is anonymous" isn't a
+# concern here: both null the same way, which is intentional (see the view
+# definition, migration 20260810000001) — an anonymous review reveals
+# nothing about who wrote it, not even indirectly via a missing-vs-null
+# distinction.
+_REVIEW_EXAMPLES = [
+    {
+        'id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+        'user_id': '11111111-1111-1111-1111-111111111111',
+        'username': 'shivco_2141',
+        'movie': 'Ekkadiki Pothavu Chinnavada',
+        'watched_date': '2016-12-19',
+        'watched_time': '21:30',
+        'timezone_abbrv': 'IST',
+        'theater': 'Sri Rama Picture Place: Vizag',
+        'theatre_id': _THEATRE_EXAMPLE['id'],
+        'language': 'Telugu',
+        'screen': 'Balcony',
+        'screen_id': _SCREEN_EXAMPLE['id'],
+        'certificate': 'U/A',
+        'notes': 'Great sound, comfy seats.',
+        'rating': 4.5,
+        'created_at': '2026-08-10T03:30:16.719405+00:00',
+    },
+    {
+        'id': '62f5eb84-9427-42ad-ba6e-ac5609f545ae',
+        'user_id': None,
+        'username': None,
+        'movie': 'Ekkadiki Pothavu Chinnavada',
+        'watched_date': '2016-12-20',
+        'watched_time': None,
+        'timezone_abbrv': None,
+        'theater': 'Sri Rama Picture Place: Vizag',
+        'theatre_id': _THEATRE_EXAMPLE['id'],
+        'language': 'Telugu',
+        'screen': None,
+        'screen_id': None,
+        'certificate': None,
+        'notes': "Wouldn't go again, AC was broken.",
+        'rating': 2.0,
+        'created_at': '2026-08-10T05:12:03.112009+00:00',
+    },
+]
+
 _UNAUTHORIZED = {
     401: {
         'description': 'Missing or invalid Supabase access token.',
@@ -286,6 +332,31 @@ responses = {
             },
         },
         **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'theatre_reviews': {
+        200: {
+            'description': 'Public and anonymous reviews for this theatre, newest '
+            "first. Empty list for an unknown theatre_id or one with no reviews yet "
+            "— unlike the stats endpoint above, there's nothing to 404 on here.",
+            'content': {'application/json': {'example': _REVIEW_EXAMPLES}},
+        },
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'screen_reviews': {
+        200: {
+            'description': 'Public and anonymous reviews for this screen, newest '
+            'first.',
+            'content': {
+                'application/json': {
+                    'example': [
+                        {**r, 'screen_id': _SCREEN_EXAMPLE['id']} for r in _REVIEW_EXAMPLES
+                    ]
+                }
+            },
+        },
+        **_VALIDATION,
         **_UPSTREAM,
     },
 }

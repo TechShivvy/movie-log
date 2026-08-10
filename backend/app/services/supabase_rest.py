@@ -333,10 +333,13 @@ async def get_public_profile(username: str) -> Optional[dict]:
 
 
 async def list_public_logs_for_user(user_id: str) -> list[dict]:
-    # public_movie_log_entries is a view that already filters to is_public =
-    # true and excludes booking_ref/ticket_image_path/seats — see migration
-    # 20260710_000003_movie_rating_half_star_sql.sql. anon has no grant on
-    # movie_logs itself, only on this view.
+    # public_movie_log_entries excludes booking_ref/ticket_image_path/seats,
+    # and only includes visibility IN ('anonymous', 'public') rows — see
+    # migrations 20260710000003 and 20260810000001. Filtering by
+    # `user_id=eq.<theirs>` here only ever matches 'public' rows: the view
+    # nulls out user_id for 'anonymous' ones specifically so they can never
+    # show up attributed to anyone, including on their own writer's profile.
+    # anon has no grant on movie_logs itself, only on this view.
     params = {
         'select': '*',
         'user_id': f'eq.{user_id}',
@@ -344,6 +347,39 @@ async def list_public_logs_for_user(user_id: str) -> list[dict]:
     }
     response = await _anon_request(
         'GET', '/public_movie_log_entries', 'list_public_logs_for_user', params=params
+    )
+    return response.json()
+
+
+async def list_theatre_reviews(
+    theatre_id: str, *, limit: int, offset: int
+) -> list[dict]:
+    # Same view as list_public_logs_for_user, but scoped to a theatre
+    # instead of a writer — this is where 'anonymous' entries actually
+    # surface (they're deliberately excluded from anyone's own profile).
+    params = {
+        'select': '*',
+        'theatre_id': f'eq.{theatre_id}',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'list_theatre_reviews', params=params
+    )
+    return response.json()
+
+
+async def list_screen_reviews(screen_id: str, *, limit: int, offset: int) -> list[dict]:
+    params = {
+        'select': '*',
+        'screen_id': f'eq.{screen_id}',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'list_screen_reviews', params=params
     )
     return response.json()
 

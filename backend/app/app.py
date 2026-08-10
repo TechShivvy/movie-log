@@ -67,15 +67,17 @@ def create_app() -> FastAPI:
             },
             {
                 'name': 'Venues',
-                'description': 'Theatre/screen directory and their aggregate rating '
-                'stats. Directory reads and stats are public; creating theatres/'
-                'screens requires sign-in.',
+                'description': 'Theatre/screen directory, their aggregate rating '
+                "stats, and their reviews. Directory reads, stats, and reviews are "
+                'public; creating theatres/screens requires sign-in.',
             },
             {
                 'name': 'Public',
                 'description': "Public profile search and a user's shared movie logs. "
                 'Reads are public; only opted-in (`is_discoverable`) profiles are '
-                'visible, and only logs marked `is_public` are shown.',
+                'visible, and only `public`-visibility logs are shown here — '
+                '`anonymous` ones show up on the venue instead (see Venues), never '
+                "attributed to their writer's profile.",
             },
         ],
         # Pre-fills Swagger's OAuth2 Authorize dialog (client_id is unused by

@@ -5,12 +5,14 @@ database (accessed through Supabase PostgREST under the caller's RLS scope).
 """
 
 import re
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 _ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _HHMM = re.compile(r'^\d{2}:\d{2}$')
+
+Visibility = Literal['private', 'anonymous', 'public']
 
 # Writable columns a client may set. Server-managed columns (id, user_id,
 # created_at, updated_at, verified, verified_at, verified_source) are
@@ -31,7 +33,7 @@ WRITABLE_FIELDS = (
     'ticket_image_path',
     'theatre_id',
     'screen_id',
-    'is_public',
+    'visibility',
 )
 
 
@@ -76,7 +78,7 @@ class MovieLogInput(BaseModel):
                 'ticket_image_path': None,
                 'theatre_id': None,
                 'screen_id': None,
-                'is_public': False,
+                'visibility': 'private',
             }
         },
     )
@@ -102,8 +104,16 @@ class MovieLogInput(BaseModel):
     screen_id: Optional[str] = Field(
         default=None, description='FK into public.screens'
     )
-    is_public: bool = Field(
-        default=False, description='Whether this entry is visible on the public profile'
+    visibility: Visibility = Field(
+        default='private',
+        description="Who can see this entry (not the venue sub-ratings on "
+        "PUT .../venue-rating — those always count toward the theatre/screen "
+        "aggregate regardless of this setting, they're never individually "
+        "exposed either way). 'private': only the owner. 'anonymous': visible "
+        "on the theatre/screen's review list (GET .../reviews), but not "
+        "attributed — never shown on the owner's own public profile either, "
+        "that would defeat the point. 'public': visible on both, attributed "
+        "to the owner's username.",
     )
 
     @field_validator('watched_date')
@@ -155,7 +165,7 @@ class MovieLogUpdate(BaseModel):
             'example': {
                 'rating': 5,
                 'notes': 'Rewatched on re-release — even better on a second viewing.',
-                'is_public': True,
+                'visibility': 'public',
             }
         },
     )
@@ -177,7 +187,7 @@ class MovieLogUpdate(BaseModel):
     ticket_image_path: Optional[str] = Field(default=None, max_length=512)
     theatre_id: Optional[str] = Field(default=None)
     screen_id: Optional[str] = Field(default=None)
-    is_public: Optional[bool] = Field(default=None)
+    visibility: Optional[Visibility] = Field(default=None)
 
     @field_validator('watched_date')
     @classmethod

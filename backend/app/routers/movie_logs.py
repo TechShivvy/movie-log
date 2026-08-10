@@ -90,8 +90,9 @@ async def list_logs(
     tags=['Movie Logs'],
     description='Create a movie log for the caller. `movie` is the only required '
     'field; everything else — including linking to a theatre/screen via '
-    '`theatre_id`/`screen_id`, or sharing it publicly via `is_public` — can be '
-    'set now or added later with PATCH.',
+    '`theatre_id`/`screen_id`, or sharing it via `visibility` (private/anonymous/'
+    'public — see GET /venues/theatres/{id}/reviews) — can be set now or added '
+    'later with PATCH.',
     response_description='The created log.',
     responses=responses['create_log'],
     operation_id='CreateMovieLog',

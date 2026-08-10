@@ -111,9 +111,10 @@ responses = {
     'public_profile': {
         200: {
             'description': "The user's public profile plus every movie log they've "
-            'marked is_public. Public — no auth required. `logs` deliberately '
-            'excludes booking_ref, seats, and ticket_image_path — see the '
-            'public_movie_log_entries view (supabase/migrations).',
+            "set to `visibility: public` (never `anonymous` ones — by definition, "
+            "those don't show up attributed to anyone). Public — no auth required. "
+            '`logs` deliberately excludes booking_ref, seats, and ticket_image_path '
+            '— see the public_movie_log_entries view (supabase/migrations).',
             'content': {
                 'application/json': {
                     'example': {
