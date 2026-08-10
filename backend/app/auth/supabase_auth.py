@@ -5,11 +5,24 @@ from uuid import UUID
 import jwt
 from config import settings
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import OAuth2AuthorizationCodeBearer
 from jwt import InvalidTokenError, PyJWKClient, PyJWKClientError
 from loguru_setup import LOGGER
 
-bearer_scheme = HTTPBearer(auto_error=False)
+# Still just reads `Authorization: Bearer <token>` at request time — identical
+# runtime behavior to plain HTTPBearer. The only difference is the OpenAPI
+# metadata this carries, which makes Swagger UI's "Authorize" button do a
+# real OAuth2 popup flow instead of a plain paste-a-token box. The flow
+# points at routers/dev_oauth.py, a LOCAL/DEV-only shim that translates
+# Swagger's generic OAuth2 requests into what Supabase's /authorize and
+# /token endpoints actually expect (see that file for why a shim is needed
+# at all). In PROD those URLs 404 and docs are disabled anyway, but this
+# scheme object works identically either way for actual token extraction.
+oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl=f'{settings.api_prefix}/auth/dev/google/authorize',
+    tokenUrl=f'{settings.api_prefix}/auth/dev/google/token',
+    auto_error=False,
+)
 
 
 @dataclass(frozen=True)
@@ -81,7 +94,7 @@ def decode_access_token(token: str) -> dict:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    token: str | None = Depends(oauth2_scheme),
 ) -> AuthenticatedUser:
     # LOCAL/DEV only: if DEV_BYPASS_AUTH=true is set in .env and no token is
     # provided, return a fixed dev user so you can hit endpoints from curl/Postman
@@ -90,7 +103,7 @@ def get_current_user(
     if (
         settings.env in ('LOCAL', 'DEV')
         and getattr(settings, 'dev_bypass_auth', False)
-        and (not credentials)
+        and (not token)
     ):
         LOGGER.warning(
             'DEV_BYPASS_AUTH is active — using dev user. Never do this in production.'
@@ -101,13 +114,13 @@ def get_current_user(
             access_token='dev-bypass',
         )
 
-    if not credentials or credentials.scheme.lower() != 'bearer':
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Missing bearer token.',
         )
 
-    payload = decode_access_token(credentials.credentials)
+    payload = decode_access_token(token)
     user_id = payload.get('sub')
     if not user_id:
         raise HTTPException(
@@ -126,5 +139,5 @@ def get_current_user(
     return AuthenticatedUser(
         user_id=user_id,
         email=payload.get('email'),
-        access_token=credentials.credentials,
+        access_token=token,
     )

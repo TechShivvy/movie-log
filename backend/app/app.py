@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from middlewares import middleware
-from routers import auth, movie_logs, movie_metadata, root, venues, public_profile
+from routers import auth, dev_oauth, movie_logs, movie_metadata, root, venues, public_profile
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -66,6 +66,16 @@ def create_app() -> FastAPI:
                 'description': 'Verify a Supabase access token and inspect the mapped identity.',
             },
         ],
+        # Pre-fills Swagger's OAuth2 Authorize dialog (client_id is unused by
+        # the dev shim — Supabase's /authorize doesn't have a client_id
+        # concept — this just saves typing a placeholder) and forces PKCE on,
+        # which routers/dev_oauth.py's token exchange requires.
+        swagger_ui_init_oauth={
+            'clientId': 'movie-log-swagger-local',
+            'usePkceWithAuthorizationCodeGrant': True,
+        }
+        if settings.env in ('LOCAL', 'DEV')
+        else None,
     )
 
     app.add_middleware(
@@ -81,6 +91,11 @@ def create_app() -> FastAPI:
 
     app.include_router(root.router)
     app.include_router(auth.router, prefix=f'{api_prefix}/auth')
+    if settings.env in ('LOCAL', 'DEV'):
+        # Swagger's "Authorize" -> real Google sign-in via Supabase. See
+        # routers/dev_oauth.py for why this needs to exist at all. Never
+        # registered in PROD (where /docs is disabled anyway).
+        app.include_router(dev_oauth.router, prefix=f'{api_prefix}/auth')
     app.include_router(movie_metadata.router, prefix=f'{api_prefix}/movie-metadata')
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
