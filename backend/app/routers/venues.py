@@ -100,8 +100,11 @@ async def search_places(
     "state/country are fetched server-side from that place_id and *override* "
     "whatever was sent in the request body — a client can't spoof a theatre's "
     'real-world data just by attaching someone else\'s valid place_id. Falls back '
-    'to the request body as-is (source=\'user_submitted\') if place_id is omitted, '
-    'or if no Places API key is configured on the backend.',
+    'to the request body as-is (`source=\'user_submitted\'`) if place_id is '
+    'omitted, no Places API key is configured, or the Places lookup itself fails '
+    'for any reason (billing/quota/outage, or a place_id that no longer '
+    "resolves) — a Places hiccup never blocks theatre creation, it only means "
+    "the theatre lands unverified instead of Google-verified.",
     response_description='The created (or matched existing) theatre.',
     responses=responses['create_theatre'],
     operation_id='CreateTheatre',
@@ -125,19 +128,35 @@ async def create_theatre(
             return existing
 
     row = payload.model_dump()
+    row['source'] = 'user_submitted'
     if payload.place_id and google_places.is_configured():
-        details = await google_places.place_details(payload.place_id)
-        # Only overwrite fields Google actually returned a value for — e.g.
-        # if address-component parsing can't find a city for this place,
-        # keep whatever the client sent rather than nulling out a NOT NULL
-        # column.
-        row.update({k: v for k, v in details.items() if v is not None})
-        row['source'] = 'google_places'
-        LOGGER.info(
-            'create_theatre: resolved place_id={} via Google Places', payload.place_id
-        )
-    else:
-        row['source'] = 'user_submitted'
+        try:
+            details = await google_places.place_details(payload.place_id)
+        except APIError as exc:
+            # Places being unavailable (billing disabled, quota exceeded,
+            # transient outage) or the place_id simply not resolving (bad/
+            # stale id) shouldn't block theatre creation entirely — fall
+            # back to the client-submitted fields, same as if no place_id
+            # had been given at all. Logged as a warning (not silent) so
+            # it's visible something's wrong with the Places integration,
+            # without surfacing an error to the user for what's ultimately
+            # still a successful create.
+            LOGGER.warning(
+                'create_theatre: Places lookup failed for place_id={} ({}), '
+                'falling back to submitted data',
+                payload.place_id,
+                exc.message,
+            )
+        else:
+            # Only overwrite fields Google actually returned a value for —
+            # e.g. if address-component parsing can't find a city for this
+            # place, keep whatever the client sent rather than nulling out
+            # a NOT NULL column.
+            row.update({k: v for k, v in details.items() if v is not None})
+            row['source'] = 'google_places'
+            LOGGER.info(
+                'create_theatre: resolved place_id={} via Google Places', payload.place_id
+            )
 
     row['created_by'] = current_user.user_id
     return await supabase_rest.create_theatre(current_user.access_token, row)
