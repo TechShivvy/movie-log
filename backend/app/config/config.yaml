@@ -17,6 +17,7 @@ free_models:
   - openrouter/free
   - nvidia/nemotron-3.5-content-safety:free
   - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+google_places_api_key: null
 loguru_format: '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'
 loguru_level: debug
 max_attempts: 5

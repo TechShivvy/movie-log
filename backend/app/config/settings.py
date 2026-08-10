@@ -250,6 +250,41 @@ class Settings(BaseSettings):
             return tuple(v.strip() for v in value if v.strip())
         return value
 
+    @field_validator(
+        'openrouter_api_key',
+        'google_places_api_key',
+        'supabase_jwt_secret',
+        'supabase_service_role_key',
+        'supabase_secret_key',
+        'supabase_publishable_key',
+        'supabase_url',
+        mode='before',
+    )
+    @classmethod
+    def blank_optional_secret_as_none(cls, value):
+        """A field left blank in a dashboard (Render env vars, Docker Compose,
+        etc.) arrives as an empty string, not as "unset" — env vars have no
+        concept of null. Without this, `if settings.openrouter_api_key:`
+        style checks (resolve_shared_api_key, google_places.is_configured,
+        extraction_cache._server_key, ...) would treat "" as configured and
+        pass an empty string on to OpenRouter/Supabase, turning a simple
+        blank-field mistake into a confusing upstream 401 instead of this
+        app's own clear "not configured" error.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator('supabase_url', mode='after')
+    @classmethod
+    def validate_supabase_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not value.startswith(('http://', 'https://')):
+            raise ValueError(
+                f'supabase_url must start with http:// or https:// (got {value!r}) — '
+                'check for a typo or a stray value if this came from a deploy env var.'
+            )
+        return value
+
 
 class DevelopmentSettings(Settings):
     loguru_level: Literal['DEBUG', 'INFO'] = 'DEBUG'  # type: ignore[reportIncompatibleVariableOverride]
