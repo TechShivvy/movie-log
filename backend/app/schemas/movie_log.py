@@ -12,6 +12,56 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 _ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _HHMM = re.compile(r'^\d{2}:\d{2}$')
 
+# Matches a same-row seat range like "L4-L7", "L4-7", or "l 4 - l 7" — group 1
+# is the row letters, group 2/3 are the start/end seat numbers. The row on
+# the right side is optional (and, if present, isn't checked against the
+# left side — "L4-M7" is nonsensical but rare enough not to special-case;
+# it just gets expanded as if the row were L, same as "L4-7").
+_SEAT_RANGE = re.compile(r'^\s*([A-Za-z]+)\s*(\d+)\s*-\s*(?:[A-Za-z]+\s*)?(\d+)\s*$')
+# A single ticket range covering more than this many seats is more likely a
+# typo (e.g. a stray "-" between two unrelated numbers) than a real group
+# booking — left unexpanded rather than silently guessed at.
+_MAX_RANGE_SPAN = 30
+# Total individual seats after expansion — matches the pre-existing
+# Field(max_length=50) on the raw (pre-expansion) list; that constraint runs
+# before this validator and can't see the expanded count, so it's re-checked
+# here explicitly.
+_MAX_SEATS = 50
+
+
+def _expand_seat_ranges(raw: list[str]) -> list[str]:
+    """Expand same-row seat ranges ("L4-L7") into individual seats
+    (["L4","L5","L6","L7"]) so seat search/lookup works on a specific seat
+    regardless of whether the ticket printed it as part of a range. Tokens
+    that don't look like a range, or whose range is backwards/too large to
+    plausibly be real, pass through unchanged rather than being dropped —
+    better to keep an odd literal value than silently lose data.
+    """
+
+    expanded: list[str] = []
+    for token in raw:
+        m = _SEAT_RANGE.match(token)
+        if not m:
+            expanded.append(token)
+            continue
+        row, start_s, end_s = m.group(1), m.group(2), m.group(3)
+        start, end = int(start_s), int(end_s)
+        if start > end or (end - start + 1) > _MAX_RANGE_SPAN:
+            expanded.append(token)
+            continue
+        expanded.extend(f'{row}{n}' for n in range(start, end + 1))
+    return expanded
+
+
+def _check_seats(v: list[str]) -> list[str]:
+    cleaned = [s.strip() for s in v if s and s.strip()]
+    expanded = _expand_seat_ranges(cleaned)
+    if len(expanded) > _MAX_SEATS:
+        raise ValueError(f'no more than {_MAX_SEATS} seats allowed (after expanding ranges)')
+    if any(len(s) > 16 for s in expanded):
+        raise ValueError('seat identifiers must be <= 16 chars')
+    return expanded
+
 Visibility = Literal['private', 'anonymous', 'public']
 
 # Writable columns a client may set. Server-managed columns (id, user_id,
@@ -88,7 +138,14 @@ class MovieLogInput(BaseModel):
     watched_time: Optional[str] = Field(default=None, max_length=5)
     timezone_abbrv: Optional[str] = Field(default=None, max_length=8)
     theater: Optional[str] = Field(default=None, max_length=300)
-    seats: List[str] = Field(default_factory=list, max_length=50)
+    seats: List[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Individual seat codes, e.g. ['L18','L19','L20']. A "
+        "same-row range like 'L18-L20' is expanded into individual seats "
+        "automatically, so searching/filtering by one seat later still "
+        "works regardless of how the ticket printed it.",
+    )
     language: Optional[str] = Field(default=None, max_length=100)
     screen: Optional[str] = Field(default=None, max_length=100)
     booking_ref: Optional[str] = Field(default=None, max_length=200)
@@ -139,11 +196,8 @@ class MovieLogInput(BaseModel):
 
     @field_validator('seats')
     @classmethod
-    def _check_seats(cls, v: List[str]) -> List[str]:
-        cleaned = [s.strip() for s in v if s and s.strip()]
-        if any(len(s) > 16 for s in cleaned):
-            raise ValueError('seat identifiers must be <= 16 chars')
-        return cleaned
+    def _validate_seats(cls, v: List[str]) -> List[str]:
+        return _check_seats(v)
 
     @field_validator('ticket_image_path')
     @classmethod
@@ -175,7 +229,12 @@ class MovieLogUpdate(BaseModel):
     watched_time: Optional[str] = Field(default=None, max_length=5)
     timezone_abbrv: Optional[str] = Field(default=None, max_length=8)
     theater: Optional[str] = Field(default=None, max_length=300)
-    seats: Optional[List[str]] = Field(default=None, max_length=50)
+    seats: Optional[List[str]] = Field(
+        default=None,
+        max_length=50,
+        description="Replaces the log's full seat list. Same-row ranges "
+        "('L18-L20') are expanded into individual seats, same as on create.",
+    )
     language: Optional[str] = Field(default=None, max_length=100)
     screen: Optional[str] = Field(default=None, max_length=100)
     booking_ref: Optional[str] = Field(default=None, max_length=200)
@@ -210,6 +269,16 @@ class MovieLogUpdate(BaseModel):
         if isinstance(v, str) and v.strip() == '':
             raise ValueError('movie title must not be blank')
         return v
+
+    @field_validator('seats')
+    @classmethod
+    def _validate_seats(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        # Was missing entirely before — a PATCH with seats bypassed both the
+        # length/range-expansion handling and the per-seat length check that
+        # MovieLogInput already applied on create.
+        if v is None:
+            return None
+        return _check_seats(v)
 
     @field_validator('ticket_image_path')
     @classmethod
