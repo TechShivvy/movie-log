@@ -280,6 +280,14 @@ async def match_theatres(user_token: str, query: str, city: Optional[str]) -> li
     return response.json()
 
 
+async def match_screens(user_token: str, theatre_id: str, query: str) -> list[dict]:
+    body = {'p_theatre_id': theatre_id, 'p_query': query}
+    response = await _request(
+        'POST', '/rpc/match_screens', user_token, 'match_screens', json=body
+    )
+    return response.json()
+
+
 async def find_theatre_by_place_id(user_token: str, place_id: str) -> Optional[dict]:
     params = {'select': '*', 'place_id': f'eq.{place_id}', 'limit': '1'}
     response = await _request(

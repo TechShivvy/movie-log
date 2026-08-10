@@ -15,6 +15,7 @@ _THEATRE_EXAMPLE = {
     'lng': 80.2087,
     'place_id': 'ChIJ_______example_______',
     'formatted_address': 'Nexus Mall, Vadapalani, Chennai, Tamil Nadu 600026',
+    'source': 'google_places',
 }
 
 _SCREEN_EXAMPLE = {
@@ -228,6 +229,52 @@ responses = {
         **_VALIDATION,
         **_UPSTREAM,
     },
+    'search_places': {
+        200: {
+            'description': 'Place suggestions from Google Places, restricted to '
+            'movie theatres. Empty list means no match on Google\'s side either — '
+            'the client should offer a free-typed fallback (POST /theatres without '
+            'place_id).',
+            'content': {
+                'application/json': {
+                    'example': [
+                        {
+                            'place_id': _THEATRE_EXAMPLE['place_id'],
+                            'description': 'PVR Nexus, Vadapalani, Chennai, Tamil Nadu, India',
+                            'main_text': 'PVR Nexus',
+                            'secondary_text': 'Vadapalani, Chennai, Tamil Nadu, India',
+                        }
+                    ]
+                }
+            },
+        },
+        500: {
+            'description': 'No Google Places API key configured on the backend — a '
+            'valid, supported state, see POST /theatres.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'CONFIG_ERROR',
+                        'message': 'Google Places API key is not configured on the backend.',
+                    }
+                }
+            },
+        },
+        502: {
+            'description': 'Google Places is unreachable, timed out, or returned an '
+            'error.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'UPSTREAM_ERROR',
+                        'message': 'Google Places request failed.',
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+    },
     'create_theatre': {
         201: {
             'description': 'The created theatre — or an existing one, unchanged, if '
@@ -235,6 +282,29 @@ responses = {
             '/theatres/match endpoint above is only ever a UI prompt, never used '
             'for auto-merging).',
             'content': {'application/json': {'example': _THEATRE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'match_screens': {
+        200: {
+            'description': 'Candidate screens at this theatre ranked by name '
+            'similarity — a "did you mean" prompt, not an auto-merge. Empty list '
+            'means no close match; the client should offer "create new screen" '
+            'instead.',
+            'content': {
+                'application/json': {
+                    'example': [
+                        {
+                            'id': _SCREEN_EXAMPLE['id'],
+                            'name': _SCREEN_EXAMPLE['name'],
+                            'screen_type': _SCREEN_EXAMPLE['screen_type'],
+                            'similarity': 0.83,
+                        }
+                    ]
+                }
+            },
         },
         **_UNAUTHORIZED,
         **_VALIDATION,

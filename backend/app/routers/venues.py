@@ -18,17 +18,25 @@ from schemas.venue_notes import VenueNote, VenueNoteInput
 from schemas.venues import (
     Screen,
     ScreenCreate,
+    ScreenMatchCandidate,
+    ScreenMatchRequest,
     Theatre,
     TheatreCreate,
     TheatreMatchCandidate,
     TheatreMatchRequest,
+    TheatrePlaceSuggestion,
+    TheatreSearchRequest,
 )
-from services import supabase_rest
+from services import google_places, supabase_rest
 from utils.errors import APIError
 
 router = APIRouter()
 
 _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
+# Tighter than _DEFAULT_LIMIT deliberately: unlike /theatres/match (trigram
+# search over our own DB, free), this calls the Google Places API, which is
+# billed per request past its monthly credit.
+_PLACES_SEARCH_LIMIT = '20/minute'
 
 
 @router.post(
@@ -55,13 +63,45 @@ async def match_theatres(
 
 
 @router.post(
+    '/theatres/search-places',
+    response_model=List[TheatrePlaceSuggestion],
+    tags=['Venues'],
+    description='Search-as-you-type over Google Places, restricted to movie '
+    'theatres — run this against free-typed input (not OCR text; use '
+    '/theatres/match for that, it\'s free) so the user picks a *real* place '
+    'instead of typing one from scratch. Returns 500 CONFIG_ERROR if the '
+    "backend has no Google Places API key configured — that's a valid, "
+    'supported state (see POST /theatres), not a bug to work around client-'
+    'side.',
+    response_description='Place suggestions from Google, most relevant first.',
+    responses=responses['search_places'],
+    operation_id='SearchTheatrePlaces',
+)
+@limiter.limit(_PLACES_SEARCH_LIMIT)
+async def search_places(
+    request: Request,
+    payload: TheatreSearchRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await google_places.autocomplete(
+        payload.query, session_token=payload.session_token
+    )
+
+
+@router.post(
     '/theatres',
     response_model=Theatre,
     status_code=201,
     tags=['Venues'],
     description='Create a theatre, or return the existing one if `place_id` already '
-    'matches one on file. Typically called after the user picks "none of these" on '
-    'the /theatres/match results and selects a place via Google Places.',
+    'matches one on file. Typically called after the user picks a result from '
+    'POST /theatres/search-places. If `place_id` is given and the backend has a '
+    "Google Places API key configured, the theatre's name/address/lat-lng/city/"
+    "state/country are fetched server-side from that place_id and *override* "
+    "whatever was sent in the request body — a client can't spoof a theatre's "
+    'real-world data just by attaching someone else\'s valid place_id. Falls back '
+    'to the request body as-is (source=\'user_submitted\') if place_id is omitted, '
+    'or if no Places API key is configured on the backend.',
     response_description='The created (or matched existing) theatre.',
     responses=responses['create_theatre'],
     operation_id='CreateTheatre',
@@ -85,6 +125,20 @@ async def create_theatre(
             return existing
 
     row = payload.model_dump()
+    if payload.place_id and google_places.is_configured():
+        details = await google_places.place_details(payload.place_id)
+        # Only overwrite fields Google actually returned a value for — e.g.
+        # if address-component parsing can't find a city for this place,
+        # keep whatever the client sent rather than nulling out a NOT NULL
+        # column.
+        row.update({k: v for k, v in details.items() if v is not None})
+        row['source'] = 'google_places'
+        LOGGER.info(
+            'create_theatre: resolved place_id={} via Google Places', payload.place_id
+        )
+    else:
+        row['source'] = 'user_submitted'
+
     row['created_by'] = current_user.user_id
     return await supabase_rest.create_theatre(current_user.access_token, row)
 
@@ -129,6 +183,31 @@ async def create_screen(
     row['theatre_id'] = theatre_id
     row['created_by'] = current_user.user_id
     return await supabase_rest.create_screen(current_user.access_token, row)
+
+
+@router.post(
+    '/theatres/{theatre_id}/screens/match',
+    response_model=List[ScreenMatchCandidate],
+    tags=['Venues'],
+    description="Find existing screens at this theatre whose name is similar to "
+    'the given query (trigram similarity, scoped to this one theatre) — same '
+    'idea as POST /theatres/match, one level down: a "did you mean Screen 4?" '
+    'prompt before offering to create a new screen, so near-duplicate names '
+    "(\"Screen 4\" vs \"Scrn 4\") don't pile up. Never used for auto-merging.",
+    response_description='Candidate screens at this theatre, most similar first.',
+    responses=responses['match_screens'],
+    operation_id='MatchScreens',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def match_screens(
+    request: Request,
+    theatre_id: str,
+    payload: ScreenMatchRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.match_screens(
+        current_user.access_token, theatre_id, payload.query
+    )
 
 
 @router.get(

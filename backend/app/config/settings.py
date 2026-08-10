@@ -133,6 +133,14 @@ class Settings(BaseSettings):
     openrouter_api_key: Optional[SecretStr] = Field(
         ..., exclude=True, description='API key for OpenRouter'
     )
+    google_places_api_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='API key for Google Places API (New) — backs theatre '
+        'autocomplete/details (routers/venues.py). Optional: theatre creation '
+        'still works without it, just falls back to free-typed data with '
+        "source='user_submitted' instead of a Places-backed lookup.",
+    )
     supabase_jwt_secret: Optional[SecretStr] = Field(
         default=None,
         exclude=True,
