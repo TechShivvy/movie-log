@@ -33,9 +33,13 @@ def _expand_seat_ranges(raw: list[str]) -> list[str]:
     """Expand same-row seat ranges ("L4-L7") into individual seats
     (["L4","L5","L6","L7"]) so seat search/lookup works on a specific seat
     regardless of whether the ticket printed it as part of a range. Tokens
-    that don't look like a range, or whose range is backwards/too large to
-    plausibly be real, pass through unchanged rather than being dropped —
-    better to keep an odd literal value than silently lose data.
+    that don't look like a range pass through unchanged rather than being
+    dropped — better to keep an odd literal value than silently lose data.
+    A "backwards" range ("L7-L4") is still a real, well-defined set of
+    seats — printed order doesn't change which seats they are — so it's
+    normalized (swapped) rather than treated as malformed. Only a
+    genuinely implausible span (>_MAX_RANGE_SPAN seats, more likely OCR
+    noise or a typo than a real booking) is left unexpanded.
     """
 
     expanded: list[str] = []
@@ -46,7 +50,9 @@ def _expand_seat_ranges(raw: list[str]) -> list[str]:
             continue
         row, start_s, end_s = m.group(1), m.group(2), m.group(3)
         start, end = int(start_s), int(end_s)
-        if start > end or (end - start + 1) > _MAX_RANGE_SPAN:
+        if start > end:
+            start, end = end, start
+        if (end - start + 1) > _MAX_RANGE_SPAN:
             expanded.append(token)
             continue
         expanded.extend(f'{row}{n}' for n in range(start, end + 1))
