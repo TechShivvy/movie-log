@@ -24,6 +24,26 @@ _SCREEN_EXAMPLE = {
     'screen_type': 'IMAX',
 }
 
+_THEATRE_NOTE_EXAMPLE = {
+    'id': '44444444-4444-4444-4444-444444444444',
+    'user_id': '11111111-1111-1111-1111-111111111111',
+    'theatre_id': _THEATRE_EXAMPLE['id'],
+    'screen_id': None,
+    'note': 'Parking fills up fast on weekends — arrive 30 min early.',
+    'created_at': '2026-08-11T03:30:16.719405+00:00',
+    'updated_at': '2026-08-11T03:30:16.719405+00:00',
+}
+
+_SCREEN_NOTE_EXAMPLE = {
+    'id': '55555555-5555-5555-5555-555555555555',
+    'user_id': '11111111-1111-1111-1111-111111111111',
+    'theatre_id': None,
+    'screen_id': _SCREEN_EXAMPLE['id'],
+    'note': 'Always ask for row H — best sightline, less neck strain.',
+    'created_at': '2026-08-11T03:30:16.719405+00:00',
+    'updated_at': '2026-08-11T03:30:16.719405+00:00',
+}
+
 # One attributed (visibility='public') and one not (visibility='anonymous')
 # — user_id/username are null on the second one, not omitted, so clients
 # can tell "no one set a username" apart from "this is anonymous" isn't a
@@ -371,6 +391,86 @@ responses = {
             },
         },
         **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'get_theatre_note': {
+        200: {
+            'description': "The caller's private note for this theatre.",
+            'content': {'application/json': {'example': _THEATRE_NOTE_EXAMPLE}},
+        },
+        404: {
+            'description': 'No note saved for this theatre yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this theatre yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'set_theatre_note': {
+        200: {
+            'description': 'The saved note, created or overwritten.',
+            'content': {'application/json': {'example': _THEATRE_NOTE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'delete_theatre_note': {
+        204: {'description': 'Deleted — no response body.'},
+        404: {
+            'description': 'No note saved for this theatre yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this theatre yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'get_screen_note': {
+        200: {
+            'description': "The caller's private note for this screen.",
+            'content': {'application/json': {'example': _SCREEN_NOTE_EXAMPLE}},
+        },
+        404: {
+            'description': 'No note saved for this screen yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this screen yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'set_screen_note': {
+        200: {
+            'description': 'The saved note, created or overwritten.',
+            'content': {'application/json': {'example': _SCREEN_NOTE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'delete_screen_note': {
+        204: {'description': 'Deleted — no response body.'},
+        404: {
+            'description': 'No note saved for this screen yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this screen yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
         **_UPSTREAM,
     },
 }

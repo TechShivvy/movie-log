@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.venues import responses
+from schemas.venue_notes import VenueNote, VenueNoteInput
 from schemas.venues import (
     Screen,
     ScreenCreate,
@@ -176,6 +177,75 @@ async def theatre_reviews(
 
 
 @router.get(
+    '/theatres/{theatre_id}/note',
+    response_model=VenueNote,
+    tags=['Venues'],
+    description="The caller's own private note about this theatre, if any — "
+    "independent of any specific log (see PUT /movie-logs/{id} for per-visit "
+    'notes). Never shown to anyone else, no visibility tiers.',
+    response_description="The caller's note for this theatre.",
+    responses=responses['get_theatre_note'],
+    operation_id='GetTheatreNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_theatre_note(
+    request: Request,
+    theatre_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    note = await supabase_rest.get_venue_note(
+        current_user.access_token, current_user.user_id, theatre_id=theatre_id
+    )
+    if note is None:
+        raise APIError(404, 'NOT_FOUND', 'No note for this theatre yet.')
+    return note
+
+
+@router.put(
+    '/theatres/{theatre_id}/note',
+    response_model=VenueNote,
+    tags=['Venues'],
+    description="Set (or replace) the caller's private note about this theatre. "
+    'One note per theatre — calling this again overwrites the previous text, '
+    "it doesn't keep history.",
+    response_description='The saved note.',
+    responses=responses['set_theatre_note'],
+    operation_id='SetTheatreNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_theatre_note(
+    request: Request,
+    theatre_id: str,
+    payload: VenueNoteInput,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.upsert_venue_note(
+        current_user.access_token, current_user.user_id, payload.note, theatre_id=theatre_id
+    )
+
+
+@router.delete(
+    '/theatres/{theatre_id}/note',
+    status_code=204,
+    tags=['Venues'],
+    description="Clear the caller's private note about this theatre.",
+    responses=responses['delete_theatre_note'],
+    operation_id='DeleteTheatreNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_theatre_note(
+    request: Request,
+    theatre_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_venue_note(
+        current_user.access_token, current_user.user_id, theatre_id=theatre_id
+    )
+    if not deleted:
+        raise APIError(404, 'NOT_FOUND', 'No note for this theatre yet.')
+
+
+@router.get(
     '/screens/{screen_id}/stats',
     tags=['Venues'],
     description='Aggregate ratings for a single screen. Public — no sign-in needed.',
@@ -209,3 +279,71 @@ async def screen_reviews(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Any:
     return await supabase_rest.list_screen_reviews(screen_id, limit=limit, offset=offset)
+
+
+@router.get(
+    '/screens/{screen_id}/note',
+    response_model=VenueNote,
+    tags=['Venues'],
+    description="The caller's own private note about this screen, if any. Same idea "
+    'as GET /theatres/{id}/note, scoped to one screen — never shown to anyone else.',
+    response_description="The caller's note for this screen.",
+    responses=responses['get_screen_note'],
+    operation_id='GetScreenNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_screen_note(
+    request: Request,
+    screen_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    note = await supabase_rest.get_venue_note(
+        current_user.access_token, current_user.user_id, screen_id=screen_id
+    )
+    if note is None:
+        raise APIError(404, 'NOT_FOUND', 'No note for this screen yet.')
+    return note
+
+
+@router.put(
+    '/screens/{screen_id}/note',
+    response_model=VenueNote,
+    tags=['Venues'],
+    description="Set (or replace) the caller's private note about this screen. One "
+    "note per screen — calling this again overwrites the previous text, it doesn't "
+    'keep history.',
+    response_description='The saved note.',
+    responses=responses['set_screen_note'],
+    operation_id='SetScreenNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_screen_note(
+    request: Request,
+    screen_id: str,
+    payload: VenueNoteInput,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.upsert_venue_note(
+        current_user.access_token, current_user.user_id, payload.note, screen_id=screen_id
+    )
+
+
+@router.delete(
+    '/screens/{screen_id}/note',
+    status_code=204,
+    tags=['Venues'],
+    description="Clear the caller's private note about this screen.",
+    responses=responses['delete_screen_note'],
+    operation_id='DeleteScreenNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_screen_note(
+    request: Request,
+    screen_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_venue_note(
+        current_user.access_token, current_user.user_id, screen_id=screen_id
+    )
+    if not deleted:
+        raise APIError(404, 'NOT_FOUND', 'No note for this screen yet.')

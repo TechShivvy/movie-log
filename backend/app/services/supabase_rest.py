@@ -327,6 +327,65 @@ async def get_screen_stats(screen_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
+# ── Venue notes: private, per-user, one per (user, theatre)/(user, screen) ─
+
+async def get_venue_note(
+    user_token: str, user_id: str, *, theatre_id: str | None = None, screen_id: str | None = None
+) -> Optional[dict]:
+    params: dict[str, str] = {'select': '*', 'user_id': f'eq.{user_id}', 'limit': '1'}
+    if theatre_id:
+        params['theatre_id'] = f'eq.{theatre_id}'
+    if screen_id:
+        params['screen_id'] = f'eq.{screen_id}'
+    response = await _request('GET', '/venue_notes', user_token, 'get_venue_note', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def upsert_venue_note(
+    user_token: str,
+    user_id: str,
+    note: str,
+    *,
+    theatre_id: str | None = None,
+    screen_id: str | None = None,
+) -> dict:
+    row: dict[str, Any] = {'user_id': user_id, 'note': note}
+    # Exactly one of these is ever passed by the router — the other stays
+    # unset (null), matching the table's own scope check.
+    if theatre_id:
+        row['theatre_id'] = theatre_id
+        on_conflict = 'user_id,theatre_id'
+    else:
+        row['screen_id'] = screen_id
+        on_conflict = 'user_id,screen_id'
+    response = await _request(
+        'POST', '/venue_notes', user_token, 'upsert_venue_note',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': on_conflict},
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Venue note upsert returned no row.')
+    return rows[0]
+
+
+async def delete_venue_note(
+    user_token: str, user_id: str, *, theatre_id: str | None = None, screen_id: str | None = None
+) -> bool:
+    params: dict[str, str] = {'user_id': f'eq.{user_id}'}
+    if theatre_id:
+        params['theatre_id'] = f'eq.{theatre_id}'
+    if screen_id:
+        params['screen_id'] = f'eq.{screen_id}'
+    response = await _request(
+        'DELETE', '/venue_notes', user_token, 'delete_venue_note',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
 # ── Public profiles ─────────────────────────────────────────────────────
 
 async def search_public_users(query: str) -> list[dict]:
