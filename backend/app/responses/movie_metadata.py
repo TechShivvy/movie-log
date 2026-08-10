@@ -1,4 +1,96 @@
 responses = {
+    'test-key': {
+        200: {
+            'description': 'Key/model check result — always 200 once signed in and a '
+            'key was supplied; an invalid key or nonexistent model comes back as '
+            '`valid: false` / `model.exists: false`, not an error status, since '
+            "that's itself a useful answer here.",
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'valid_key_with_model': {
+                            'summary': 'Valid key, model given and found, supports images',
+                            'value': {
+                                'valid': True,
+                                'is_free_tier': False,
+                                'usage': 0.42,
+                                'limit': None,
+                                'limit_remaining': None,
+                                'model': {
+                                    'requested': 'qwen/qwen2.5-vl-72b-instruct:free',
+                                    'exists': True,
+                                    'name': 'Qwen: Qwen2.5 VL 72B Instruct (free)',
+                                    'input_modalities': ['text', 'image'],
+                                    'supports_image_input': True,
+                                    'is_free': True,
+                                    'context_length': 131072,
+                                },
+                            },
+                        },
+                        'invalid_key': {
+                            'summary': 'Key rejected by OpenRouter',
+                            'value': {'valid': False, 'model': None},
+                        },
+                        'model_not_given': {
+                            'summary': 'Key checked, no model requested',
+                            'value': {
+                                'valid': True,
+                                'is_free_tier': False,
+                                'usage': 0.42,
+                                'limit': None,
+                                'limit_remaining': None,
+                                'model': None,
+                            },
+                        },
+                        'model_not_found': {
+                            'summary': "Model id doesn't exist in OpenRouter's catalog",
+                            'value': {
+                                'valid': True,
+                                'is_free_tier': False,
+                                'usage': 0.42,
+                                'limit': None,
+                                'limit_remaining': None,
+                                'model': {'requested': 'made-up/not-a-real-model', 'exists': False},
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        400: {
+            'description': 'No X-OpenRouter-API-Key header supplied — this endpoint '
+            'only makes sense for testing a key you provide, there is no shared-key '
+            'fallback here.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'BAD_REQUEST',
+                        'message': 'Provide a key to test via the X-OpenRouter-API-Key header.',
+                    }
+                }
+            },
+        },
+        401: {
+            'description': 'Missing/invalid sign-in to this API (not the OpenRouter key '
+            'being tested — an invalid OpenRouter key is a 200 with valid: false).',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'UNAUTHORIZED', 'message': 'Missing bearer token.'}
+                }
+            },
+        },
+        502: {
+            'description': 'Could not reach OpenRouter to perform the check.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'UPSTREAM_ERROR',
+                        'message': 'Unexpected error from upstream service.',
+                    }
+                }
+            },
+        },
+    },
     '/extract': {
         200: {
             'description': 'Successfully extracted movie metadata from the ticket image.',

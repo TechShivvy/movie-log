@@ -1,6 +1,9 @@
 import asyncio
 import re
+import time
+from typing import Any, Optional
 
+import httpx
 from config import settings
 from loguru_setup import LOGGER
 from openai import (
@@ -10,6 +13,77 @@ from openai import (
 )
 from pydantic import ValidationError
 from utils import openai_utils, retry
+
+_META_TIMEOUT = 10.0
+
+# In-memory cache of GET /api/v1/models — used to answer "does this model
+# exist / does it accept image input" without a live fetch on every
+# test-key call. Not the same list PROMPT_VERSION-style free-model
+# validation uses (services/free_models.py) — that one's the free-only
+# subset, refreshed out-of-band via GitHub Actions specifically because
+# it's checked on every /extract call and needs to be fast/local. This
+# one covers *every* model (a user's own key may use a paid one), and
+# "test my key" should reflect OpenRouter's real catalog right now, not a
+# day-old snapshot, so it's a short-lived cache, not a persisted one.
+_MODELS_CACHE_TTL = 3600.0
+_models_cache: dict[str, Any] = {'fetched_at': 0.0, 'by_id': {}}
+
+
+async def _all_models() -> dict[str, dict[str, Any]]:
+    now = time.monotonic()
+    if now - _models_cache['fetched_at'] < _MODELS_CACHE_TTL and _models_cache['by_id']:
+        return _models_cache['by_id']
+
+    async with httpx.AsyncClient(timeout=_META_TIMEOUT) as client:
+        response = await client.get('https://openrouter.ai/api/v1/models')
+    response.raise_for_status()
+    by_id = {m['id']: m for m in response.json().get('data', [])}
+    _models_cache['by_id'] = by_id
+    _models_cache['fetched_at'] = now
+    return by_id
+
+
+async def check_api_key(api_key: str) -> dict[str, Any]:
+    """Validate an OpenRouter key via GET /api/v1/key — a metadata lookup
+    only, costs no tokens/credits regardless of whether the key is valid."""
+
+    async with httpx.AsyncClient(timeout=_META_TIMEOUT) as client:
+        response = await client.get(
+            'https://openrouter.ai/api/v1/key',
+            headers={'Authorization': f'Bearer {api_key}'},
+        )
+    if response.status_code == 401:
+        return {'valid': False}
+    response.raise_for_status()
+    data = response.json().get('data', {})
+    return {
+        'valid': True,
+        'is_free_tier': data.get('is_free_tier'),
+        'usage': data.get('usage'),
+        'limit': data.get('limit'),
+        'limit_remaining': data.get('limit_remaining'),
+    }
+
+
+async def check_model(model_name: str) -> Optional[dict[str, Any]]:
+    """Look up a model in OpenRouter's public catalog — also a metadata
+    lookup, no tokens spent, no API key needed at all for this one.
+    Returns None if the model id doesn't exist."""
+
+    models = await _all_models()
+    model = models.get(model_name)
+    if model is None:
+        return None
+    architecture = model.get('architecture') or {}
+    pricing = model.get('pricing') or {}
+    return {
+        'exists': True,
+        'name': model.get('name'),
+        'input_modalities': architecture.get('input_modalities', []),
+        'supports_image_input': 'image' in architecture.get('input_modalities', []),
+        'is_free': pricing.get('prompt') == '0' and pricing.get('completion') == '0',
+        'context_length': model.get('context_length'),
+    }
 
 
 async def _call_model(

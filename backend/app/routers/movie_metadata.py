@@ -1,9 +1,12 @@
+from typing import Any
+
+import httpx
 from config import settings
 from auth.supabase_auth import AuthenticatedUser, get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from fastapi import Form
 from fastapi.security import APIKeyHeader
-from llm.openrouter_client import extract_movie_metadata_from_image
+from llm.openrouter_client import check_api_key, check_model, extract_movie_metadata_from_image
 from llm.prompts import movie_metadata
 from loguru_setup import LOGGER
 from openai import OpenAIError
@@ -200,3 +203,54 @@ async def extract_movie_metadata(
     except Exception as e:
         LOGGER.error(f'Unexpected error during metadata extraction: {e}')
         raise e
+
+
+@router.get(
+    path='/test-key',
+    tags=['Extract Movie Metadata'],
+    description=(
+        'Check whether an OpenRouter key (and, optionally, a model) works — '
+        'without spending any tokens or credit. Both OpenRouter calls this makes '
+        '(`GET /api/v1/key`, `GET /api/v1/models`) are pure metadata lookups, not '
+        'chat completions, so this is free regardless of how many times it\'s '
+        'called or whether the key/model turn out to be valid.\n\n'
+        'Pass the key via the same `X-OpenRouter-API-Key` header /extract uses '
+        '(required here — there\'s no shared key to fall back to, this endpoint '
+        'only makes sense for testing your own). `model` is optional; if given, '
+        'the response also says whether that model exists and whether it accepts '
+        'image input (relevant here since every /extract call sends an image).'
+    ),
+    response_description='Key and (optionally) model validity, never a 401/404 for '
+    'an invalid key/model — those come back as valid=false/exists=false in a 200, '
+    'since "the key is bad" is itself a useful, expected answer here.',
+    responses=responses['test-key'],
+    operation_id='TestOpenRouterKey',
+)
+@limiter.limit(f'{settings.rate_limit_per_minute}/minute')
+async def test_key(
+    request: Request,
+    header_api_key: str | None = Depends(get_header_api_key),
+    model: str | None = None,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    if not header_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Provide a key to test via the X-OpenRouter-API-Key header.',
+        )
+
+    try:
+        key_result = await check_api_key(header_api_key)
+
+        model_result = None
+        if model:
+            model_info = await check_model(model)
+            model_result = {'requested': model, 'exists': False, **(model_info or {})}
+    except httpx.HTTPError as exc:
+        LOGGER.error(f'test-key: could not reach OpenRouter: {exc}')
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail='Unexpected error from upstream service.',
+        )
+
+    return {**key_result, 'model': model_result}
