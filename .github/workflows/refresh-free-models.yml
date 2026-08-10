@@ -1,0 +1,61 @@
+name: Refresh free models list
+
+# Keeps a snapshot of OpenRouter's current free-tier models (id, name,
+# input modalities, context length) available at a stable raw-GitHub URL
+# for the backend to fetch, without the backend hitting OpenRouter's
+# /api/v1/models on every request and without hardcoding a model list
+# that goes stale as OpenRouter adds/removes free models.
+#
+# The output lives on `data/free-models`, an orphan branch with no
+# history in common with main — just a single commit holding the latest
+# free-models.json, force-pushed fresh every run. That keeps the branch
+# from accumulating years of "refresh" commits for a file where only the
+# current snapshot ever matters, and keeps it out of main's history
+# entirely (this workflow itself only runs from main, per GitHub's rule
+# that scheduled workflows are read from the default branch).
+#
+# Consumed via:
+#   https://raw.githubusercontent.com/<owner>/<repo>/data/free-models/free-models.json
+# which works with no auth since this repo is public.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Fetch free models from OpenRouter
+        working-directory: backend/scripts
+        run: python fetch_free_models.py
+
+      - name: Publish snapshot to orphan data branch
+        run: |
+          set -euo pipefail
+          cp backend/scripts/free-models.json "$RUNNER_TEMP/free-models.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout --orphan data/free-models
+          git rm -rf . > /dev/null
+          cp "$RUNNER_TEMP/free-models.json" free-models.json
+          git add free-models.json
+          git commit -m "chore: refresh free models snapshot ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          git push origin HEAD:data/free-models --force
