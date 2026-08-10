@@ -7,7 +7,12 @@ from config import settings
 from fastapi import APIRouter, Depends, Query, Request, status
 from rate_limit import limiter
 from responses.public_profile import responses
-from schemas.public_profile import DiscoverabilityUpdate, PublicProfile, UsernameUpdate
+from schemas.public_profile import (
+    DiscoverabilityUpdate,
+    PublicProfile,
+    RevisitPrefillUpdate,
+    UsernameUpdate,
+)
 from services import supabase_rest
 from utils.errors import APIError
 
@@ -102,4 +107,28 @@ async def set_discoverability(
 ) -> Any:
     return await supabase_rest.update_discoverability(
         current_user.access_token, current_user.user_id, payload.is_discoverable
+    )
+
+
+@router.patch(
+    '/me/revisit-prefill',
+    tags=['Public'],
+    description='Toggle what happens when the caller starts a new log at a theatre/ '
+    "screen they've logged before. Off (default): the client should only suggest "
+    "reusing the previous venue rating (tap to accept). On: the client may fill the "
+    "new log's venue-rating fields from the most recent matching visit "
+    'automatically. Purely a stored preference — GET /movie-logs?theatre_id=/'
+    'screen_id=/movie= is what actually supplies the previous visit(s).',
+    response_description="The caller's updated settings row.",
+    responses=responses['set_revisit_prefill'],
+    operation_id='SetRevisitPrefill',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_revisit_prefill(
+    request: Request,
+    payload: RevisitPrefillUpdate,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.update_revisit_prefill(
+        current_user.access_token, current_user.user_id, payload.prefill_repeat_visit
     )

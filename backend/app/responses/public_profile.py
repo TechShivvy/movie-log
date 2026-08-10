@@ -168,6 +168,7 @@ responses = {
                         'display_name': None,
                         'bio': None,
                         'is_discoverable': False,
+                        'prefill_repeat_visit': False,
                     }
                 }
             },
@@ -252,6 +253,40 @@ responses = {
                             {
                                 'type': 'bool_parsing',
                                 'loc': ['body', 'is_discoverable'],
+                                'msg': 'Input should be a valid boolean',
+                                'input': 'yes please',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'set_revisit_prefill': {
+        200: {
+            'description': "The caller's updated settings row.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'user_id': _PROFILE_EXAMPLE['user_id'],
+                        'prefill_repeat_visit': True,
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'prefill_repeat_visit was not a boolean.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'bool_parsing',
+                                'loc': ['body', 'prefill_repeat_visit'],
                                 'msg': 'Input should be a valid boolean',
                                 'input': 'yes please',
                             }

@@ -118,6 +118,9 @@ async def list_movie_logs(
     limit: int,
     offset: int,
     order: str,
+    theatre_id: Optional[str] = None,
+    screen_id: Optional[str] = None,
+    movie: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     params = {
         'select': '*',
@@ -126,6 +129,20 @@ async def list_movie_logs(
         'limit': str(limit),
         'offset': str(offset),
     }
+    # All three are optional narrowing filters on top of the caller's own
+    # logs — used by the frontend to answer "have I been here before?" /
+    # "have I logged this movie before?" for the revisit-prefill suggestion
+    # (routers/movie_logs.py), and doubles as a per-venue "my visit
+    # history" view. eq (not ilike) throughout: exact match is enough here
+    # since callers always pass back a value they already got from another
+    # response (a theatre_id/screen_id they resolved, or a movie title they
+    # already displayed), never raw free-text search.
+    if theatre_id:
+        params['theatre_id'] = f'eq.{theatre_id}'
+    if screen_id:
+        params['screen_id'] = f'eq.{screen_id}'
+    if movie:
+        params['movie'] = f'eq.{movie}'
     response = await _request(
         'GET', f'/{_TABLE}', user_token, 'list_movie_logs', params=params
     )
@@ -401,6 +418,18 @@ async def update_discoverability(user_token: str, user_id: str, is_discoverable:
     row = {'user_id': user_id, 'is_discoverable': is_discoverable}
     response = await _request(
         'POST', '/user_settings', user_token, 'update_discoverability',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    return rows[0] if rows else {}
+
+
+async def update_revisit_prefill(user_token: str, user_id: str, prefill_repeat_visit: bool) -> dict:
+    row = {'user_id': user_id, 'prefill_repeat_visit': prefill_repeat_visit}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_revisit_prefill',
         json=row,
         prefer='resolution=merge-duplicates,return=representation',
         params={'on_conflict': 'user_id'},

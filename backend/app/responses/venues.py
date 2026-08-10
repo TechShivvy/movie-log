@@ -267,8 +267,16 @@ responses = {
     'theatre_stats': {
         200: {
             'description': 'Aggregate ratings across every screen at this theatre. '
-            'Public — no auth required. Kept fresh by a database trigger on every '
-            'venue-rating change, not computed on read.',
+            '`overall_avg` is a single headline number — the mean of whichever of '
+            'the 4 categories in `overall` have data, visit-weighted (every visit '
+            "counts once, regardless of which screen it was on). `screens_avg` is a "
+            "second, deliberately different number: the mean of this theatre's own "
+            "screens' own overall_avg, one vote per screen regardless of visit "
+            'count — use it to show whether screens here are consistent with each '
+            'other, separate from the visit-weighted headline. Either can be null '
+            "if nothing feeds it yet (e.g. ratings exist but aren't tied to any "
+            'screen). Public — no auth required. Kept fresh by a database trigger '
+            'on every venue-rating change, not computed on read.',
             'content': {
                 'application/json': {
                     'example': {
@@ -279,6 +287,8 @@ responses = {
                             'ac_rating': {'avg': 3.9, 'count': 10},
                             'seat_rating': {'avg': 4.1, 'count': 11},
                         },
+                        'overall_avg': 4.3,
+                        'screens_avg': 4.2,
                         'computed_at': '2026-08-10T03:31:15.977764+00:00',
                     }
                 }
@@ -302,7 +312,10 @@ responses = {
     },
     'screen_stats': {
         200: {
-            'description': 'Aggregate ratings for this specific screen. Public — no '
+            'description': 'Aggregate ratings for this specific screen. '
+            '`overall_avg` is a single headline number — the mean of whichever of '
+            "the 4 categories in `categories` have data. This is what feeds a "
+            "theatre's `screens_avg` (see GET /theatres/{id}/stats). Public — no "
             'auth required.',
             'content': {
                 'application/json': {
@@ -314,6 +327,7 @@ responses = {
                             'ac_rating': {'avg': 3.5, 'count': 5},
                             'seat_rating': {'avg': 4.0, 'count': 6},
                         },
+                        'overall_avg': 4.3,
                         'computed_at': '2026-08-10T03:31:15.977764+00:00',
                     }
                 }

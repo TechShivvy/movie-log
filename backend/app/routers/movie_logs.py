@@ -50,7 +50,12 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     '',
     response_model=List[MovieLog],
     tags=['Movie Logs'],
-    description="List the caller's own movie logs, newest first by default.",
+    description="List the caller's own movie logs, newest first by default. Optional "
+    '`theatre_id`/`screen_id`/`movie` filters narrow this to the caller\'s own past '
+    "visits to a venue or past logs of a movie — e.g. to answer \"have I been here "
+    'before?" for a revisit-prefill suggestion, or to show a "my visits to this '
+    'theatre" history. Unlike GET /venues/theatres/{id}/reviews, this always includes '
+    "the caller's `private` logs too (it's their own data, scoped by RLS).",
     response_description='A page of movie logs.',
     responses=responses['list_logs'],
     operation_id='ListMovieLogs',
@@ -63,6 +68,9 @@ async def list_logs(
     offset: Annotated[int, Query(ge=0)] = 0,
     sort: Literal['created_at', 'updated_at', 'watched_date', 'movie'] = 'created_at',
     order: Literal['asc', 'desc'] = 'desc',
+    theatre_id: Annotated[str | None, Query()] = None,
+    screen_id: Annotated[str | None, Query()] = None,
+    movie: Annotated[str | None, Query(min_length=1)] = None,
 ) -> Any:
     if sort not in _SORT_FIELDS:
         raise APIError(400, 'BAD_REQUEST', 'Invalid sort field.')
@@ -80,6 +88,9 @@ async def list_logs(
         limit=limit,
         offset=offset,
         order=order_str,
+        theatre_id=theatre_id,
+        screen_id=screen_id,
+        movie=movie,
     )
 
 
