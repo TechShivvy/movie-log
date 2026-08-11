@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru_setup import LOGGER
 from middlewares import middleware
-from routers import auth, dev_oauth, movie_logs, movie_metadata, reports, root, venues, public_profile
+from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, reports, root, venues, public_profile
 from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -115,6 +115,14 @@ def create_app() -> FastAPI:
                 "attributed to their writer's profile.",
             },
             {
+                'name': 'Follows',
+                'description': 'One-directional follow relationships (not mutual '
+                '"friends" — separate followers/following lists) and blocking. '
+                'Following a `public` account is instant; `followers_only`/`private` '
+                'require the target to accept a pending request. All endpoints '
+                'require sign-in.',
+            },
+            {
                 'name': 'Reports',
                 'description': 'Flag a review, profile, theatre, or screen for '
                 'review. Requires sign-in; no admin UI exists yet, reports are '
@@ -159,6 +167,7 @@ def create_app() -> FastAPI:
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
     app.include_router(public_profile.router, prefix=f'{api_prefix}/public')
+    app.include_router(follows.router, prefix=f'{api_prefix}/public')
     app.include_router(reports.router, prefix=f'{api_prefix}/reports')
 
     app.state.limiter = limiter

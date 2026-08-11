@@ -584,3 +584,128 @@ async def upsert_report(user_token: str, row: dict[str, Any]) -> dict:
     if not rows:
         raise APIError(500, 'INTERNAL_ERROR', 'Report upsert returned no row.')
     return rows[0]
+
+
+# ── Follows ──────────────────────────────────────────────────────────────
+
+async def get_follow(user_token: str, follower_id: str, followee_id: str) -> Optional[dict]:
+    params = {
+        'select': '*',
+        'follower_id': f'eq.{follower_id}',
+        'followee_id': f'eq.{followee_id}',
+        'limit': '1',
+    }
+    response = await _request('GET', '/follows', user_token, 'get_follow', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def create_follow(user_token: str, follower_id: str, followee_id: str, status: str) -> dict:
+    # Plain insert, not an upsert — a repeat follow attempt should surface
+    # as ALREADY_FOLLOWING (checked by the router via get_follow before
+    # this is ever called), not silently overwrite an existing row.
+    row = {'follower_id': follower_id, 'followee_id': followee_id, 'status': status}
+    response = await _request(
+        'POST', '/follows', user_token, 'create_follow',
+        json=row, prefer='return=representation',
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Follow insert returned no row.')
+    return rows[0]
+
+
+async def delete_follow(user_token: str, follower_id: str, followee_id: str) -> bool:
+    params = {'follower_id': f'eq.{follower_id}', 'followee_id': f'eq.{followee_id}'}
+    response = await _request(
+        'DELETE', '/follows', user_token, 'delete_follow',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
+async def accept_follow(user_token: str, follower_id: str, followee_id: str) -> Optional[dict]:
+    # Filtered on status=eq.pending so this can only ever transition a
+    # pending request forward, never re-affirm an already-accepted one or
+    # touch a row that doesn't exist — RLS already restricts *who* can
+    # update (followee only), this restricts *which* transition.
+    params = {
+        'follower_id': f'eq.{follower_id}',
+        'followee_id': f'eq.{followee_id}',
+        'status': 'eq.pending',
+    }
+    response = await _request(
+        'PATCH', '/follows', user_token, 'accept_follow',
+        params=params, json={'status': 'accepted'}, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def delete_follower(user_token: str, follower_id: str, followee_id: str) -> bool:
+    # Same delete as delete_follow, different party initiating it — covers
+    # both "remove an accepted follower" and "reject a pending request".
+    params = {'follower_id': f'eq.{follower_id}', 'followee_id': f'eq.{followee_id}'}
+    response = await _request(
+        'DELETE', '/follows', user_token, 'delete_follower',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
+async def list_follow_requests(
+    user_token: str, followee_id: str, *, limit: int, offset: int
+) -> list[dict]:
+    params = {
+        'select': '*',
+        'followee_id': f'eq.{followee_id}',
+        'status': 'eq.pending',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _request(
+        'GET', '/follows', user_token, 'list_follow_requests', params=params
+    )
+    return response.json()
+
+
+# ── Blocks ───────────────────────────────────────────────────────────────
+
+async def is_blocking(user_token: str, blocker_id: str, blocked_id: str) -> bool:
+    # Only ever answers "have I blocked them" — blocks RLS only lets the
+    # blocker read their own rows, so "have they blocked me" is
+    # structurally unreadable this way (by design, see migration
+    # 20260811000012's header comment). That direction is enforced by the
+    # DB trigger on the follows insert instead (see create_follow's
+    # caller in routers/follows.py).
+    params = {
+        'select': 'blocker_id',
+        'blocker_id': f'eq.{blocker_id}',
+        'blocked_id': f'eq.{blocked_id}',
+        'limit': '1',
+    }
+    response = await _request('GET', '/blocks', user_token, 'is_blocking', params=params)
+    return bool(response.json())
+
+
+async def create_block(user_token: str, blocker_id: str, blocked_id: str) -> dict:
+    row = {'blocker_id': blocker_id, 'blocked_id': blocked_id}
+    response = await _request(
+        'POST', '/blocks', user_token, 'create_block',
+        json=row, prefer='return=representation',
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Block insert returned no row.')
+    return rows[0]
+
+
+async def delete_block(user_token: str, blocker_id: str, blocked_id: str) -> bool:
+    params = {'blocker_id': f'eq.{blocker_id}', 'blocked_id': f'eq.{blocked_id}'}
+    response = await _request(
+        'DELETE', '/blocks', user_token, 'delete_block',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+    return rows[0]
