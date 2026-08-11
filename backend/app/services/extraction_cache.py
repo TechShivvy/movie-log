@@ -27,7 +27,7 @@ _TIMEOUT = 10.0
 # part of the cache key specifically so a prompt improvement naturally
 # stops matching old entries instead of serving a stale extraction
 # forever. No TTL/expiry needed as a result.
-PROMPT_VERSION = 'v1'
+PROMPT_VERSION = 'v2'  # v2: added format/price/currency fields (llm/prompts/movie_metadata.py)
 
 
 def _server_key() -> Optional[str]:

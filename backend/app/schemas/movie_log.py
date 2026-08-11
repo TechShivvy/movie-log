@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 _ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _HHMM = re.compile(r'^\d{2}:\d{2}$')
+_CURRENCY_CODE = re.compile(r'^[A-Za-z]{3}$')
 
 # Matches a same-row seat range like "L4-L7", "L4-7", or "l 4 - l 7" — group 1
 # is the row letters, group 2/3 are the start/end seat numbers. The row on
@@ -82,6 +83,9 @@ WRITABLE_FIELDS = (
     'seats',
     'language',
     'screen',
+    'format',
+    'price',
+    'currency',
     'booking_ref',
     'certificate',
     'notes',
@@ -112,6 +116,15 @@ def _check_half_star(v: Optional[float]) -> Optional[float]:
     return v
 
 
+def _check_currency(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    v = v.strip().upper()
+    if not _CURRENCY_CODE.match(v):
+        raise ValueError('currency must be a 3-letter ISO 4217 code, e.g. "INR"')
+    return v
+
+
 class MovieLogInput(BaseModel):
     """Full create payload. Unknown keys are ignored (e.g. pasted exports)."""
 
@@ -127,6 +140,9 @@ class MovieLogInput(BaseModel):
                 'seats': ['L18', 'L19', 'L20'],
                 'language': 'Telugu',
                 'screen': 'Balcony',
+                'format': '2D',
+                'price': 250.0,
+                'currency': 'INR',
                 'booking_ref': 'BMS12345678',
                 'certificate': 'U/A',
                 'notes': 'Great sound, comfy seats.',
@@ -154,6 +170,17 @@ class MovieLogInput(BaseModel):
     )
     language: Optional[str] = Field(default=None, max_length=100)
     screen: Optional[str] = Field(default=None, max_length=100)
+    format: Optional[str] = Field(
+        default=None, max_length=50,
+        description='Presentation format (2D, 3D, 4DX, IMAX, ...) — separate '
+        'from `screen`, a ticket can print both at once',
+    )
+    price: Optional[float] = Field(
+        default=None, ge=0, description='Ticket price paid — see `currency`'
+    )
+    currency: Optional[str] = Field(
+        default=None, max_length=3, description='ISO 4217 currency code for `price`, e.g. "INR"'
+    )
     booking_ref: Optional[str] = Field(default=None, max_length=200)
     certificate: Optional[str] = Field(default=None, max_length=50)
     notes: Optional[str] = Field(default=None, max_length=5000)
@@ -215,6 +242,11 @@ class MovieLogInput(BaseModel):
     def _check_rating(cls, v: Optional[float]) -> Optional[float]:
         return _check_half_star(v)
 
+    @field_validator('currency')
+    @classmethod
+    def _check_currency_field(cls, v: Optional[str]) -> Optional[str]:
+        return _check_currency(v)
+
 
 class MovieLogUpdate(BaseModel):
     """Partial update payload; only provided fields are sent to the database."""
@@ -243,6 +275,17 @@ class MovieLogUpdate(BaseModel):
     )
     language: Optional[str] = Field(default=None, max_length=100)
     screen: Optional[str] = Field(default=None, max_length=100)
+    format: Optional[str] = Field(
+        default=None, max_length=50,
+        description='Presentation format (2D, 3D, 4DX, IMAX, ...) — separate '
+        'from `screen`, a ticket can print both at once',
+    )
+    price: Optional[float] = Field(
+        default=None, ge=0, description='Ticket price paid — see `currency`'
+    )
+    currency: Optional[str] = Field(
+        default=None, max_length=3, description='ISO 4217 currency code for `price`, e.g. "INR"'
+    )
     booking_ref: Optional[str] = Field(default=None, max_length=200)
     certificate: Optional[str] = Field(default=None, max_length=50)
     notes: Optional[str] = Field(default=None, max_length=5000)
@@ -295,6 +338,11 @@ class MovieLogUpdate(BaseModel):
     @classmethod
     def _check_rating(cls, v: Optional[float]) -> Optional[float]:
         return _check_half_star(v)
+
+    @field_validator('currency')
+    @classmethod
+    def _check_currency_field(cls, v: Optional[str]) -> Optional[str]:
+        return _check_currency(v)
 
 
 class MovieLog(MovieLogInput):

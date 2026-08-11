@@ -13,6 +13,9 @@ responses = {
                         'seats': ['J25', 'J26'],
                         'language': 'English',
                         'screen': 'AUDI06',
+                        'format': '3D',
+                        'price': 360.72,
+                        'currency': 'INR',
                         'booking_ref': 'WNJ2T8D',
                         'certificate': None,
                     }
@@ -226,6 +229,9 @@ responses = {
                         'seats': ['L18', 'L19', 'L20'],
                         'language': 'Telugu',
                         'screen': 'Balcony',
+                        'format': '2D',
+                        'price': 250.0,
+                        'currency': 'INR',
                         'booking_ref': None,
                         'certificate': 'U/A',
                     }

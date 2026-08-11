@@ -16,6 +16,9 @@ _VALID_ABBR: set[str] = {
     if (abbr := ZoneInfo(tz).tzname(datetime.utcnow())) and abbr.isalpha()
 }
 
+_CURRENCY_CODE = re.compile(r'^[A-Za-z]{3}$')
+_PRICE_STRIP = re.compile(r'[^\d.]')
+
 _MONTHS: dict[str, int] = {
     'jan': 1,
     'january': 1,
@@ -138,11 +141,24 @@ class MovieMetadata(BaseModel):
         default_factory=list, description='List of seat identifiers'
     )
     language: Optional[str] = Field(None, description='Language of the movie')
-    screen: Optional[str] = Field(None, description='Screen number or details')
+    screen: Optional[str] = Field(
+        None, description='Auditorium/screen identifier only (e.g. "Screen 3", '
+        '"Audi 2", "Balcony") — not the presentation format, see `format`'
+    )
     booking_ref: Optional[str] = Field(
         None, description='Booking reference or ticket ID'
     )
     certificate: Optional[str] = Field(None, description='Movie certificate details')
+    format: Optional[str] = Field(
+        None, description='Presentation format (2D, 3D, 4DX, IMAX, ScreenX, '
+        'Dolby Atmos, ...) — separate from `screen`, since a ticket can print both'
+    )
+    price: Optional[float] = Field(
+        None, description='Ticket price paid, as a plain amount — see `currency`'
+    )
+    currency: Optional[str] = Field(
+        None, description='ISO 4217 currency code for `price` (e.g. "INR", "USD")'
+    )
 
     model_config = ConfigDict(extra='forbid', frozen=True)
 
@@ -161,3 +177,35 @@ class MovieMetadata(BaseModel):
         if not isinstance(v, str):
             return v
         return _normalize_date(v)
+
+    @field_validator('currency', mode='after')
+    @classmethod
+    def check_currency(cls, v: Optional[str]) -> Optional[str]:
+        # A malformed/unrecognizable currency guess is dropped (null),
+        # same posture as timezone_abbrv above — better to omit a field
+        # the model got wrong than block the whole extraction over it.
+        if v is None:
+            return None
+        v = v.strip().upper()
+        return v if _CURRENCY_CODE.match(v) else None
+
+    @field_validator('price', mode='before')
+    @classmethod
+    def normalize_price(cls, v):
+        # Defensive against the model leaving a currency symbol/thousands
+        # separator in despite the prompt saying not to (e.g. "₹1,200.50")
+        # — strip anything that isn't a digit or decimal point rather than
+        # fail the whole extraction over one field's formatting.
+        if v is None:
+            return None
+        if isinstance(v, str):
+            cleaned = _PRICE_STRIP.sub('', v)
+            if not cleaned:
+                return None
+            try:
+                v = float(cleaned)
+            except ValueError:
+                return None
+        if not isinstance(v, (int, float)) or v < 0:
+            return None
+        return v
