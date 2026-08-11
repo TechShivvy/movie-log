@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # set -x  # Uncomment for verbose output during debugging
-
-# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/test-run-prod.sh`)
-# DO NOT execute from scripts/ directory.
+# Can be run from anywhere — resolves backend/ relative to this script's own
+# location (see below), not the caller's working directory.
 
 : '
 Description:
@@ -22,6 +21,12 @@ Behavior:
 Prerequisites:
     - The image must be built locally using "docker-compose -f docker-compose.prod.yaml build" before running this.
 '
+
+# Resolve backend/ relative to this script's own location, not $PWD — so
+# --env-file .env resolves against backend/.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$BACKEND_DIR"
 
 docker rm -f movie-log-backend-prod || true
 

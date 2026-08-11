@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # set -x  # Uncomment for verbose output during debugging
-
-# IMPORTANT: this script must be run from the **backend/** directory (e.g. `./scripts/push.sh`)
-# DO NOT execute from scripts/ directory.
-
+# Can be run from anywhere — resolves backend/ relative to this script's own
+# location (see below), not the caller's working directory.
 
 : '
 Description:
@@ -18,6 +16,11 @@ Prerequisites:
     - Docker must be logged in.
     - REGISTRY_HOST must be set (for eg via: source ./scripts/login-docker.sh).
 '
+
+# Resolve backend/ relative to this script's own location, not $PWD.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$BACKEND_DIR"
 
 IFS=' ' read -r app ver < <("../get-version.sh" -q)
 app="${app}-backend"

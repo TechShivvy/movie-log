@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # scripts/get-test-token.sh
 # Usage: ./get-test-token.sh user@example.com yourpassword
+# Can be run from anywhere — resolves backend/.env relative to this script's
+# own location, not the caller's working directory (same fix as the other
+# scripts here — see run-local-native.sh for the full rationale).
 set -euo pipefail
 
-[ -f .env ] && source .env
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+
+[ -f "$BACKEND_DIR/.env" ] && source "$BACKEND_DIR/.env"
 
 : "${SUPABASE_URL:?Set SUPABASE_URL}"
 : "${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY}"
