@@ -8,13 +8,18 @@ class UsernameUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={'example': {'username': 'shivco_2141'}})
 
 
-class DiscoverabilityUpdate(BaseModel):
-    """Whether this user's profile/username shows up in public search and the
-    public profile page (`GET /public/users/{username}`)."""
+class AccountPrivacyUpdate(BaseModel):
+    """Whether `GET /public/users/{username}` returns this user's public logs.
+    Off (default): the page still resolves — showing the profile shell
+    (username/display_name/bio) — but with no logs, the same "private account"
+    behavior most social apps use, rather than 404ing a username someone was
+    already given. Doesn't affect search (`GET /public/users/search`) — a
+    private account still turns up there, same as a private Instagram
+    account does; this only gates content on the profile page itself."""
 
-    is_discoverable: bool
+    is_public: bool
 
-    model_config = ConfigDict(json_schema_extra={'example': {'is_discoverable': True}})
+    model_config = ConfigDict(json_schema_extra={'example': {'is_public': True}})
 
 
 class RevisitPrefillUpdate(BaseModel):
@@ -36,3 +41,4 @@ class PublicProfile(BaseModel):
     username: Optional[str] = None
     display_name: Optional[str] = None
     bio: Optional[str] = None
+    is_public: bool = False

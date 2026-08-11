@@ -73,8 +73,9 @@ responses = {
         },
         404: {
             'description': "target_id doesn't exist, or (movie_log) exists but is "
-            "`private`, or (profile) exists but isn't discoverable — either way "
-            "there's nothing reportable at that target_type/target_id.",
+            "`private`, or (profile) exists but has no username set (never had a "
+            "public profile page) — either way there's nothing reportable at that "
+            'target_type/target_id.',
             'content': {
                 'application/json': {
                     'example': {

@@ -5,7 +5,12 @@ _PROFILE_EXAMPLE = {
     'username': 'shivco_2141',
     'display_name': 'Shivcharan',
     'bio': 'Telugu/Tamil cinema, always front row.',
+    'is_public': True,
 }
+
+# What GET /users/{username} returns for a private account (is_public=false)
+# — the route still resolves, just with no logs.
+_PRIVATE_PROFILE_EXAMPLE = {**_PROFILE_EXAMPLE, 'is_public': False}
 
 # Matches public.public_movie_log_entries' actual column list (migrations
 # 20260810000001, 20260811000008) — no booking_ref/seats/ticket_image_path
@@ -88,9 +93,10 @@ _UPSTREAM = {
 responses = {
     'search_users': {
         200: {
-            'description': 'Discoverable users matching the query (username or '
-            'display_name, prefix matches on username ranked first). Public — no '
-            'auth required.',
+            'description': 'Users matching the query (username or display_name, '
+            'prefix matches on username ranked first). Public — no auth required, '
+            'and unrestricted by privacy state — private accounts are included, '
+            'with `is_public: false` so the client can show a lock indicator.',
             'content': {'application/json': {'example': [_PROFILE_EXAMPLE]}},
         },
         422: {
@@ -116,22 +122,33 @@ responses = {
     },
     'public_profile': {
         200: {
-            'description': "The user's public profile plus every movie log they've "
-            "set to `visibility: public` (never `anonymous` ones — by definition, "
-            "those don't show up attributed to anyone). Public — no auth required. "
+            'description': 'Resolves by username alone. If the account is public '
+            '(`is_public: true`), `logs` has every movie log set to `visibility: '
+            "public` (never `anonymous` ones — by definition, those don't show up "
+            'attributed to anyone); if private, `logs` is empty. Public — no auth '
+            'required. '
             '`logs` deliberately excludes booking_ref, seats, and ticket_image_path '
             '— see the public_movie_log_entries view (supabase/migrations).',
             'content': {
                 'application/json': {
-                    'example': {
-                        'profile': _PROFILE_EXAMPLE,
-                        'logs': [_MOVIE_LOG_PUBLIC_EXAMPLE],
+                    'examples': {
+                        'public_account': {
+                            'summary': 'is_public: true — logs included',
+                            'value': {
+                                'profile': _PROFILE_EXAMPLE,
+                                'logs': [_MOVIE_LOG_PUBLIC_EXAMPLE],
+                            },
+                        },
+                        'private_account': {
+                            'summary': 'is_public: false — profile shell only',
+                            'value': {'profile': _PRIVATE_PROFILE_EXAMPLE, 'logs': []},
+                        },
                     }
                 }
             },
         },
         404: {
-            'description': 'No discoverable user with this username.',
+            'description': 'No user with this username.',
             'content': {
                 'application/json': {
                     'example': {'code': 'NOT_FOUND', 'message': 'User not found.'}
@@ -173,7 +190,7 @@ responses = {
                         'username': _PROFILE_EXAMPLE['username'],
                         'display_name': None,
                         'bio': None,
-                        'is_discoverable': False,
+                        'is_public': False,
                         'prefill_repeat_visit': False,
                     }
                 }
@@ -236,20 +253,20 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
-    'set_discoverability': {
+    'set_privacy': {
         200: {
             'description': "The caller's updated settings row.",
             'content': {
                 'application/json': {
                     'example': {
                         'user_id': _PROFILE_EXAMPLE['user_id'],
-                        'is_discoverable': True,
+                        'is_public': True,
                     }
                 }
             },
         },
         422: {
-            'description': 'is_discoverable was not a boolean.',
+            'description': 'is_public was not a boolean.',
             'content': {
                 'application/json': {
                     'example': {
@@ -258,7 +275,7 @@ responses = {
                         'detail': [
                             {
                                 'type': 'bool_parsing',
-                                'loc': ['body', 'is_discoverable'],
+                                'loc': ['body', 'is_public'],
                                 'msg': 'Input should be a valid boolean',
                                 'input': 'yes please',
                             }

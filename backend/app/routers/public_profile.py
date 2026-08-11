@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from rate_limit import limiter
 from responses.public_profile import responses
 from schemas.public_profile import (
-    DiscoverabilityUpdate,
+    AccountPrivacyUpdate,
     PublicProfile,
     RevisitPrefillUpdate,
     UsernameUpdate,
@@ -25,9 +25,12 @@ _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
     '/users/search',
     response_model=List[PublicProfile],
     tags=['Public'],
-    description='Search discoverable users by username or display name. Public — no '
-    'sign-in required. Only users who opted in via PATCH /me/discoverability show up.',
-    response_description='Matching discoverable profiles.',
+    description='Search users by username or display name. Public — no sign-in '
+    'required, and unrestricted by privacy state — a private (`is_public: false`) '
+    'account still turns up here, same as a private Instagram account would; '
+    "`is_public` on each result tells the client whether it's worth showing a "
+    'lock indicator before the caller taps in.',
+    response_description='Matching profiles.',
     responses=responses['search_users'],
     operation_id='SearchPublicUsers',
 )
@@ -39,10 +42,14 @@ async def search_users(request: Request, q: str = Query(..., min_length=2)) -> A
 @router.get(
     '/users/{username}',
     tags=['Public'],
-    description="A discoverable user's public profile plus every log they've set to "
-    "`visibility: public` (not `anonymous` ones — those intentionally never appear "
-    'here). Public — no sign-in required.',
-    response_description='The profile and its public logs.',
+    description='A user\'s public profile. Resolves by username alone, so a link '
+    "someone was already given keeps working forever (as long as the username "
+    'itself does). Content depends on `is_public`: if true, `logs` has every '
+    "entry set to `visibility: public` (never `anonymous` ones — those "
+    'intentionally never appear here); if false, `logs` is empty — same '
+    '"private account" behavior most social apps use, rather than 404ing. '
+    'Public — no sign-in required.',
+    response_description='The profile shell, plus public logs if the account is public.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
 )
@@ -51,7 +58,7 @@ async def public_profile(request: Request, username: str) -> Any:
     profile = await supabase_rest.get_public_profile(username)
     if not profile:
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
-    logs = await supabase_rest.list_public_logs_for_user(profile['user_id'])
+    logs = await supabase_rest.list_public_logs_for_user(profile['user_id']) if profile['is_public'] else []
     return {'profile': profile, 'logs': logs}
 
 
@@ -60,7 +67,7 @@ async def public_profile(request: Request, username: str) -> Any:
     tags=['Public'],
     description='Set or change the caller\'s username (lowercase letters, digits, '
     'underscore only; must be unique). This is what shows up in search and at '
-    'GET /users/{username} once discoverability is on.',
+    'GET /users/{username} — both work as soon as a username is set.',
     response_description="The caller's updated settings row.",
     responses=responses['set_username'],
     operation_id='SetUsername',
@@ -88,25 +95,25 @@ async def set_username(
 
 
 @router.patch(
-    '/me/discoverability',
+    '/me/privacy',
     tags=['Public'],
-    description="Toggle whether the caller's profile/username appears in search and "
-    'at GET /users/{username}. Off by default. This is the only switch: turning it '
-    "off hides the profile entirely, regardless of individual logs' visibility "
-    "settings — note this doesn't touch `anonymous` reviews either way, they were "
-    'never attributed to the profile in the first place.',
+    description="Toggle whether GET /users/{username} returns the caller's public "
+    'logs. Off by default (private): the page still resolves — profile shell '
+    "only, no logs — rather than 404ing. Doesn't affect search: a private "
+    "account can still turn up at GET /users/search, it just has nothing to "
+    'show if someone opens it.',
     response_description="The caller's updated settings row.",
-    responses=responses['set_discoverability'],
-    operation_id='SetDiscoverability',
+    responses=responses['set_privacy'],
+    operation_id='SetAccountPrivacy',
 )
 @limiter.limit(_DEFAULT_LIMIT)
-async def set_discoverability(
+async def set_privacy(
     request: Request,
-    payload: DiscoverabilityUpdate,
+    payload: AccountPrivacyUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
-    return await supabase_rest.update_discoverability(
-        current_user.access_token, current_user.user_id, payload.is_discoverable
+    return await supabase_rest.update_account_privacy(
+        current_user.access_token, current_user.user_id, payload.is_public
     )
 
 

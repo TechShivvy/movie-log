@@ -405,13 +405,14 @@ async def search_public_users(query: str) -> list[dict]:
 
 
 async def get_public_profile(username: str) -> Optional[dict]:
-    params = {
-        'select': 'user_id,username,display_name,bio',
-        'username': f'eq.{username}',
-        'is_discoverable': 'eq.true',
-        'limit': '1',
-    }
-    response = await _anon_request('GET', '/user_settings', 'get_public_profile', params=params)
+    # Username-only lookup — always resolves once a username is set
+    # (migration 20260811000010). Content (whether `logs` gets populated)
+    # is decided by the caller using the `is_public` field this returns,
+    # not by whether this call succeeds.
+    response = await _anon_request(
+        'POST', '/rpc/get_public_profile_by_username', 'get_public_profile',
+        json={'p_username': username},
+    )
     rows = response.json()
     return rows[0] if rows else None
 
@@ -481,10 +482,10 @@ async def update_username(user_token: str, user_id: str, username: str) -> dict:
         raise APIError(500, 'INTERNAL_ERROR', 'Username update returned no row.')
     return rows[0]
 
-async def update_discoverability(user_token: str, user_id: str, is_discoverable: bool) -> dict:
-    row = {'user_id': user_id, 'is_discoverable': is_discoverable}
+async def update_account_privacy(user_token: str, user_id: str, is_public: bool) -> dict:
+    row = {'user_id': user_id, 'is_public': is_public}
     response = await _request(
-        'POST', '/user_settings', user_token, 'update_discoverability',
+        'POST', '/user_settings', user_token, 'update_account_privacy',
         json=row,
         prefer='resolution=merge-duplicates,return=representation',
         params={'on_conflict': 'user_id'},
@@ -536,10 +537,15 @@ async def is_movie_log_reportable(movie_log_id: str) -> bool:
 
 
 async def is_profile_reportable(user_id: str) -> bool:
+    # "Reportable" tracks "does a public-facing profile page exist for this
+    # user" (has a username) — the profile shell (username/display_name/bio)
+    # is visible to anyone who lands on GET /users/{username} regardless of
+    # is_public, so an abusive bio is reportable even on a private account
+    # (migration 20260811000010).
     params = {
         'select': 'user_id',
         'user_id': f'eq.{user_id}',
-        'is_discoverable': 'eq.true',
+        'username': 'not.is.null',
         'limit': '1',
     }
     response = await _anon_request(

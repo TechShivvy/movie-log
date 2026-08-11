@@ -40,8 +40,10 @@ async def _target_is_reportable(target_type: str, target_id: str) -> bool:
     description='Flag something for review. `target_type` decides what '
     "`target_id` means: `movie_log` (a `public`/`anonymous` review's id — "
     "`private` ones aren't reportable, nobody else can see them to report), "
-    '`profile` (a discoverable user\'s user_id), `theatre` or `screen` (its '
-    "id). One report per (caller, target) — reporting the same thing again "
+    "`profile` (a user_id with a username set — the profile shell is visible "
+    'at GET /users/{username} regardless of is_public, so a private '
+    "account's profile is reportable too), `theatre` or `screen` (its id). "
+    "One report per (caller, target) — reporting the same thing again "
     "overwrites the previous reason rather than creating a duplicate. "
     "There's no admin UI yet; this only makes misuse queryable instead of "
     'invisible.',
