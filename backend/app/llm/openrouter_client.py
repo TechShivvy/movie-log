@@ -86,29 +86,8 @@ async def check_model(model_name: str) -> Optional[dict[str, Any]]:
     }
 
 
-async def _call_model(
-    client,
-    image_data_uri: str,
-    system_prompt: str,
-    user_prompt: str,
-    response_model,
-    model_name: str,
-):
-    """Call the model with the given parameters
-
-    Args:
-        client (_type_): The OpenAI client
-        image_data_uri (str): The image data URI
-        system_prompt (str): The system prompt
-        user_prompt (str): The user prompt
-        response_model (_type_): The response model (Pydantic model)
-        model_name (str): The model name
-
-    Returns:
-        response_model: The model response which is a Pydantic model instance (response_model)
-    """
-
-    messages = [
+def _build_image_messages(system_prompt: str, user_prompt: str, image_data_uri: str) -> list[dict]:
+    return [
         {'role': 'system', 'content': system_prompt},
         {
             'role': 'user',
@@ -118,6 +97,34 @@ async def _call_model(
             ],
         },
     ]
+
+
+def _build_text_messages(system_prompt: str, user_prompt: str, page_text: str) -> list[dict]:
+    return [
+        {'role': 'system', 'content': system_prompt},
+        {'role': 'user', 'content': f'{user_prompt}\n\n---\nExtracted page content:\n{page_text}'},
+    ]
+
+
+async def _call_model(
+    client,
+    messages: list[dict],
+    response_model,
+    model_name: str,
+):
+    """Call the model with a prebuilt messages list (image or text, built
+    by _build_image_messages/_build_text_messages) — the parse/fallback
+    logic below is identical either way.
+
+    Args:
+        client (_type_): The OpenAI client
+        messages (list[dict]): The chat messages to send
+        response_model (_type_): The response model (Pydantic model)
+        model_name (str): The model name
+
+    Returns:
+        response_model: The model response which is a Pydantic model instance (response_model)
+    """
 
     try:
         response = await client.beta.chat.completions.parse(
@@ -201,9 +208,7 @@ async def extract_movie_metadata_from_image(
         try:
             return await _call_model(
                 client,
-                image_data_uri,
-                system_prompt,
-                user_prompt,
+                _build_image_messages(system_prompt, user_prompt, image_data_uri),
                 response_model,
                 model_name,
             )
@@ -223,6 +228,97 @@ async def extract_movie_metadata_from_image(
             http_exc = openai_utils.openai_error_to_http(exc)
 
             # Don't retry 4xx errors
+            if http_exc.status_code < 500:
+                raise http_exc
+
+            LOGGER.warning(f'Retryable OpenAIError on attempt {attempt}: {exc}')
+
+            if attempt == settings.max_attempts:
+                LOGGER.error('Model call failed after all retries')
+                raise http_exc
+
+            sleep_duration = retry.calculate_backoff(attempt)
+            LOGGER.info(f'Retrying after {sleep_duration:.1f}s')
+            await asyncio.sleep(sleep_duration)
+
+        except (
+            ValidationError,
+            TypeError,
+            ValueError,
+            IndexError,
+            AttributeError,
+        ) as exc:
+            LOGGER.warning(
+                f'Failed to parse model response on attempt {attempt}/{settings.max_attempts}: {exc}'
+            )
+
+            if attempt == settings.max_attempts:
+                LOGGER.error('Model response could not be parsed after all retries')
+                raise RuntimeError(
+                    'Failed to parse model response as MovieMetadata'
+                ) from exc
+
+            sleep_duration = retry.calculate_backoff(attempt)
+            LOGGER.info(f'Retrying after {sleep_duration:.1f}s')
+            await asyncio.sleep(sleep_duration)
+
+
+async def extract_movie_metadata_from_text(
+    page_text: str,
+    api_key: str,
+    system_prompt: str,
+    user_prompt: str,
+    response_model,
+    model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
+):
+    """Extract movie metadata from scraped ticket-page text (see
+    services/ticket_link_extractor.py) using OpenRouter API — the text
+    equivalent of extract_movie_metadata_from_image, same retry structure,
+    same response_model/parsing path via _call_model, differing only in
+    how the message is built (_build_text_messages, no image_url) and how
+    a context-length error is handled (truncate text, not shrink image).
+
+    Unlike the image path, this doesn't require an image-capable model —
+    plain text input works with any OpenRouter model, free or not, so
+    callers aren't restricted to the image-capable subset of the free
+    model list the way /extract is.
+
+    Args:
+        page_text (str): The extracted visible text of the ticket page
+        api_key (str): The API key for authentication
+        system_prompt (str): The system prompt to guide the model
+        user_prompt (str): The user prompt with specific questions
+        response_model (_type_): The expected response model
+        model_name (str, optional): The name of the model to use
+
+    Returns:
+        response_model: The extracted movie metadata as a Pydantic model instance (response_model)
+    """
+
+    client = AsyncOpenAI(base_url='https://openrouter.ai/api/v1', api_key=api_key)
+
+    for attempt in range(1, settings.max_attempts + 1):
+        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts})')
+
+        try:
+            return await _call_model(
+                client,
+                _build_text_messages(system_prompt, user_prompt, page_text),
+                response_model,
+                model_name,
+            )
+
+        except BadRequestError as exc:
+            LOGGER.warning(f'BadRequestError: {exc}')
+            if openai_utils.is_context_error(exc):
+                page_text = retry.truncate_or_fail(page_text, attempt, settings.max_attempts)
+                continue
+
+            raise openai_utils.openai_error_to_http(exc)
+
+        except OpenAIError as exc:
+            http_exc = openai_utils.openai_error_to_http(exc)
+
             if http_exc.status_code < 500:
                 raise http_exc
 

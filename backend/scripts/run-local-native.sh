@@ -102,8 +102,15 @@ fi
 # worker start doesn't raise a catchable ImportError — the whole process
 # segfaults on `import magic`, which just looks like uvicorn hanging with
 # no error at all. Self-heal here instead.
+#
+# Checked via `from magic import Magic`, not just `import magic` — a bare
+# `import magic` can false-pass against a leftover namespace-package stub
+# uv's uninstall doesn't fully clean up, silently skipping the reinstall
+# it should have done (hit this live: `import magic` succeeded with
+# `magic.__file__ is None` right after uv sync had removed the real
+# package).
 if [ -f "$BACKEND_DIR/.venv/Scripts/python.exe" ]; then
-    if ! "$BACKEND_DIR/.venv/Scripts/python.exe" -c "import magic" >/dev/null 2>&1; then
+    if ! "$BACKEND_DIR/.venv/Scripts/python.exe" -c "from magic import Magic" >/dev/null 2>&1; then
         echo "note: python-magic-bin missing (fresh/rebuilt venv) — reinstalling..." >&2
         "$BACKEND_DIR/.venv/Scripts/python.exe" -m pip install -q python-magic-bin
     fi

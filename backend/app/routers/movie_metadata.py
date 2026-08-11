@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any
 
 import httpx
@@ -6,15 +7,20 @@ from auth.supabase_auth import AuthenticatedUser, get_current_user
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from fastapi import Form
 from fastapi.security import APIKeyHeader
-from llm.openrouter_client import check_api_key, check_model, extract_movie_metadata_from_image
+from llm.openrouter_client import (
+    check_api_key,
+    check_model,
+    extract_movie_metadata_from_image,
+    extract_movie_metadata_from_text,
+)
 from llm.prompts import movie_metadata
 from loguru_setup import LOGGER
 from openai import OpenAIError
 from pydantic import ValidationError
 from responses.movie_metadata import responses
-from schemas.movie_metadata import MovieMetadata
+from schemas.movie_metadata import MovieMetadata, TicketLinkRequest
 from starlette.formparsers import MultiPartParser
-from services import extraction_cache, free_models
+from services import extraction_cache, free_models, ticket_link_extractor
 from services.quota import ensure_within_daily_quota
 from utils import image
 from utils.openai_utils import openai_error_to_http
@@ -196,6 +202,104 @@ async def extract_movie_metadata(
         )
     except Exception as e:
         LOGGER.error(f'Unexpected error during metadata extraction: {e}')
+        raise e
+
+
+@router.post(
+    path='/extract-from-link',
+    tags=['Extract Movie Metadata'],
+    description=(
+        'Extract movie metadata from a shared ticket booking-confirmation link '
+        '(BookMyShow, Fandango, PVR, District, ...) instead of a photo — an optional, '
+        "best-effort alternative to `POST /extract`, not a replacement: only a fixed "
+        'allowlist of known ticketing sites is supported (see '
+        '`services/ticket_link_extractor.py`), and any given link can fail to render '
+        '(`LINK_EXTRACTION_FAILED`) even for a supported site. On failure, fall back '
+        'to `/extract` with a photo — the frontend should treat this as expected, not '
+        'exceptional.\n\n'
+        'Same two Authorize locks, same shared-key-vs-own-key/quota/free-model rules, '
+        'and the same content-addressed caching as `/extract` — here keyed by the '
+        "scraped page text's content, not an image, so re-submitting the same link "
+        'with the same model is a free cache hit.'
+    ),
+    response_description='Movie Metadata',
+    response_model=MovieMetadata,
+    responses=responses['extract-from-link'],
+    operation_id='ExtractFromTicketLink',
+)
+@limiter.limit(f'{settings.rate_limit_per_minute}/minute')
+async def extract_movie_metadata_from_link(
+    request: Request,
+    body: TicketLinkRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    model: str | None = None,
+    header_api_key: str | None = Depends(get_header_api_key),
+) -> MovieMetadata:
+    request.state.user_id = current_user.user_id
+
+    model_name = await resolve_model_name(model)
+
+    # Raises APIError(400, UNSUPPORTED_LINK) or APIError(422,
+    # LINK_EXTRACTION_FAILED) on any problem — propagates straight through
+    # to the client via the app-wide APIError handler, no try/except
+    # needed here. Runs before quota/cache lookups: a link that was never
+    # going to scrape shouldn't cost the user anything.
+    page_text = await ticket_link_extractor.extract_visible_text(body.url)
+
+    # Same content-addressed cache extract_movie_metadata() uses, keyed
+    # by a hash of the scraped text instead of image bytes — same reuse
+    # logic applies: identical page content + model always produces the
+    # same extraction.
+    content_hash = hashlib.sha256(page_text.encode('utf-8')).hexdigest()
+    cached = await extraction_cache.get_cached_extraction(content_hash, model_name)
+    if cached is not None:
+        LOGGER.info(
+            'extract-from-link rid={} model={} cache=hit',
+            getattr(request.state, 'request_id', '-'),
+            model_name,
+        )
+        return cached
+
+    if header_api_key:
+        openrouter_api_key = header_api_key
+    else:
+        await validate_shared_model(model_name)
+        await ensure_within_daily_quota(current_user.user_id)
+        openrouter_api_key = resolve_shared_api_key()
+
+    try:
+        ticket: MovieMetadata = await extract_movie_metadata_from_text(
+            page_text=page_text,
+            api_key=openrouter_api_key,
+            system_prompt=movie_metadata.SYSTEM_PROMPT_TEXT,
+            user_prompt=movie_metadata.USER_PROMPT_TEXT,
+            response_model=MovieMetadata,
+            model_name=model_name,
+        )
+        LOGGER.info(
+            'extract-from-link rid={} model={} cache=miss',
+            getattr(request.state, 'request_id', '-'),
+            model_name,
+        )
+        result = ticket.model_dump()
+        await extraction_cache.store_extraction(content_hash, model_name, result)
+        return result
+    except ValidationError as e:
+        LOGGER.error(f'Validation error parsing movie metadata: {e}')
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to parse movie metadata from response',
+        )
+    except OpenAIError as e:
+        raise openai_error_to_http(e)
+    except RuntimeError as e:
+        LOGGER.error(f'Model response parsing failed: {e}')
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail='Model returned an invalid/non-JSON response.',
+        )
+    except Exception as e:
+        LOGGER.error(f'Unexpected error during link metadata extraction: {e}')
         raise e
 
 

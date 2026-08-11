@@ -111,6 +111,19 @@ def _normalize_date(value: str) -> str:
     raise ValueError(f'unsupported date format: {value}')
 
 
+class TicketLinkRequest(BaseModel):
+    url: str = Field(
+        ...,
+        description='A shared movie-ticket booking-confirmation link '
+        '(BookMyShow, Fandango, PVR, District, ...). See '
+        'services/ticket_link_extractor.py for the supported-site allowlist.',
+        min_length=1,
+        max_length=2048,
+    )
+
+    model_config = ConfigDict(extra='forbid')
+
+
 class MovieMetadata(BaseModel):
     movie: Optional[str] = Field(None, description='Name of the movie')
     date: Optional[str] = Field(None, description='Date of the movie')

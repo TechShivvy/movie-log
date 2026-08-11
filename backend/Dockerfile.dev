@@ -15,6 +15,24 @@ RUN : \
     && rm -rf /var/lib/apt/lists/* \
     && :
 
+# Chromium's OS-level shared libraries (libnss3, libgbm1, fonts, ...) for
+# headless-browser ticket-link extraction (services/ticket_link_extractor.py).
+# `playwright install-deps` is Playwright's own maintained resolver for
+# these package names/versions across Debian releases — far more robust
+# than hand-listing them here, since exact package names shift between
+# Debian versions. This is a throwaway system-level playwright install
+# used only to run that one command; the actual browser binary + the
+# playwright Python package the app imports both come from the project's
+# own .venv in the builder stage below, landing in a directory
+# (PLAYWRIGHT_BROWSERS_PATH) that gets copied into the runtime image.
+RUN : \
+    && pip install --no-cache-dir --quiet playwright \
+    && playwright install-deps chromium \
+    && pip uninstall -y --quiet playwright \
+    && :
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/src/pw-browsers
+
 ########################################
 # Builder stage: install uv, dependencies, and project code
 FROM base AS builder
@@ -36,6 +54,12 @@ COPY scripts/docker-entry.sh ./
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
+
+# Downloads the actual Chromium browser binary (distinct from the apt
+# libs above, which are OS-level) into PLAYWRIGHT_BROWSERS_PATH, a
+# sibling of app/ under /opt/src so the runtime stage's
+# `COPY --from=builder /opt/src /opt/src` below picks it up too.
+RUN uv run --no-dev playwright install chromium
 
 ########################################
 # Runtime stage: minimal container run environment

@@ -9,12 +9,16 @@ __author__ = 'Shivcharan Thirunavukkarasu'
 __date__ = 'Jul 2025'
 
 
+from contextlib import asynccontextmanager
+
 from config import settings
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from loguru_setup import LOGGER
 from middlewares import middleware
 from routers import auth, dev_oauth, movie_logs, movie_metadata, reports, root, venues, public_profile
+from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -29,6 +33,30 @@ from utils.errors import (
 from rate_limit import limiter
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # One real Chromium process for the whole app lifetime (see
+    # services/ticket_link_extractor.py) — launching a full browser is
+    # multiple seconds and too heavy to do inline per request. Fails
+    # open, not crashing app startup: link extraction is an optional,
+    # best-effort input path alongside ticket-photo upload (which has
+    # nothing to do with a browser and must keep working regardless), so
+    # a launch failure here (e.g. a host without the sandbox permissions
+    # Chromium needs) degrades that one feature — extract_visible_text()
+    # already checks for a missing browser and returns a clean error the
+    # frontend can fall back on — rather than taking the whole API down.
+    try:
+        await ticket_link_extractor.init_browser()
+    except Exception as exc:
+        LOGGER.error(
+            'Failed to launch the headless browser for link extraction — '
+            'that feature will be unavailable, rest of the app is unaffected: {}',
+            exc,
+        )
+    yield
+    await ticket_link_extractor.close_browser()
+
+
 def create_app() -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -40,6 +68,7 @@ def create_app() -> FastAPI:
     api_prefix = settings.api_prefix
 
     app = FastAPI(
+        lifespan=lifespan,
         title='Movie Log API',
         version=settings.api_version,
         description='API for extracting movie metadata from ticket images.\n\nGitHub: [TechShivvy/movie-log](https://github.com/TechShivvy/movie-log)',

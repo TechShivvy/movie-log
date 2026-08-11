@@ -112,3 +112,30 @@ An image will be provided in the user message.
 USER_PROMPT = """
 Here is the movie ticket. Please extract the details exactly following the specified JSON schema and constraints.
 """
+
+# Same field rules/schema as SYSTEM_PROMPT above — this variant is used
+# when the input is the rendered visible text of a ticket-confirmation
+# webpage (services/ticket_link_extractor.py) instead of a photo, so it
+# only needs its framing paragraph swapped; the schema, field-mapping,
+# date/time, and disambiguation rules that follow are identical and
+# still fully apply since a webpage's visible text and a ticket photo's
+# OCR text describe the same fields, just from a different source.
+SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT.replace(
+    'You are a highly reliable assistant specialized in extracting structured data from images of movie tickets.',
+    'You are a highly reliable assistant specialized in extracting structured data from the '
+    'text of movie ticket booking-confirmation webpages.',
+).replace(
+    '- Analyze the attached image (photo, screenshot, scanned, or printed ticket).',
+    '- Analyze the extracted visible text of a ticket booking-confirmation page.',
+).replace(
+    'An image will be provided in the user message.',
+    'The extracted page text will be provided in the user message, after the "Extracted page '
+    'content:" marker. It may include unrelated site navigation/footer text (menus, legal '
+    'links, unrelated promotions) mixed in with the actual booking details — ignore anything '
+    "that isn't clearly part of this specific booking.",
+)
+
+USER_PROMPT_TEXT = """
+Here is the extracted text of a movie ticket booking confirmation page. Please extract the
+details exactly following the specified JSON schema and constraints.
+"""

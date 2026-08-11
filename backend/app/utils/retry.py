@@ -44,3 +44,35 @@ def shrink_or_fail(image_data_uri: str, attempt: int, max_attempts: int) -> str:
 
     LOGGER.info(f'ContextError: shrinking payload (attempt {attempt})')
     return optimize_image_data_uri(image_data_uri, max_size=600, quality=70)
+
+
+def truncate_or_fail(text: str, attempt: int, max_attempts: int) -> str:
+    """Truncate scraped page text if it exceeds context limits, or raise
+    an error — the text equivalent of shrink_or_fail() above. In practice
+    real ticket-confirmation pages run a couple thousand characters
+    (services/ticket_link_extractor.py already caps at 20k before this is
+    ever called), so this path is expected to be rare; it exists so a
+    genuinely oversized page degrades the same way an oversized image
+    does — progressively smaller retries, then a clear error — rather
+    than looping forever or crashing unhandled.
+
+    Args:
+        text (str): The page text to truncate
+        attempt (int): The current attempt number
+        max_attempts (int): The maximum number of attempts allowed
+
+    Raises:
+        HTTPException: If the maximum number of attempts is reached
+
+    Returns:
+        str: The truncated text
+    """
+    if attempt >= max_attempts:
+        LOGGER.error('Context limit exceeded after all attempts')
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail='Page content could not be reduced to fit context limits.',
+        )
+
+    LOGGER.info(f'ContextError: truncating page text (attempt {attempt})')
+    return text[: max(len(text) // 2, 500)]

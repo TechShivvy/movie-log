@@ -1,4 +1,125 @@
 responses = {
+    'extract-from-link': {
+        200: {
+            'description': 'Successfully extracted movie metadata from the ticket link.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'movie': 'Spider-Man: Brand New Day',
+                        'date': '2026-07-31',
+                        'time': '16:40',
+                        'timezone_abbrv': 'IST',
+                        'theater': 'Cinepolis: BSR Mall, OMR, Thoraipakkam',
+                        'seats': ['J25', 'J26'],
+                        'language': 'English',
+                        'screen': 'AUDI06',
+                        'booking_ref': 'WNJ2T8D',
+                        'certificate': None,
+                    }
+                }
+            },
+        },
+        400: {
+            'description': 'The URL is malformed, not http(s), or its host is not on '
+            'the supported-ticketing-site allowlist — checked before any scraping is '
+            'attempted, so this never spends quota. Also covers the shared-key-must-'
+            'be-free-model rule, same as /extract.',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'unsupported_site': {
+                            'summary': 'Host is not a supported ticketing site',
+                            'value': {
+                                'code': 'UNSUPPORTED_LINK',
+                                'message': 'example.com is not a supported ticketing site yet.',
+                            },
+                        },
+                        'shared_model_not_free': {
+                            'summary': 'Non-free model requested without an own API key',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'Selected shared model must be a free model.',
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        401: {
+            'description': 'Missing/invalid sign-in, or (if you supplied your own key) '
+            'OpenRouter rejected it — same two independent locks as /extract.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'UNAUTHORIZED', 'message': 'Missing bearer token.'}
+                }
+            },
+        },
+        422: {
+            'description': "The link is on a supported site but couldn't actually be "
+            'read — a real, expected outcome (page structure changed, the specific '
+            "booking is no longer accessible, a transient block), not a bug. Frontend "
+            'should treat this as a signal to offer photo upload instead, not as an error '
+            'to alarm the user with.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'LINK_EXTRACTION_FAILED',
+                        'message': "Couldn't read that link — try uploading a photo of the ticket instead.",
+                    }
+                }
+            },
+        },
+        429: {
+            'description': 'One of two independent limits — distinguish by `code`.',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'per_minute_rate_limit': {
+                            'summary': 'Too many requests in a short window',
+                            'value': {
+                                'code': 'RATE_LIMIT_MINUTE',
+                                'message': 'Too many requests in a short time. Please '
+                                'slow down and retry shortly.',
+                            },
+                        },
+                        'daily_quota_exceeded': {
+                            'summary': 'Shared-key daily cap reached',
+                            'value': {
+                                'code': 'QUOTA_DAILY_EXCEEDED',
+                                'message': 'Daily free extraction limit reached. Add your '
+                                'own OpenRouter API key in settings or try again tomorrow.',
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            'description': 'Internal server error, or the headless browser is '
+            'unavailable on this deployment (fails open at startup — see app.py '
+            'lifespan — rather than the whole API refusing to start).',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'INTERNAL_ERROR',
+                        'message': 'Link extraction is not available right now.',
+                    }
+                }
+            },
+        },
+        502: {
+            'description': 'Could not reach OpenRouter/OpenAI, or it returned a '
+            'non-JSON / invalid response.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'UPSTREAM_ERROR',
+                        'message': 'Unable to connect to OpenAI. Please retry later.',
+                    }
+                }
+            },
+        },
+    },
     'test-key': {
         200: {
             'description': 'Key/model check result — always 200 once signed in and a '
