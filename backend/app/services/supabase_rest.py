@@ -407,8 +407,8 @@ async def search_public_users(query: str) -> list[dict]:
 async def get_public_profile(username: str) -> Optional[dict]:
     # Username-only lookup — always resolves once a username is set
     # (migration 20260811000010). Content (whether `logs` gets populated)
-    # is decided by the caller using the `is_public` field this returns,
-    # not by whether this call succeeds.
+    # is decided by the caller using the `account_visibility` field this
+    # returns, not by whether this call succeeds.
     response = await _anon_request(
         'POST', '/rpc/get_public_profile_by_username', 'get_public_profile',
         json={'p_username': username},
@@ -482,8 +482,8 @@ async def update_username(user_token: str, user_id: str, username: str) -> dict:
         raise APIError(500, 'INTERNAL_ERROR', 'Username update returned no row.')
     return rows[0]
 
-async def update_account_privacy(user_token: str, user_id: str, is_public: bool) -> dict:
-    row = {'user_id': user_id, 'is_public': is_public}
+async def update_account_privacy(user_token: str, user_id: str, account_visibility: str) -> dict:
+    row = {'user_id': user_id, 'account_visibility': account_visibility}
     response = await _request(
         'POST', '/user_settings', user_token, 'update_account_privacy',
         json=row,
@@ -492,6 +492,25 @@ async def update_account_privacy(user_token: str, user_id: str, is_public: bool)
     )
     rows = response.json()
     return rows[0] if rows else {}
+
+
+async def update_profile(user_token: str, user_id: str, patch: dict) -> dict:
+    # Generalizes the single-field upsert shape above to multiple optional
+    # columns at once — safe the same way: PostgREST's merge-duplicates
+    # upsert only ever touches columns present in the JSON body, and every
+    # NOT NULL column on user_settings besides user_id has a default, so an
+    # INSERT branch (first-time caller) is safe too.
+    row = {'user_id': user_id, **patch}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_profile',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    if not rows:
+        raise APIError(500, 'INTERNAL_ERROR', 'Profile update returned no row.')
+    return rows[0]
 
 
 async def update_revisit_prefill(user_token: str, user_id: str, prefill_repeat_visit: bool) -> dict:
@@ -540,8 +559,8 @@ async def is_profile_reportable(user_id: str) -> bool:
     # "Reportable" tracks "does a public-facing profile page exist for this
     # user" (has a username) — the profile shell (username/display_name/bio)
     # is visible to anyone who lands on GET /users/{username} regardless of
-    # is_public, so an abusive bio is reportable even on a private account
-    # (migration 20260811000010).
+    # account_visibility, so an abusive bio is reportable even on a private
+    # account (migration 20260811000010).
     params = {
         'select': 'user_id',
         'user_id': f'eq.{user_id}',

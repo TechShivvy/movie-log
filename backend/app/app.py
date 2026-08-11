@@ -107,12 +107,12 @@ def create_app() -> FastAPI:
                 'name': 'Public',
                 'description': "Public profile search and a user's shared movie logs. "
                 'Reads are public and unrestricted by privacy state — search and '
-                'profile lookup both work regardless of `is_public`. `is_public` only '
-                'controls whether GET /users/{username} shows any logs (private '
-                'accounts show the profile shell only), same as a private Instagram '
-                'account. Shown logs are always `public`-visibility — `anonymous` '
-                "ones show up on the venue instead (see Venues), never attributed to "
-                "their writer's profile.",
+                'profile lookup both work regardless of `account_visibility`. '
+                'That field only controls whether GET /users/{username} shows any '
+                'logs (non-public accounts show the profile shell only), same as a '
+                'private Instagram account. Shown logs are always `public`-visibility '
+                "— `anonymous` ones show up on the venue instead (see Venues), never "
+                "attributed to their writer's profile.",
             },
             {
                 'name': 'Reports',

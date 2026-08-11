@@ -1,5 +1,9 @@
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from schemas._validators import validate_storage_path
+
+AccountVisibility = Literal['public', 'followers_only', 'private']
 
 
 class UsernameUpdate(BaseModel):
@@ -9,17 +13,88 @@ class UsernameUpdate(BaseModel):
 
 
 class AccountPrivacyUpdate(BaseModel):
-    """Whether `GET /public/users/{username}` returns this user's public logs.
-    Off (default): the page still resolves — showing the profile shell
-    (username/display_name/bio) — but with no logs, the same "private account"
-    behavior most social apps use, rather than 404ing a username someone was
-    already given. Doesn't affect search (`GET /public/users/search`) — a
-    private account still turns up there, same as a private Instagram
-    account does; this only gates content on the profile page itself."""
+    """Who can see this account's content on `GET /public/users/{username}`
+    and in followers' feeds. Doesn't affect search (`GET /public/users/search`)
+    — any tier still turns up there (unless blocked), same as a private
+    Instagram account does; this only gates content once someone opens the
+    profile. `public` (open to everyone) and `followers_only` (accepted
+    followers + owner) both accept follows instantly or on request
+    respectively — see `routers/follows.py`. `private` (default — nobody but
+    the owner, ever, not even accepted followers) still accepts follow
+    requests; they just don't unlock anything on their own, so a standing
+    request quietly starts working the moment the account switches to
+    `followers_only`/`public` instead of needing to be re-sent."""
 
-    is_public: bool
+    account_visibility: AccountVisibility
 
-    model_config = ConfigDict(json_schema_extra={'example': {'is_public': True}})
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'account_visibility': 'followers_only'}}
+    )
+
+
+class ProfileLink(BaseModel):
+    """One entry of the up-to-5 optional links shown on a profile, e.g. a
+    Letterboxd/Instagram/personal-site link — same idea as Instagram's
+    link-in-bio, just labeled rather than a single bare URL."""
+
+    label: str = Field(..., min_length=1, max_length=50)
+    url: str = Field(..., min_length=1, max_length=500)
+
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'label': 'Letterboxd', 'url': 'https://letterboxd.com/shivco'}}
+    )
+
+    @field_validator('url')
+    @classmethod
+    def _check_url(cls, v: str) -> str:
+        v = v.strip()
+        if not (v.startswith('http://') or v.startswith('https://')):
+            raise ValueError('url must start with http:// or https://')
+        return v
+
+
+class ProfileUpdate(BaseModel):
+    """Partial update — only fields actually sent are changed (same
+    exclude-unset convention as `MovieLogUpdate`). Bundled into one endpoint
+    rather than one-per-field like `username`/`privacy`/`revisit-prefill`,
+    since these four naturally belong to a single "edit profile" screen
+    action; `username` (uniqueness) and `account_visibility` (its own
+    semantics, see `AccountPrivacyUpdate`) still get their own endpoints."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'display_name': 'Shivcharan',
+                'bio': 'Telugu/Tamil cinema, always front row.',
+                'avatar_path': None,
+                'profile_links': [
+                    {'label': 'Letterboxd', 'url': 'https://letterboxd.com/shivco'}
+                ],
+            }
+        }
+    )
+
+    display_name: Optional[str] = Field(default=None, max_length=100)
+    bio: Optional[str] = Field(default=None, max_length=500)
+    avatar_path: Optional[str] = Field(
+        default=None, max_length=512,
+        description='Storage path in the avatar-images bucket, e.g. '
+        '"{user_id}/avatar.jpg" — client uploads directly to Supabase '
+        'Storage, this only stores the resulting path. null clears it.',
+    )
+    profile_links: Optional[List[ProfileLink]] = Field(default=None, max_length=5)
+
+    @field_validator('display_name', 'bio', mode='before')
+    @classmethod
+    def _blank_to_none(cls, v: Optional[str]) -> Optional[str]:
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
+
+    @field_validator('avatar_path')
+    @classmethod
+    def _check_avatar_path(cls, v: Optional[str]) -> Optional[str]:
+        return validate_storage_path(v)
 
 
 class RevisitPrefillUpdate(BaseModel):
@@ -41,4 +116,6 @@ class PublicProfile(BaseModel):
     username: Optional[str] = None
     display_name: Optional[str] = None
     bio: Optional[str] = None
-    is_public: bool = False
+    account_visibility: AccountVisibility = 'private'
+    avatar_path: Optional[str] = None
+    profile_links: List[ProfileLink] = Field(default_factory=list)

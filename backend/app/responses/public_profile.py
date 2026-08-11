@@ -5,12 +5,14 @@ _PROFILE_EXAMPLE = {
     'username': 'shivco_2141',
     'display_name': 'Shivcharan',
     'bio': 'Telugu/Tamil cinema, always front row.',
-    'is_public': True,
+    'account_visibility': 'public',
+    'avatar_path': '11111111-1111-1111-1111-111111111111/avatar.jpg',
+    'profile_links': [{'label': 'Letterboxd', 'url': 'https://letterboxd.com/shivco'}],
 }
 
-# What GET /users/{username} returns for a private account (is_public=false)
-# — the route still resolves, just with no logs.
-_PRIVATE_PROFILE_EXAMPLE = {**_PROFILE_EXAMPLE, 'is_public': False}
+# What GET /users/{username} returns for a private account — the route
+# still resolves, just with no logs.
+_PRIVATE_PROFILE_EXAMPLE = {**_PROFILE_EXAMPLE, 'account_visibility': 'private'}
 
 # Matches public.public_movie_log_entries' actual column list (migrations
 # 20260810000001, 20260811000008) — no booking_ref/seats/ticket_image_path
@@ -96,7 +98,7 @@ responses = {
             'description': 'Users matching the query (username or display_name, '
             'prefix matches on username ranked first). Public — no auth required, '
             'and unrestricted by privacy state — private accounts are included, '
-            'with `is_public: false` so the client can show a lock indicator.',
+            'with `account_visibility` so the client can show a lock indicator.',
             'content': {'application/json': {'example': [_PROFILE_EXAMPLE]}},
         },
         422: {
@@ -123,24 +125,24 @@ responses = {
     'public_profile': {
         200: {
             'description': 'Resolves by username alone. If the account is public '
-            '(`is_public: true`), `logs` has every movie log set to `visibility: '
-            "public` (never `anonymous` ones — by definition, those don't show up "
-            'attributed to anyone); if private, `logs` is empty. Public — no auth '
-            'required. '
-            '`logs` deliberately excludes booking_ref, seats, and ticket_image_path '
-            '— see the public_movie_log_entries view (supabase/migrations).',
+            '(`account_visibility: "public"`), `logs` has every movie log set to '
+            "`visibility: public` (never `anonymous` ones — by definition, those "
+            "don't show up attributed to anyone); `followers_only`/`private` show "
+            'an empty `logs` list. Public — no auth required. `logs` deliberately '
+            'excludes booking_ref, seats, and ticket_image_path — see the '
+            'public_movie_log_entries view (supabase/migrations).',
             'content': {
                 'application/json': {
                     'examples': {
                         'public_account': {
-                            'summary': 'is_public: true — logs included',
+                            'summary': 'account_visibility: public — logs included',
                             'value': {
                                 'profile': _PROFILE_EXAMPLE,
                                 'logs': [_MOVIE_LOG_PUBLIC_EXAMPLE],
                             },
                         },
                         'private_account': {
-                            'summary': 'is_public: false — profile shell only',
+                            'summary': 'account_visibility: private — profile shell only',
                             'value': {'profile': _PRIVATE_PROFILE_EXAMPLE, 'logs': []},
                         },
                     }
@@ -190,7 +192,9 @@ responses = {
                         'username': _PROFILE_EXAMPLE['username'],
                         'display_name': None,
                         'bio': None,
-                        'is_public': False,
+                        'account_visibility': 'private',
+                        'avatar_path': None,
+                        'profile_links': [],
                         'prefill_repeat_visit': False,
                     }
                 }
@@ -260,13 +264,14 @@ responses = {
                 'application/json': {
                     'example': {
                         'user_id': _PROFILE_EXAMPLE['user_id'],
-                        'is_public': True,
+                        'account_visibility': 'followers_only',
                     }
                 }
             },
         },
         422: {
-            'description': 'is_public was not a boolean.',
+            'description': 'account_visibility was missing or not one of public/'
+            'followers_only/private.',
             'content': {
                 'application/json': {
                     'example': {
@@ -274,10 +279,59 @@ responses = {
                         'message': 'Request validation failed',
                         'detail': [
                             {
-                                'type': 'bool_parsing',
-                                'loc': ['body', 'is_public'],
-                                'msg': 'Input should be a valid boolean',
-                                'input': 'yes please',
+                                'type': 'literal_error',
+                                'loc': ['body', 'account_visibility'],
+                                'msg': "Input should be 'public', 'followers_only' or 'private'",
+                                'input': 'everyone',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'set_profile': {
+        200: {
+            'description': "The caller's updated settings row.",
+            'content': {'application/json': {'example': {**_PROFILE_EXAMPLE, 'user_id': _PROFILE_EXAMPLE['user_id']}}},
+        },
+        400: {
+            'description': 'No fields provided, or avatar_path is not prefixed with '
+            "the caller's own user_id.",
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'empty_update': {
+                            'summary': 'Empty payload',
+                            'value': {'code': 'EMPTY_UPDATE', 'message': 'No fields provided to update.'},
+                        },
+                        'bad_avatar_path': {
+                            'summary': 'avatar_path not under the caller\'s own prefix',
+                            'value': {
+                                'code': 'INVALID_IMAGE_PATH',
+                                'message': "avatar_path must be under the caller's own user_id prefix.",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'A field failed validation — e.g. profile_links has more '
+            'than 5 entries, or a link url is missing the http(s):// scheme.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'value_error',
+                                'loc': ['body', 'profile_links', 0, 'url'],
+                                'msg': 'Value error, url must start with http:// or https://',
+                                'input': 'letterboxd.com/shivco',
                             }
                         ],
                     }

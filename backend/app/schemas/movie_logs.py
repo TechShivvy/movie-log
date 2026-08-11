@@ -8,6 +8,7 @@ import re
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from schemas._validators import validate_storage_path
 
 _ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _HHMM = re.compile(r'^\d{2}:\d{2}$')
@@ -95,17 +96,6 @@ WRITABLE_FIELDS = (
     'screen_id',
     'visibility',
 )
-
-
-def _validate_image_path(value: Optional[str]) -> Optional[str]:
-    if value is None:
-        return None
-    value = value.strip()
-    if not value:
-        return None
-    if '..' in value or value.startswith('/') or '://' in value:
-        raise ValueError('ticket_image_path must be a relative storage path')
-    return value
 
 
 def _check_half_star(v: Optional[float]) -> Optional[float]:
@@ -235,7 +225,7 @@ class MovieLogInput(BaseModel):
     @field_validator('ticket_image_path')
     @classmethod
     def _check_path(cls, v: Optional[str]) -> Optional[str]:
-        return _validate_image_path(v)
+        return validate_storage_path(v)
 
     @field_validator('rating')
     @classmethod
@@ -332,7 +322,7 @@ class MovieLogUpdate(BaseModel):
     @field_validator('ticket_image_path')
     @classmethod
     def _check_path(cls, v: Optional[str]) -> Optional[str]:
-        return _validate_image_path(v)
+        return validate_storage_path(v)
 
     @field_validator('rating')
     @classmethod
