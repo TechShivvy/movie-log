@@ -12,8 +12,8 @@ from auth.supabase_auth import AuthenticatedUser, get_current_user
 from config import settings
 from fastapi import APIRouter, Body, Depends, Query, Request, status
 from loguru_setup import LOGGER
-from responses.movie_log import responses
-from schemas.movie_log import WRITABLE_FIELDS, MovieLog, MovieLogInput, MovieLogUpdate
+from responses.movie_logs import responses
+from schemas.movie_logs import WRITABLE_FIELDS, MovieLog, MovieLogInput, MovieLogUpdate
 from schemas.venues import VenueRatingInput
 from services import supabase_rest
 from utils.errors import APIError
