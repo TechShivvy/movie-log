@@ -103,16 +103,28 @@ async def is_free_model(model_name: str) -> bool:
     return model_name.endswith(':free')
 
 
-async def default_free_model() -> str:
-    """A free model suitable as the default for /extract, which always
-    sends an image — so this always prefers an image-capable model over
-    a text-only one, never handing back a model that would just fail on
-    the very first real request."""
+async def default_free_model(requires_image: bool = True) -> str:
+    """A free model suitable as the default for the caller's request.
+
+    requires_image=True (the /extract default, an image upload) narrows
+    to image-capable models first — no point handing back a text-only
+    model that would just fail on the very first real request.
+    requires_image=False (/extract-from-link, plain scraped text — see
+    llm/openrouter_client.py's extract_movie_metadata_from_text) doesn't
+    filter by modality at all, since restricting to image-capable models
+    there would only needlessly shrink the pool for no reason — a
+    text-only free model (e.g. cohere/north-mini-code:free) works just
+    as well as an image-capable one when there's no image involved.
+    """
 
     models = await _get_snapshot_models()
     if models is not None:
-        image_capable = [m['id'] for m in models if 'image' in (m.get('input_modalities') or [])]
-        pool = image_capable or [m['id'] for m in models]
+        if requires_image:
+            pool = [m['id'] for m in models if 'image' in (m.get('input_modalities') or [])] or [
+                m['id'] for m in models
+            ]
+        else:
+            pool = [m['id'] for m in models]
         if settings.default_free_model in pool:
             return settings.default_free_model
         if pool:

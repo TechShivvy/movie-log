@@ -56,8 +56,8 @@ def resolve_shared_api_key() -> str:
     return api_key
 
 
-async def resolve_model_name(model: str | None) -> str:
-    selected_model = (model or await free_models.default_free_model()).strip()
+async def resolve_model_name(model: str | None, *, requires_image: bool = True) -> str:
+    selected_model = (model or await free_models.default_free_model(requires_image=requires_image)).strip()
     if not selected_model:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -237,7 +237,10 @@ async def extract_movie_metadata_from_link(
 ) -> MovieMetadata:
     request.state.user_id = current_user.user_id
 
-    model_name = await resolve_model_name(model)
+    # requires_image=False: this is scraped page text, not a photo — no
+    # reason to restrict the default to the image-capable subset of free
+    # models the way /extract needs to (see free_models.default_free_model).
+    model_name = await resolve_model_name(model, requires_image=False)
 
     # Raises APIError(400, UNSUPPORTED_LINK) or APIError(422,
     # LINK_EXTRACTION_FAILED) on any problem — propagates straight through
