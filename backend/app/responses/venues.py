@@ -51,7 +51,9 @@ _SCREEN_NOTE_EXAMPLE = {
 # concern here: both null the same way, which is intentional (see the view
 # definition, migration 20260810000001) — an anonymous review reveals
 # nothing about who wrote it, not even indirectly via a missing-vs-null
-# distinction.
+# distinction. No price/currency here either, same as the public profile's
+# movie-log example — personal financial detail stays out of this view
+# entirely (migration 20260811000008), format doesn't.
 _REVIEW_EXAMPLES = [
     {
         'id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
@@ -66,6 +68,7 @@ _REVIEW_EXAMPLES = [
         'language': 'Telugu',
         'screen': 'Balcony',
         'screen_id': _SCREEN_EXAMPLE['id'],
+        'format': '2D',
         'certificate': 'U/A',
         'notes': 'Great sound, comfy seats.',
         'rating': 4.5,
@@ -84,6 +87,7 @@ _REVIEW_EXAMPLES = [
         'language': 'Telugu',
         'screen': None,
         'screen_id': None,
+        'format': None,
         'certificate': None,
         'notes': "Wouldn't go again, AC was broken.",
         'rating': 2.0,

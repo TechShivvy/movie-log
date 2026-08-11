@@ -7,6 +7,11 @@ _PROFILE_EXAMPLE = {
     'bio': 'Telugu/Tamil cinema, always front row.',
 }
 
+# Matches public.public_movie_log_entries' actual column list (migrations
+# 20260810000001, 20260811000008) — no booking_ref/seats/ticket_image_path
+# (identifying/private), and no price/currency either (personal financial
+# detail, same reasoning). format is here since it's no more sensitive
+# than the already-public language/screen/certificate.
 _MOVIE_LOG_PUBLIC_EXAMPLE = {
     'id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
     'user_id': _PROFILE_EXAMPLE['user_id'],
@@ -19,6 +24,7 @@ _MOVIE_LOG_PUBLIC_EXAMPLE = {
     'language': 'Telugu',
     'screen': 'Balcony',
     'screen_id': '33333333-3333-3333-3333-333333333333',
+    'format': '2D',
     'certificate': 'U/A',
     'notes': 'Great sound, comfy seats.',
     'rating': 4.5,
