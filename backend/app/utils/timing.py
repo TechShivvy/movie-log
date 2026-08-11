@@ -33,21 +33,21 @@ def timed(func: Optional[F] = None, *, label: Optional[str] = None) -> Callable:
 
             @functools.wraps(f)
             async def async_wrapper(*args, **kwargs):
-                start = time.monotonic()
+                start = time.perf_counter()
                 try:
                     return await f(*args, **kwargs)
                 finally:
-                    LOGGER.info('{} took {:.3f}s', name, time.monotonic() - start)
+                    LOGGER.info('{} took {:.3f}s', name, time.perf_counter() - start)
 
             return async_wrapper  # type: ignore[return-value]
 
         @functools.wraps(f)
         def sync_wrapper(*args, **kwargs):
-            start = time.monotonic()
+            start = time.perf_counter()
             try:
                 return f(*args, **kwargs)
             finally:
-                LOGGER.info('{} took {:.3f}s', name, time.monotonic() - start)
+                LOGGER.info('{} took {:.3f}s', name, time.perf_counter() - start)
 
         return sync_wrapper  # type: ignore[return-value]
 
