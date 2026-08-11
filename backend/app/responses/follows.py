@@ -32,6 +32,14 @@ _FEED_LOG_EXAMPLE = {
     'created_at': '2026-08-10T03:30:16.719405+00:00',
 }
 
+_FOLLOW_USER_EXAMPLE = {
+    'user_id': _FOLLOW_EXAMPLE['follower_id'],
+    'username': 'reginald_chase',
+    'display_name': None,
+    'avatar_path': None,
+    'followed_at': '2026-08-11T03:30:16.719405+00:00',
+}
+
 _UNAUTHORIZED = {
     401: {
         'description': 'Missing or invalid Supabase access token.',
@@ -212,6 +220,24 @@ responses = {
         },
         **_NOT_FOUND_USER,
         **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'list_followers': {
+        200: {
+            'description': "The user's accepted followers — empty if the caller "
+            "can't view this account's content (followers_only/private and not "
+            'an accepted follower), same gating as the profile route.',
+            'content': {'application/json': {'example': [_FOLLOW_USER_EXAMPLE]}},
+        },
+        **_NOT_FOUND_USER,
+        **_UPSTREAM,
+    },
+    'list_following': {
+        200: {
+            'description': "Who the user follows — same gating as .../followers.",
+            'content': {'application/json': {'example': [_FOLLOW_USER_EXAMPLE]}},
+        },
+        **_NOT_FOUND_USER,
         **_UPSTREAM,
     },
     'list_feed': {

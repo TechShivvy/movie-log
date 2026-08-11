@@ -396,21 +396,36 @@ async def delete_venue_note(
 
 # ── Public profiles ─────────────────────────────────────────────────────
 
-async def search_public_users(query: str) -> list[dict]:
-    response = await _anon_request(
-        'POST', '/rpc/search_public_users', 'search_public_users',
+async def _optional_auth_request(
+    method: str, path: str, viewer_token: Optional[str], operation: str, *, json: Any = None,
+) -> httpx.Response:
+    # Both RPCs below read auth.uid() internally (to filter blocked pairs /
+    # compute is_blocked) — that only resolves to something meaningful if
+    # this request actually carries the caller's JWT, so a present token
+    # must go through _request (the user's own token), not _anon_request.
+    # No token still works identically to before Phase 4 — auth.uid() is
+    # simply null, so every block-comparison inside the RPC never matches
+    # (see the migration's own comment on this).
+    if viewer_token:
+        return await _request(method, path, viewer_token, operation, json=json)
+    return await _anon_request(method, path, operation, json=json)
+
+
+async def search_public_users(query: str, viewer_token: Optional[str] = None) -> list[dict]:
+    response = await _optional_auth_request(
+        'POST', '/rpc/search_public_users', viewer_token, 'search_public_users',
         json={'p_query': query},
     )
     return response.json()
 
 
-async def get_public_profile(username: str) -> Optional[dict]:
+async def get_public_profile(username: str, viewer_token: Optional[str] = None) -> Optional[dict]:
     # Username-only lookup — always resolves once a username is set
     # (migration 20260811000010). Content (whether `logs` gets populated)
-    # is decided by the caller using the `account_visibility` field this
-    # returns, not by whether this call succeeds.
-    response = await _anon_request(
-        'POST', '/rpc/get_public_profile_by_username', 'get_public_profile',
+    # is decided by the caller using the `can_view_content` field this
+    # returns (Phase 4), not by whether this call succeeds.
+    response = await _optional_auth_request(
+        'POST', '/rpc/get_public_profile_by_username', viewer_token, 'get_public_profile',
         json={'p_username': username},
     )
     rows = response.json()
@@ -666,6 +681,31 @@ async def list_follow_requests(
     }
     response = await _request(
         'GET', '/follows', user_token, 'list_follow_requests', params=params
+    )
+    return response.json()
+
+
+async def list_followers(
+    username: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
+    # Gated by can_view_user_content inside the RPC itself (returns empty
+    # for an outsider on a followers_only/private account) — the router
+    # still 404s first via _resolve_user if the caller is blocked, same as
+    # the profile route, since that check is about existence/visibility of
+    # the account at all, not just its content.
+    response = await _optional_auth_request(
+        'POST', '/rpc/list_followers', viewer_token, 'list_followers',
+        json={'p_username': username, 'p_limit': limit, 'p_offset': offset},
+    )
+    return response.json()
+
+
+async def list_following(
+    username: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
+    response = await _optional_auth_request(
+        'POST', '/rpc/list_following', viewer_token, 'list_following',
+        json={'p_username': username, 'p_limit': limit, 'p_offset': offset},
     )
     return response.json()
 

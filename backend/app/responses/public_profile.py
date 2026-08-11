@@ -10,9 +10,17 @@ _PROFILE_EXAMPLE = {
     'profile_links': [{'label': 'Letterboxd', 'url': 'https://letterboxd.com/shivco'}],
 }
 
+# GET /users/{username} returns two extra fields beyond the PublicProfile/
+# search shape above — is_blocked (always false in a real response; true
+# would have already 404'd, see routers/public_profile.py) and
+# can_view_content (whether `logs` is actually populated for this caller).
+_PROFILE_ROUTE_EXAMPLE = {**_PROFILE_EXAMPLE, 'is_blocked': False, 'can_view_content': True}
+
 # What GET /users/{username} returns for a private account — the route
 # still resolves, just with no logs.
-_PRIVATE_PROFILE_EXAMPLE = {**_PROFILE_EXAMPLE, 'account_visibility': 'private'}
+_PRIVATE_PROFILE_ROUTE_EXAMPLE = {
+    **_PROFILE_ROUTE_EXAMPLE, 'account_visibility': 'private', 'can_view_content': False,
+}
 
 # Matches public.public_movie_log_entries' actual column list (migrations
 # 20260810000001, 20260811000008) — no booking_ref/seats/ticket_image_path
@@ -124,33 +132,40 @@ responses = {
     },
     'public_profile': {
         200: {
-            'description': 'Resolves by username alone. If the account is public '
-            '(`account_visibility: "public"`), `logs` has every movie log set to '
-            "`visibility: public` (never `anonymous` ones — by definition, those "
-            "don't show up attributed to anyone); `followers_only`/`private` show "
-            'an empty `logs` list. Public — no auth required. `logs` deliberately '
-            'excludes booking_ref, seats, and ticket_image_path — see the '
+            'description': 'Resolves by username alone. `can_view_content` reflects '
+            "whether `logs` is actually populated for the caller — true for "
+            "public accounts always, for followers_only accounts only if the "
+            "caller is an accepted follower (send a bearer token), never for "
+            "private accounts (except the owner). When true, `logs` has every "
+            "movie log set to `visibility: public` (never `anonymous` ones — by "
+            "definition, those don't show up attributed to anyone). `is_blocked` "
+            "is always false here — true would have 404'd instead (see below). "
+            'Public — no auth required. `logs` deliberately excludes '
+            'booking_ref, seats, and ticket_image_path — see the '
             'public_movie_log_entries view (supabase/migrations).',
             'content': {
                 'application/json': {
                     'examples': {
-                        'public_account': {
-                            'summary': 'account_visibility: public — logs included',
+                        'can_view': {
+                            'summary': 'can_view_content: true — logs included',
                             'value': {
-                                'profile': _PROFILE_EXAMPLE,
+                                'profile': _PROFILE_ROUTE_EXAMPLE,
                                 'logs': [_MOVIE_LOG_PUBLIC_EXAMPLE],
                             },
                         },
-                        'private_account': {
-                            'summary': 'account_visibility: private — profile shell only',
-                            'value': {'profile': _PRIVATE_PROFILE_EXAMPLE, 'logs': []},
+                        'cannot_view': {
+                            'summary': 'can_view_content: false — profile shell only',
+                            'value': {'profile': _PRIVATE_PROFILE_ROUTE_EXAMPLE, 'logs': []},
                         },
                     }
                 }
             },
         },
         404: {
-            'description': 'No user with this username.',
+            'description': 'No user with this username, or the caller and this '
+            'user have blocked each other (either direction) — same response '
+            'either way, so a block is never distinguishable from '
+            "nonexistence.",
             'content': {
                 'application/json': {
                     'example': {'code': 'NOT_FOUND', 'message': 'User not found.'}

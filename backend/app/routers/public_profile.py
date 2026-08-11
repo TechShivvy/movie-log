@@ -1,8 +1,10 @@
-"""Public-facing profile search. Anonymous reads, authenticated username changes."""
+"""Public-facing profile search. Anonymous reads (optionally identity-aware,
+for block-filtering — see get_current_user_optional), authenticated
+username/profile/privacy changes."""
 
-from typing import Any, List
+from typing import Any, List, Optional
 
-from auth.supabase_auth import AuthenticatedUser, get_current_user
+from auth.supabase_auth import AuthenticatedUser, get_current_user, get_current_user_optional
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request, status
 from rate_limit import limiter
@@ -30,14 +32,21 @@ _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
     'required, and unrestricted by privacy state — a private/followers-only '
     'account still turns up here, same as a private Instagram account would; '
     "`account_visibility` on each result tells the client whether it's worth "
-    'showing a lock indicator before the caller taps in.',
+    'showing a lock indicator before the caller taps in. If a bearer token IS '
+    'sent, results exclude anyone the caller has blocked or been blocked by, '
+    'in either direction.',
     response_description='Matching profiles.',
     responses=responses['search_users'],
     operation_id='SearchPublicUsers',
 )
 @limiter.limit(_DEFAULT_LIMIT)
-async def search_users(request: Request, q: str = Query(..., min_length=2)) -> Any:
-    return await supabase_rest.search_public_users(q)
+async def search_users(
+    request: Request,
+    q: str = Query(..., min_length=2),
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
+) -> Any:
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.search_public_users(q, viewer_token=viewer_token)
 
 
 @router.get(
@@ -45,24 +54,38 @@ async def search_users(request: Request, q: str = Query(..., min_length=2)) -> A
     tags=['Public'],
     description='A user\'s public profile. Resolves by username alone, so a link '
     "someone was already given keeps working forever (as long as the username "
-    'itself does). Content depends on `account_visibility`: `public` shows '
-    "every entry set to `visibility: public` (never `anonymous` ones — those "
-    "intentionally never appear here); `followers_only`/`private` show an "
-    'empty `logs` list — same "private account" behavior most social apps '
-    'use, rather than 404ing. (`followers_only` becomes follow-aware in a '
-    'later phase — for now it behaves like `private`.) Public — no sign-in '
-    'required.',
-    response_description='The profile shell, plus public logs if the account is public.',
+    "itself does) — unless the caller and this user have blocked each other "
+    'in either direction, in which case this 404s exactly like the user does '
+    "not exist, rather than confirming a block. Content depends on whether "
+    'the caller can view it: `public` accounts show every entry set to '
+    "`visibility: public` (never `anonymous` ones — those intentionally never "
+    'appear here) to anyone; `followers_only` accounts show it only to '
+    "accepted followers (send a bearer token to be recognized as one); "
+    "`private` accounts show it to nobody but the owner. Otherwise `logs` is "
+    'an empty list — same "private account" behavior most social apps use, '
+    'rather than 404ing. Public — no sign-in required, but sending a token '
+    "lets the response reflect the caller's own follow access.",
+    response_description='The profile shell, plus public logs if the caller can view them.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
 )
 @limiter.limit(_DEFAULT_LIMIT)
-async def public_profile(request: Request, username: str) -> Any:
-    profile = await supabase_rest.get_public_profile(username)
-    if not profile:
+async def public_profile(
+    request: Request,
+    username: str,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
+) -> Any:
+    viewer_token = current_user.access_token if current_user else None
+    profile = await supabase_rest.get_public_profile(username, viewer_token=viewer_token)
+    if not profile or profile['is_blocked']:
+        # Same 404 either way — a block should never be distinguishable
+        # from "this user doesn't exist" to the blocked/blocking party.
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
-    is_open = profile['account_visibility'] == 'public'
-    logs = await supabase_rest.list_public_logs_for_user(profile['user_id']) if is_open else []
+    logs = (
+        await supabase_rest.list_public_logs_for_user(profile['user_id'])
+        if profile['can_view_content']
+        else []
+    )
     return {'profile': profile, 'logs': logs}
 
 

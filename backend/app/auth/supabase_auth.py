@@ -143,3 +143,25 @@ def get_current_user(
         email=payload.get('email'),
         access_token=token,
     )
+
+
+def get_current_user_optional(
+    token: str | None = Depends(oauth2_scheme),
+) -> AuthenticatedUser | None:
+    """Same identity resolution as get_current_user, reused directly — but
+    returns None instead of raising when no token is present, for routes
+    that must stay fully anonymous-callable (GET /users/{username}, GET
+    /users/search) while still reading identity when a token IS present
+    (block-filtering: excluding a mutually-blocked pair from each other's
+    view). A token that IS present but invalid/expired still raises 401 —
+    silently downgrading a bad token to "anonymous" would mask a real
+    client bug instead of surfacing it.
+
+    Deliberately does NOT trigger DEV_BYPASS_AUTH on a missing token — "no
+    token" should faithfully mean anonymous for these routes even in dev;
+    the dev bypass user only matters for routes that actually require an
+    identity to function at all.
+    """
+    if not token:
+        return None
+    return get_current_user(token=token)
