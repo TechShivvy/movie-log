@@ -15,19 +15,36 @@ extraction flow it's optimizing — worst case is just a wasted LLM call,
 same as if this module didn't exist.
 """
 
+import hashlib
 from typing import Any, Optional
 
 import httpx
 from config import settings
+from llm.prompts import movie_metadata as _prompts
 from loguru_setup import LOGGER
 
 _TIMEOUT = 10.0
 
-# Bump whenever llm/prompts/movie_metadata.py changes materially — this is
-# part of the cache key specifically so a prompt improvement naturally
-# stops matching old entries instead of serving a stale extraction
-# forever. No TTL/expiry needed as a result.
-PROMPT_VERSION = 'v2'  # v2: added format/price/currency fields (llm/prompts/movie_metadata.py)
+# Derived from the actual prompt content, not hand-maintained — a manually
+# bumped version string is only as reliable as remembering to bump it,
+# which already failed once in practice (a real prompt change shipped
+# without the bump, serving a stale cached extraction that was missing
+# the new fields until caught and fixed by hand). Hashing the prompts
+# themselves means ANY change to them — not just ones someone remembers
+# to flag — automatically stops matching old cache entries, no
+# discipline required. All four prompt variants are included even though
+# SYSTEM_PROMPT_TEXT/USER_PROMPT_TEXT currently derive from the other two
+# (via .replace() in llm/prompts/movie_metadata.py) — hashing all of them
+# is what's actually correct if that ever stops being true, at the cost
+# of a few redundant bytes hashed today.
+PROMPT_VERSION = hashlib.sha256(
+    (
+        _prompts.SYSTEM_PROMPT
+        + _prompts.USER_PROMPT
+        + _prompts.SYSTEM_PROMPT_TEXT
+        + _prompts.USER_PROMPT_TEXT
+    ).encode('utf-8')
+).hexdigest()[:16]
 
 
 def _server_key() -> Optional[str]:
