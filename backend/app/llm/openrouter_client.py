@@ -13,6 +13,7 @@ from openai import (
 )
 from pydantic import ValidationError
 from utils import openai_utils, retry
+from utils.timing import timed
 
 _META_TIMEOUT = 10.0
 
@@ -174,6 +175,7 @@ async def _call_model(
     return response_model.model_validate_json(content_text)
 
 
+@timed(label='extract_movie_metadata_from_image')
 async def extract_movie_metadata_from_image(
     image_data_uri: str,
     api_key: str,
@@ -263,6 +265,7 @@ async def extract_movie_metadata_from_image(
             await asyncio.sleep(sleep_duration)
 
 
+@timed(label='extract_movie_metadata_from_text')
 async def extract_movie_metadata_from_text(
     page_text: str,
     api_key: str,

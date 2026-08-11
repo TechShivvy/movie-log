@@ -130,6 +130,7 @@ from urllib.parse import urlparse
 from loguru_setup import LOGGER
 from playwright.sync_api import Browser, Route, sync_playwright
 from utils.errors import APIError
+from utils.timing import timed
 
 # Known ticketing platforms + their official shortlink domains. Adding a
 # new site is just adding its host(s) here — the scrape itself is
@@ -264,6 +265,7 @@ def _guard_request(route: Route) -> None:
     route.continue_()
 
 
+@timed(label='ticket_link_extractor._scrape')
 def _scrape(browser: Browser, url: str, cfg: _SiteConfig) -> str:
     context = browser.new_context(
         user_agent=(

@@ -167,7 +167,6 @@ async def extract_movie_metadata(
         LOGGER.error(f'Failed to read uploaded file: {e}')
         raise HTTPException(status_code=400, detail='Invalid image file')
 
-    _llm_start = __import__('time').monotonic()
     try:
         ticket: MovieMetadata = await extract_movie_metadata_from_image(
             image_data_uri=image_data_uri,
@@ -178,10 +177,9 @@ async def extract_movie_metadata(
             model_name=model_name,
         )
         LOGGER.info(
-            'extract rid={} model={} cache=miss duration={:.3f}s',
+            'extract rid={} model={} cache=miss',
             getattr(request.state, 'request_id', '-'),
             model_name,
-            __import__('time').monotonic() - _llm_start,
         )
         result = ticket.model_dump()
         await extraction_cache.store_extraction(image_hash, model_name, result)
