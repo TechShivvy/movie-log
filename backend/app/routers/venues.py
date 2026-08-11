@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, Query, Request
 from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.venues import responses
-from schemas.venue_notes import VenueNote, VenueNoteInput
 from schemas.venues import (
     Screen,
     ScreenCreate,
@@ -26,6 +25,8 @@ from schemas.venues import (
     TheatreMatchRequest,
     TheatrePlaceSuggestion,
     TheatreSearchRequest,
+    VenueNote,
+    VenueNoteInput,
 )
 from services import google_places, supabase_rest
 from utils.errors import APIError
