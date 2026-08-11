@@ -40,3 +40,30 @@ class FollowUser(BaseModel):
     display_name: Optional[str] = None
     avatar_path: Optional[str] = None
     followed_at: str
+
+
+class FeedLogEntry(BaseModel):
+    """One row of GET /public/feed — same narrow projection as the public
+    profile's own log list (no booking_ref/seats/ticket_image_path/price/
+    currency), plus the writer's own identity fields since a feed mixes
+    entries from multiple accounts."""
+
+    id: str
+    user_id: str
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_path: Optional[str] = None
+    movie: Optional[str] = None
+    watched_date: Optional[str] = None
+    watched_time: Optional[str] = None
+    timezone_abbrv: Optional[str] = None
+    theater: Optional[str] = None
+    theatre_id: Optional[str] = None
+    language: Optional[str] = None
+    screen: Optional[str] = None
+    screen_id: Optional[str] = None
+    format: Optional[str] = None
+    certificate: Optional[str] = None
+    notes: Optional[str] = None
+    rating: Optional[float] = None
+    created_at: str

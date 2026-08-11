@@ -708,4 +708,23 @@ async def delete_block(user_token: str, blocker_id: str, blocked_id: str) -> boo
         params=params, prefer='return=representation',
     )
     return bool(response.json())
+
+
+# ── Feed ─────────────────────────────────────────────────────────────────
+
+async def list_feed(user_token: str, *, limit: int, offset: int) -> list[dict]:
+    # feed_entries (migration 20260811000013) already does the real
+    # filtering (visibility='public', can_view_user_content, excludes the
+    # caller's own logs) via auth.uid() read from the caller's own JWT —
+    # this has to go through the user's own token, not the anon key, since
+    # feed_entries isn't granted to anon at all (the feed requires real
+    # sign-in).
+    params = {
+        'select': '*',
+        'order': 'watched_date.desc,created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _request('GET', '/feed_entries', user_token, 'list_feed', params=params)
+    return response.json()
     return rows[0]

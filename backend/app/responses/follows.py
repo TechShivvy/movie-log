@@ -10,6 +10,28 @@ _FOLLOW_EXAMPLE = {
 
 _PENDING_FOLLOW_EXAMPLE = {**_FOLLOW_EXAMPLE, 'status': 'pending'}
 
+_FEED_LOG_EXAMPLE = {
+    'id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    'user_id': _FOLLOW_EXAMPLE['followee_id'],
+    'username': 'shivco_2141',
+    'display_name': 'Shivcharan',
+    'avatar_path': None,
+    'movie': 'Ekkadiki Pothavu Chinnavada',
+    'watched_date': '2016-12-19',
+    'watched_time': '21:30',
+    'timezone_abbrv': 'IST',
+    'theater': 'Sri Rama Picture Place: Vizag',
+    'theatre_id': '22222222-2222-2222-2222-222222222222',
+    'language': 'Telugu',
+    'screen': 'Balcony',
+    'screen_id': '33333333-3333-3333-3333-333333333333',
+    'format': '2D',
+    'certificate': 'U/A',
+    'notes': 'Great sound, comfy seats.',
+    'rating': 4.5,
+    'created_at': '2026-08-10T03:30:16.719405+00:00',
+}
+
 _UNAUTHORIZED = {
     401: {
         'description': 'Missing or invalid Supabase access token.',
@@ -189,6 +211,16 @@ responses = {
             },
         },
         **_NOT_FOUND_USER,
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'list_feed': {
+        200: {
+            'description': "The caller's feed — public logs from accepted-follow "
+            'accounts, newest watched_date first. Never includes the caller\'s '
+            "own logs.",
+            'content': {'application/json': {'example': [_FEED_LOG_EXAMPLE]}},
+        },
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },

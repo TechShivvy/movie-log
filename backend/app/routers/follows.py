@@ -197,6 +197,29 @@ async def block_user(
     return {'status': 'blocked'}
 
 
+@router.get(
+    '/feed',
+    tags=['Follows'],
+    description="Reverse-chronological feed of accounts the caller follows "
+    "(status: accepted only) — every entry set to `visibility: public` from "
+    "each followed account's own logs (never `anonymous`/`private` ones; the "
+    "account-level visibility tier is an additional gate on top of that, via "
+    "can_view_user_content — see migration 20260811000012). Never includes "
+    "the caller's own logs. Requires sign-in — there's no anonymous variant.",
+    response_description="The caller's feed, newest watched_date first.",
+    responses=responses['list_feed'],
+    operation_id='GetFeed',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_feed(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.list_feed(current_user.access_token, limit=limit, offset=offset)
+
+
 @router.delete(
     '/blocks/{username}',
     tags=['Follows'],
