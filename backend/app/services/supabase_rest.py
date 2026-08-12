@@ -220,6 +220,21 @@ async def delete_movie_log(user_token: str, user_id: str, log_id: str) -> bool:
     return bool(rows)
 
 
+async def delete_private_movie_logs(user_token: str, user_id: str) -> None:
+    """Called once, right before account deletion (routers/auth.py:delete_account).
+    Only `private` logs are removed here — `public`/`anonymous` ones are left
+    for the auth.users delete itself to null out via the movie_logs_user_id_fkey
+    ON DELETE SET NULL (migration 20260813000001), so they keep showing up on
+    theatre/screen review pages and counting toward rating stats, just no
+    longer attributed to anyone. Uses the caller's own token — the existing
+    movie_logs_delete_own RLS policy is enough, no service-role call needed.
+    """
+    params = {'user_id': f'eq.{user_id}', 'visibility': 'eq.private'}
+    await _request(
+        'DELETE', f'/{_TABLE}', user_token, 'delete_private_movie_logs', params=params
+    )
+
+
 async def export_movie_logs(user_token: str, user_id: str) -> list[dict[str, Any]]:
     params = {
         'select': '*',

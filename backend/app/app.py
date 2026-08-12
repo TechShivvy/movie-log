@@ -92,7 +92,10 @@ def create_app() -> FastAPI:
             },
             {
                 'name': 'Auth',
-                'description': 'Verify a Supabase access token and inspect the mapped identity.',
+                'description': 'Verify a Supabase access token, inspect the mapped '
+                "identity, and delete the caller's own account. Sign-up/sign-in/"
+                'password-reset are not here — those go straight from the client to '
+                'Supabase Auth, same as Google sign-in.',
             },
             {
                 'name': 'Venues',
