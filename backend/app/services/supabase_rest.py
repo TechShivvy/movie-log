@@ -782,4 +782,41 @@ async def list_feed(user_token: str, *, limit: int, offset: int) -> list[dict]:
     }
     response = await _request('GET', '/feed_entries', user_token, 'list_feed', params=params)
     return response.json()
-    return rows[0]
+
+
+# ── Notifications ────────────────────────────────────────────────────────
+
+async def list_notifications(
+    user_token: str, *, unread_only: bool, limit: int, offset: int
+) -> list[dict]:
+    params: dict[str, Any] = {
+        'select': '*',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    if unread_only:
+        params['read'] = 'eq.false'
+    response = await _request(
+        'GET', '/notifications', user_token, 'list_notifications', params=params
+    )
+    return response.json()
+
+
+async def mark_notification_read(user_token: str, notification_id: str) -> Optional[dict]:
+    params = {'id': f'eq.{notification_id}'}
+    response = await _request(
+        'PATCH', '/notifications', user_token, 'mark_notification_read',
+        params=params, json={'read': True}, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def mark_all_notifications_read(user_token: str) -> int:
+    params = {'read': 'eq.false'}
+    response = await _request(
+        'PATCH', '/notifications', user_token, 'mark_all_notifications_read',
+        params=params, json={'read': True}, prefer='return=representation',
+    )
+    return len(response.json())

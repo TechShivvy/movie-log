@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru_setup import LOGGER
 from middlewares import middleware
-from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, reports, root, venues, public_profile
+from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, notifications, reports, root, venues, public_profile
 from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -126,6 +126,13 @@ def create_app() -> FastAPI:
                 'require sign-in.',
             },
             {
+                'name': 'Notifications',
+                'description': "The caller's own follow/request notifications — "
+                'read + mark-read only, rows are written exclusively by database '
+                'triggers on `follows`. Also available over Supabase Realtime '
+                '(RLS-gated the same as these REST endpoints) for live delivery.',
+            },
+            {
                 'name': 'Reports',
                 'description': 'Flag a review, profile, theatre, or screen for '
                 'review — requires sign-in. Triage (list/review/optionally remove '
@@ -172,6 +179,7 @@ def create_app() -> FastAPI:
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
     app.include_router(public_profile.router, prefix=f'{api_prefix}/public')
     app.include_router(follows.router, prefix=f'{api_prefix}/public')
+    app.include_router(notifications.router, prefix=f'{api_prefix}/notifications')
     app.include_router(reports.router, prefix=f'{api_prefix}/reports')
 
     app.state.limiter = limiter
