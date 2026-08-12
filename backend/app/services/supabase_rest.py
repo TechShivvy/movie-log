@@ -840,3 +840,42 @@ async def create_movie(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
     )
     created = response.json()
     return created[0] if isinstance(created, list) else created
+
+
+# ── Account export/import ───────────────────────────────────────────────
+
+async def get_own_settings(user_token: str, user_id: str) -> dict[str, Any]:
+    params = {'select': '*', 'user_id': f'eq.{user_id}', 'limit': '1'}
+    response = await _request('GET', '/user_settings', user_token, 'get_own_settings', params=params)
+    rows = response.json()
+    # No row yet (never touched any profile/username/privacy endpoint) is a
+    # real, common state, not an error — same defaults ProfileExport itself
+    # falls back to.
+    return rows[0] if rows else {}
+
+
+async def export_movie_logs_with_ratings(user_token: str, user_id: str) -> list[dict[str, Any]]:
+    # PostgREST resource embedding via the FK it already detects
+    # (visit_venue_ratings.movie_log_id -> movie_logs.id) -- one request
+    # instead of fetching logs and ratings separately and joining in
+    # Python. A log with no rating gets an empty array back, not null.
+    params = {
+        'select': '*,venue_rating:visit_venue_ratings(screen_rating,speaker_rating,ac_rating,seat_rating)',
+        'user_id': f'eq.{user_id}',
+        'order': 'created_at.desc',
+    }
+    response = await _request(
+        'GET', f'/{_TABLE}', user_token, 'export_movie_logs_with_ratings', params=params
+    )
+    # visit_venue_ratings.movie_log_id is that table's own primary key (one
+    # rating per log, at most) -- PostgREST detects this as a to-one
+    # relationship and embeds a single object (or null), not a list.
+    return response.json()
+
+
+async def export_venue_notes(user_token: str, user_id: str) -> list[dict[str, Any]]:
+    params = {'select': '*', 'user_id': f'eq.{user_id}'}
+    response = await _request(
+        'GET', '/venue_notes', user_token, 'export_venue_notes', params=params
+    )
+    return response.json()
