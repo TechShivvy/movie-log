@@ -141,6 +141,15 @@ class Settings(BaseSettings):
         'still works without it, just falls back to free-typed data with '
         "source='user_submitted' instead of a Places-backed lookup.",
     )
+    tmdb_api_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='TMDB (themoviedb.org) v3 API key — backs movie search/'
+        'autocomplete and upcoming-releases (services/tmdb.py, routers/movies.py). '
+        'Optional, same pattern as google_places_api_key: a movie log still works '
+        'with just a free-typed movie title without this, movie_id/catalog '
+        'features are unavailable until it is set.',
+    )
     supabase_jwt_secret: Optional[SecretStr] = Field(
         default=None,
         exclude=True,
@@ -274,6 +283,7 @@ class Settings(BaseSettings):
     @field_validator(
         'openrouter_api_key',
         'google_places_api_key',
+        'tmdb_api_key',
         'supabase_jwt_secret',
         'supabase_service_role_key',
         'supabase_secret_key',

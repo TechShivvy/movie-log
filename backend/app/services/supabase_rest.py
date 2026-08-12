@@ -820,3 +820,23 @@ async def mark_all_notifications_read(user_token: str) -> int:
         params=params, json={'read': True}, prefer='return=representation',
     )
     return len(response.json())
+
+
+# ── Movies catalog ───────────────────────────────────────────────────────
+
+async def find_movie_by_tmdb_id(user_token: str, tmdb_id: int) -> Optional[dict]:
+    params = {'select': '*', 'tmdb_id': f'eq.{tmdb_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/movies', user_token, 'find_movie_by_tmdb_id', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def create_movie(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST', '/movies', user_token, 'create_movie',
+        json=row, prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created

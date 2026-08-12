@@ -94,6 +94,7 @@ WRITABLE_FIELDS = (
     'ticket_image_path',
     'theatre_id',
     'screen_id',
+    'movie_id',
     'visibility',
 )
 
@@ -183,6 +184,13 @@ class MovieLogInput(BaseModel):
     )
     screen_id: Optional[str] = Field(
         default=None, description='FK into public.screens'
+    )
+    movie_id: Optional[str] = Field(
+        default=None,
+        description='FK into public.movies — optional, from POST /movies '
+        "after picking a TMDB search result. The `movie` text field above "
+        "stays the display source of truth either way; this only links the "
+        'log to the catalog.',
     )
     visibility: Visibility = Field(
         default='private',
@@ -285,6 +293,9 @@ class MovieLogUpdate(BaseModel):
     ticket_image_path: Optional[str] = Field(default=None, max_length=512)
     theatre_id: Optional[str] = Field(default=None)
     screen_id: Optional[str] = Field(default=None)
+    movie_id: Optional[str] = Field(
+        default=None, description='FK into public.movies — see MovieLogInput.movie_id'
+    )
     visibility: Optional[Visibility] = Field(default=None)
 
     @field_validator('watched_date')

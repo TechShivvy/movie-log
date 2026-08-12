@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru_setup import LOGGER
 from middlewares import middleware
-from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, notifications, reports, root, venues, public_profile
+from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, movies, notifications, reports, root, venues, public_profile
 from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -126,6 +126,14 @@ def create_app() -> FastAPI:
                 'require sign-in.',
             },
             {
+                'name': 'Movies',
+                'description': 'Optional canonical movie catalog, backed by TMDB — '
+                'search, dedupe-by-tmdb_id creation, upcoming releases. A movie log '
+                "still works with just a free-typed title without this; every route "
+                'here 500s CONFIG_ERROR if no TMDB API key is configured, a valid '
+                'state, not a bug.',
+            },
+            {
                 'name': 'Notifications',
                 'description': "The caller's own follow/request notifications — "
                 'read + mark-read only, rows are written exclusively by database '
@@ -177,6 +185,7 @@ def create_app() -> FastAPI:
     app.include_router(movie_metadata.router, prefix=f'{api_prefix}/movie-metadata')
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
+    app.include_router(movies.router, prefix=f'{api_prefix}/movies')
     app.include_router(public_profile.router, prefix=f'{api_prefix}/public')
     app.include_router(follows.router, prefix=f'{api_prefix}/public')
     app.include_router(notifications.router, prefix=f'{api_prefix}/notifications')
