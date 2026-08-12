@@ -35,3 +35,4 @@ supabase_secret_key: null
 supabase_service_role_key: null
 supabase_url: null
 dev_bypass_auth: false
+admin_user_ids: []

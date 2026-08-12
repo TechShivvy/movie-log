@@ -1,14 +1,15 @@
-"""Supabase Auth Admin + Storage calls that require the service-role/secret
+"""Supabase Auth/Storage/PostgREST calls that require the service-role/secret
 key — never the caller's own token. Distinct from supabase_rest.py (which is
 scoped to the calling user's JWT and lets RLS do the authorization) because
-these operations have no RLS equivalent: deleting an auth.users row and
-bulk-deleting another user's storage objects are only possible with a
-privileged key, by design. Currently used for one thing only — self-service
-account deletion (routers/auth.py:delete_account) — so the surface here is
-deliberately small.
+these operations have no RLS equivalent: deleting an auth.users row,
+bulk-deleting another user's storage objects, and reading/triaging every
+user's reports are only possible with a privileged key, by design — reports
+RLS is deliberately owner-only (reports_select_own), triage bypasses it here
+the same way the table's own migration comment already anticipated
+("Triage is a service-role-only operation for now.").
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from config import settings
@@ -121,3 +122,67 @@ async def delete_user_storage(user_id: str) -> None:
                 'delete_user_storage: cleanup failed for bucket={} user={}: {}',
                 bucket, user_id, exc.message,
             )
+
+
+def _rest_base() -> str:
+    if not settings.supabase_url:
+        raise APIError(500, 'CONFIG_ERROR', 'Supabase URL is not configured on the backend.')
+    return f"{settings.supabase_url.rstrip('/')}/rest/v1"
+
+
+async def _rest_request(
+    method: str, path: str, operation: str,
+    *, params: Optional[dict[str, Any]] = None, json: Any = None,
+    prefer: Optional[str] = None,
+) -> httpx.Response:
+    headers = _admin_headers()
+    if prefer:
+        headers['Prefer'] = prefer
+    url = f'{_rest_base()}{path}'
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.request(method, url, headers=headers, params=params, json=json)
+    except httpx.HTTPError as exc:
+        LOGGER.error('Admin PostgREST {} transport error: {}', operation, exc)
+        raise APIError(502, 'UPSTREAM_ERROR', 'Database service is unavailable.') from exc
+    if response.status_code >= 400:
+        LOGGER.error(
+            'Admin PostgREST {} failed: status={} body={}',
+            operation, response.status_code, response.text[:500],
+        )
+        raise APIError(502, 'UPSTREAM_ERROR', 'The request could not be processed.')
+    return response
+
+
+async def list_reports(
+    *, status_filter: Optional[str], target_type: Optional[str], limit: int, offset: int
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {
+        'select': '*', 'order': 'created_at.desc',
+        'limit': str(limit), 'offset': str(offset),
+    }
+    if status_filter:
+        params['status'] = f'eq.{status_filter}'
+    if target_type:
+        params['target_type'] = f'eq.{target_type}'
+    response = await _rest_request('GET', '/reports', 'list_reports', params=params)
+    return response.json()
+
+
+async def update_report(report_id: str, patch: dict[str, Any]) -> Optional[dict[str, Any]]:
+    params = {'id': f'eq.{report_id}'}
+    response = await _rest_request(
+        'PATCH', '/reports', 'update_report',
+        params=params, json=patch, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def delete_movie_log_as_admin(log_id: str) -> bool:
+    params = {'id': f'eq.{log_id}'}
+    response = await _rest_request(
+        'DELETE', '/movie_logs', 'delete_movie_log_as_admin',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())

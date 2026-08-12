@@ -145,6 +145,22 @@ def get_current_user(
     )
 
 
+def get_current_admin(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
+    """Gate for the handful of admin-only routes (report triage). A flat
+    allowlist (settings.admin_user_ids), not a role/RBAC system — this is a
+    solo-owner project, a `role` column would be more machinery than the
+    problem needs right now. Empty by default, so every admin route 403s
+    for everyone until it's explicitly configured."""
+    if current_user.user_id not in settings.admin_user_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='This action requires admin access.',
+        )
+    return current_user
+
+
 def get_current_user_optional(
     token: str | None = Depends(oauth2_scheme),
 ) -> AuthenticatedUser | None:

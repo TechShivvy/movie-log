@@ -128,8 +128,9 @@ def create_app() -> FastAPI:
             {
                 'name': 'Reports',
                 'description': 'Flag a review, profile, theatre, or screen for '
-                'review. Requires sign-in; no admin UI exists yet, reports are '
-                'triaged directly against the database.',
+                'review — requires sign-in. Triage (list/review/optionally remove '
+                'the content) is admin-only, gated by a flat user_id allowlist '
+                '(ADMIN_USER_IDS) — no in-app roles/permissions system beyond that.',
             },
         ],
         # Pre-fills Swagger's OAuth2 Authorize dialog (client_id is unused by

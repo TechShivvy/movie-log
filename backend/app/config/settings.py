@@ -170,6 +170,18 @@ class Settings(BaseSettings):
         default=False,
         description='LOCAL/DEV only: skip JWT verification. Never set True in PROD.',
     )
+    admin_user_ids: Annotated[
+        tuple[str, ...],
+        NoDecode,
+        Field(
+            default=(),
+            description='Supabase user_ids (comma-separated) allowed through '
+            'get_current_admin (auth/supabase_auth.py) — a flat allowlist, not a '
+            'role/RBAC system, matching this being a solo-owner project so far. '
+            'Empty by default: every admin-only route 403s for everyone until this '
+            'is set.',
+        ),
+    ]
     daily_free_limit: Annotated[
         int,
         Field(
@@ -244,6 +256,15 @@ class Settings(BaseSettings):
     @field_validator('free_models', mode='before')
     @classmethod
     def validate_free_models(cls, value: str | tuple[str, ...] | list[str]):
+        if isinstance(value, str):
+            return tuple(v.strip() for v in value.split(',') if v.strip())
+        if isinstance(value, list):
+            return tuple(v.strip() for v in value if v.strip())
+        return value
+
+    @field_validator('admin_user_ids', mode='before')
+    @classmethod
+    def validate_admin_user_ids(cls, value: str | tuple[str, ...] | list[str]):
         if isinstance(value, str):
             return tuple(v.strip() for v in value.split(',') if v.strip())
         if isinstance(value, list):

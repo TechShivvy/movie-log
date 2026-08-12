@@ -109,4 +109,78 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'list_reports_admin': {
+        200: {
+            'description': 'Matching reports, newest first.',
+            'content': {'application/json': {'example': [_REPORT_EXAMPLE]}},
+        },
+        403: {
+            'description': "Caller isn't in ADMIN_USER_IDS.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'FORBIDDEN',
+                        'message': 'This action requires admin access.',
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'update_report_admin': {
+        200: {
+            'description': 'The updated report.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        **_REPORT_EXAMPLE,
+                        'status': 'reviewed',
+                        'reviewed_by': '99999999-9999-9999-9999-999999999999',
+                        'reviewed_at': '2026-08-13T04:00:00+00:00',
+                    }
+                }
+            },
+        },
+        403: {
+            'description': "Caller isn't in ADMIN_USER_IDS.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'FORBIDDEN',
+                        'message': 'This action requires admin access.',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'No report with this id.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Report not found.'}
+                }
+            },
+        },
+        422: {
+            'description': 'status not one of reviewed/dismissed.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'literal_error',
+                                'loc': ['body', 'status'],
+                                'msg': "Input should be 'reviewed' or 'dismissed'",
+                                'input': 'open',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
 }

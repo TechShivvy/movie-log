@@ -24,6 +24,20 @@ class ReportInput(BaseModel):
     )
 
 
+class ReportTriageUpdate(BaseModel):
+    """Admin-only (see get_current_admin). `remove_content: true` additionally
+    deletes the reported row when `target_type == 'movie_log'` — the common
+    case; `theatre`/`screen`/`profile` removal isn't implemented, `remove_content`
+    on one of those is accepted but has no effect beyond setting status."""
+
+    status: Literal['reviewed', 'dismissed']
+    remove_content: bool = False
+
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'status': 'reviewed', 'remove_content': True}}
+    )
+
+
 class Report(BaseModel):
     id: str
     reporter_user_id: str
