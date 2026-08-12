@@ -31,3 +31,19 @@ class Movie(MovieSearchResult):
     id: str
 
     model_config = ConfigDict(extra='ignore')
+
+
+class MovieStats(BaseModel):
+    movie_id: str
+    avg_rating: Optional[float] = None
+    rating_count: int = 0
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'movie_id': '88888888-8888-8888-8888-888888888888',
+                'avg_rating': 4.2,
+                'rating_count': 17,
+            }
+        }
+    )

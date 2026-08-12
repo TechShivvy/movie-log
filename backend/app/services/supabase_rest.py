@@ -842,6 +842,38 @@ async def create_movie(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
     return created[0] if isinstance(created, list) else created
 
 
+async def get_movie(movie_id: str) -> Optional[dict]:
+    params = {'select': '*', 'id': f'eq.{movie_id}', 'limit': '1'}
+    response = await _anon_request('GET', '/movies', 'get_movie', params=params)
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def get_movie_stats(movie_id: str) -> Optional[dict]:
+    params = {'select': '*', 'movie_id': f'eq.{movie_id}', 'limit': '1'}
+    response = await _anon_request(
+        'GET', '/movie_rating_stats', 'get_movie_stats', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def list_movie_reviews(movie_id: str, *, limit: int, offset: int) -> list[dict]:
+    # Same public_movie_log_entries view theatre/screen reviews already use
+    # (visibility in ('anonymous', 'public') only) — see list_theatre_reviews.
+    params = {
+        'select': '*',
+        'movie_id': f'eq.{movie_id}',
+        'order': 'created_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'list_movie_reviews', params=params
+    )
+    return response.json()
+
+
 # ── Account export/import ───────────────────────────────────────────────
 
 async def get_own_settings(user_token: str, user_id: str) -> dict[str, Any]:

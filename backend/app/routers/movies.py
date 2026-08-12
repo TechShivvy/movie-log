@@ -6,16 +6,17 @@ configured — that's a valid, supported state (a movie log still works with
 just a free-typed title), not a bug to work around client-side.
 """
 
-from typing import Any, List, Optional
+from typing import Annotated, Any, List, Optional
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user
 from config import settings
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, status
 from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.movies import responses
-from schemas.movies import Movie, MovieCreate, MovieSearchRequest, MovieSearchResult
+from schemas.movies import Movie, MovieCreate, MovieSearchRequest, MovieSearchResult, MovieStats
 from services import supabase_rest, tmdb
+from utils.errors import APIError
 
 router = APIRouter()
 
@@ -97,3 +98,69 @@ async def upcoming_movies(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
     return await tmdb.upcoming_movies(region=region, language=language)
+
+
+# ── Movie pages: everyone's logs/reviews tied to one catalog entry ───────
+# All three below are public — no sign-in needed, same as the theatre/
+# screen equivalents (GET /venues/theatres/{id}/stats, .../reviews) they
+# mirror. Registered after /search, '', /upcoming so a literal "upcoming"
+# in the path never gets swallowed by the {movie_id} pattern below it.
+
+@router.get(
+    '/{movie_id}',
+    response_model=Movie,
+    tags=['Movies'],
+    description='A catalog entry by id — title/language/release date/poster. '
+    'Public — no sign-in needed.',
+    response_description='The catalog entry.',
+    responses=responses['get_movie'],
+    operation_id='GetMovie',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_movie(request: Request, movie_id: str) -> Any:
+    movie = await supabase_rest.get_movie(movie_id)
+    if not movie:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'Movie not found.')
+    return movie
+
+
+@router.get(
+    '/{movie_id}/stats',
+    response_model=MovieStats,
+    tags=['Movies'],
+    description="This movie's average rating across every "
+    "`public`/`anonymous`-visibility log linked to it (`movie_id`), from any "
+    "user — `private` logs never count, same visibility rule theatre/screen "
+    'stats already apply. `avg_rating: null`/`rating_count: 0` if nobody has '
+    'logged it yet with a rating, not a 404 — a movie existing in the '
+    'catalog and having any ratings yet are independent facts.',
+    response_description="The movie's aggregate rating.",
+    responses=responses['get_movie_stats'],
+    operation_id='GetMovieStats',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_movie_stats(request: Request, movie_id: str) -> Any:
+    stats = await supabase_rest.get_movie_stats(movie_id)
+    return stats or {'movie_id': movie_id, 'avg_rating': None, 'rating_count': 0}
+
+
+@router.get(
+    '/{movie_id}/reviews',
+    tags=['Movies'],
+    description='Reviews (theatre, rating, notes) written about this movie, '
+    'across every user, newest first — both `public` ones (attributed, '
+    '`username` set) and `anonymous` ones (`user_id`/`username` both null). '
+    '`private` reviews never appear here, same rule theatre/screen reviews '
+    'already apply. Public — no sign-in needed.',
+    response_description='Reviews for this movie, most recent first.',
+    responses=responses['movie_reviews'],
+    operation_id='ListMovieReviews',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def movie_reviews(
+    request: Request,
+    movie_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.list_movie_reviews(movie_id, limit=limit, offset=offset)
