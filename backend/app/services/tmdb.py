@@ -26,10 +26,15 @@ def is_configured() -> bool:
     return bool(settings.tmdb_api_key)
 
 
-def _api_key() -> str:
+def _auth_header() -> dict[str, str]:
     if not settings.tmdb_api_key:
         raise APIError(500, 'CONFIG_ERROR', 'TMDB API key is not configured on the backend.')
-    return settings.tmdb_api_key.get_secret_value()
+    # settings.tmdb_api_key must be the "API Read Access Token" (v4 auth, a
+    # JWT) from TMDB's dashboard, sent as a bearer token — NOT the separate,
+    # differently-shaped "API Key" (v3 auth, a short hex string) shown on
+    # the same page, which authenticates via a ?api_key= query param
+    # instead and is not accepted here (see settings.py's field description).
+    return {'Authorization': f'Bearer {settings.tmdb_api_key.get_secret_value()}'}
 
 
 def _shape(item: dict[str, Any]) -> dict[str, Any]:
@@ -43,10 +48,10 @@ def _shape(item: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _get(path: str, params: dict[str, Any]) -> dict[str, Any]:
-    params = {**params, 'api_key': _api_key()}
+    headers = _auth_header()
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.get(f'{_BASE}{path}', params=params)
+            response = await client.get(f'{_BASE}{path}', params=params, headers=headers)
     except httpx.HTTPError as exc:
         LOGGER.error('TMDB {} transport error: {}', path, exc)
         raise APIError(502, 'UPSTREAM_ERROR', 'TMDB is unavailable.') from exc

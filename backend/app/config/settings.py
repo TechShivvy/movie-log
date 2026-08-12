@@ -144,11 +144,14 @@ class Settings(BaseSettings):
     tmdb_api_key: Optional[SecretStr] = Field(
         default=None,
         exclude=True,
-        description='TMDB (themoviedb.org) v3 API key — backs movie search/'
-        'autocomplete and upcoming-releases (services/tmdb.py, routers/movies.py). '
-        'Optional, same pattern as google_places_api_key: a movie log still works '
-        'with just a free-typed movie title without this, movie_id/catalog '
-        'features are unavailable until it is set.',
+        description='TMDB (themoviedb.org) API Read Access Token (v4 auth, a JWT — '
+        'sent as Authorization: Bearer) — backs movie search/autocomplete and '
+        'upcoming-releases (services/tmdb.py, routers/movies.py). NOT the same as '
+        'TMDB\'s separate "API Key" (v3 auth, a short hex string), which requires '
+        'a ?api_key= query param instead and will not work here. Optional, same '
+        'pattern as google_places_api_key: a movie log still works with just a '
+        'free-typed movie title without this, movie_id/catalog features are '
+        'unavailable until it is set.',
     )
     supabase_jwt_secret: Optional[SecretStr] = Field(
         default=None,
