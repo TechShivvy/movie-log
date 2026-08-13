@@ -284,6 +284,33 @@ async def upsert_venue_rating(
 
 
 @router.delete(
+    '/{log_id}/venue-rating',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Movie Logs'],
+    description="Remove the venue rating from one of the caller's own logs, "
+    'without deleting the log itself — e.g. after correcting theatre_id/'
+    "screen_id on PATCH /{log_id} (the old rating no longer applies to the "
+    'corrected venue), or simply changing your mind about it. Immediately '
+    "reflected in the theatre/screen's aggregate stats, same as any other "
+    'rating change.',
+    responses=responses['delete_venue_rating'],
+    operation_id='DeleteVenueRating',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_venue_rating(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_venue_rating(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if not deleted:
+        raise APIError(404, 'NOT_FOUND', 'No venue rating for this log.')
+    LOGGER.info('delete_venue_rating user={} log_id={}', _uid(current_user.user_id), log_id)
+
+
+@router.delete(
     '/{log_id}',
     status_code=status.HTTP_204_NO_CONTENT,
     tags=['Movie Logs'],

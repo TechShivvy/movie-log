@@ -353,3 +353,13 @@ class MovieLog(MovieLogInput):
     user_id: str
     created_at: str
     updated_at: str
+    edited_at: Optional[str] = Field(
+        default=None,
+        description='Set the first time a content field (movie, dates, rating, '
+        "notes, visibility, ...) actually changes after creation — null means "
+        'never edited. Deliberately not derived from updated_at (which is '
+        'bumped by any row change, including ones that are not a content edit, '
+        'e.g. this field going null on account deletion). Client-facing '
+        'equivalent of Reddit/GitHub\'s "(edited)" marker — non-null is the '
+        'flag, the timestamp itself is free extra context ("edited 3 days ago").',
+    )

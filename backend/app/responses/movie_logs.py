@@ -417,6 +417,20 @@ responses = {
         **_VALIDATION,
         **_UPSTREAM,
     },
+    'delete_venue_rating': {
+        204: {'description': 'Deleted — no response body. The log itself is untouched.'},
+        404: {
+            'description': 'No venue rating exists for this log (nothing to delete), '
+            "or the log itself doesn't belong to the caller.",
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No venue rating for this log.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'delete_log': {
         204: {'description': 'Deleted — no response body.'},
         **_UNAUTHORIZED,
