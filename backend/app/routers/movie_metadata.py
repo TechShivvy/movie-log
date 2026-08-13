@@ -18,11 +18,10 @@ from loguru_setup import LOGGER
 from openai import OpenAIError
 from pydantic import ValidationError
 from responses.movie_metadata import responses
-from schemas.movie_metadata import MovieMetadata, MovieMetadataResponse, TicketLinkRequest
+from schemas.movie_metadata import MovieMetadata, TicketLinkRequest
 from starlette.formparsers import MultiPartParser
-from services import extraction_cache, free_models, ticket_link_extractor, tmdb
+from services import extraction_cache, free_models, ticket_link_extractor
 from services.quota import ensure_within_daily_quota
-from utils.errors import APIError
 from utils import image
 from utils.openai_utils import openai_error_to_http
 
@@ -78,28 +77,6 @@ async def validate_shared_model(model_name: str) -> None:
         )
 
 
-async def _with_movie_suggestions(result: dict) -> dict:
-    """Best-effort TMDB match for the extracted/cached `movie` title —
-    computed fresh on every call (cache hit or miss alike), never stored in
-    the extraction cache itself: this is third-party enrichment layered on
-    top of the LLM's output, not part of what was actually extracted, and
-    keeping it out of the cached blob means a later TMDB match (a title
-    that gets added after the fact) isn't frozen out by an old cache entry.
-    Never blocks or fails the extraction — a TMDB hiccup just means an
-    empty list, same posture as extraction_cache being unavailable.
-    """
-    movie_title = result.get('movie')
-    if not tmdb.is_configured() or not movie_title:
-        result['movie_suggestions'] = []
-        return result
-    try:
-        result['movie_suggestions'] = (await tmdb.search_movies(movie_title))[:5]
-    except APIError as exc:
-        LOGGER.warning('movie_suggestions: TMDB lookup failed for {!r}: {}', movie_title, exc.message)
-        result['movie_suggestions'] = []
-    return result
-
-
 @router.post(
     path='/extract',
     tags=['Extract Movie Metadata'],
@@ -128,10 +105,16 @@ async def _with_movie_suggestions(result: dict) -> dict:
         'returns the cached result instantly, skips the LLM call entirely, and '
         "does **not** count against your daily quota (nothing was actually run). "
         'Uploading the same image with a different `model` is a cache miss and '
-        'runs normally.'
+        'runs normally.\n\n'
+        '**Catalog matching**: the returned `movie` is a free-typed guess, not a '
+        'TMDB match — deliberately not resolved here, since that would tie this '
+        "endpoint's latency/reliability to a third-party call it doesn't need. "
+        'Once `movie` is populated (from this response or typed by hand), call '
+        'POST /movies/search with it — same debounced search-as-you-type call '
+        'either way, autofilled or manual.'
     ),
     response_description='Movie Metadata',
-    response_model=MovieMetadataResponse,
+    response_model=MovieMetadata,
     responses=responses['/extract'],
     operation_id='ExtractTicketImage',
 )
@@ -143,7 +126,7 @@ async def extract_movie_metadata(
     current_user: AuthenticatedUser = Depends(get_current_user),
     model: str | None = Form(default=None),
     header_api_key: str | None = Depends(get_header_api_key),
-) -> dict:
+) -> MovieMetadata:
     request.state.user_id = current_user.user_id
 
     if ticket_image.content_type not in {
@@ -175,7 +158,7 @@ async def extract_movie_metadata(
             getattr(request.state, 'request_id', '-'),
             model_name,
         )
-        return await _with_movie_suggestions(cached)
+        return cached
 
     if header_api_key:
         openrouter_api_key = header_api_key
@@ -206,7 +189,7 @@ async def extract_movie_metadata(
         )
         result = ticket.model_dump()
         await extraction_cache.store_extraction(image_hash, model_name, result)
-        return await _with_movie_suggestions(result)
+        return result
     except ValidationError as e:
         LOGGER.error(f'Validation error parsing movie metadata: {e}')
         raise HTTPException(
@@ -241,10 +224,12 @@ async def extract_movie_metadata(
         'Same two Authorize locks, same shared-key-vs-own-key/quota/free-model rules, '
         'and the same content-addressed caching as `/extract` — here keyed by the '
         "scraped page text's content, not an image, so re-submitting the same link "
-        'with the same model is a free cache hit.'
+        'with the same model is a free cache hit. Same catalog-matching note as '
+        '`/extract` too: `movie` is a free-typed guess, call POST /movies/search '
+        'with it once populated, rather than expecting a TMDB match bundled here.'
     ),
     response_description='Movie Metadata',
-    response_model=MovieMetadataResponse,
+    response_model=MovieMetadata,
     responses=responses['extract-from-link'],
     operation_id='ExtractFromTicketLink',
 )
@@ -255,7 +240,7 @@ async def extract_movie_metadata_from_link(
     current_user: AuthenticatedUser = Depends(get_current_user),
     model: str | None = None,
     header_api_key: str | None = Depends(get_header_api_key),
-) -> dict:
+) -> MovieMetadata:
     request.state.user_id = current_user.user_id
 
     # requires_image=False: this is scraped page text, not a photo — no
@@ -282,7 +267,7 @@ async def extract_movie_metadata_from_link(
             getattr(request.state, 'request_id', '-'),
             model_name,
         )
-        return await _with_movie_suggestions(cached)
+        return cached
 
     if header_api_key:
         openrouter_api_key = header_api_key
@@ -307,7 +292,7 @@ async def extract_movie_metadata_from_link(
         )
         result = ticket.model_dump()
         await extraction_cache.store_extraction(content_hash, model_name, result)
-        return await _with_movie_suggestions(result)
+        return result
     except ValidationError as e:
         LOGGER.error(f'Validation error parsing movie metadata: {e}')
         raise HTTPException(

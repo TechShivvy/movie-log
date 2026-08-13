@@ -9,7 +9,6 @@ from pydantic import (
     Field,
     field_validator,
 )
-from schemas.movies import MovieSearchResult
 
 _VALID_ABBR: set[str] = {
     abbr
@@ -210,22 +209,3 @@ class MovieMetadata(BaseModel):
         if not isinstance(v, (int, float)) or v < 0:
             return None
         return v
-
-
-class MovieMetadataResponse(MovieMetadata):
-    """What POST /extract and /extract-from-link actually return — MovieMetadata
-    plus a best-effort TMDB match for `movie`. Kept as a subclass rather than
-    added to MovieMetadata itself: that class is also the structured-output
-    schema forced onto the LLM call (extra='forbid') — adding an unrelated
-    field there would make the LLM responsible for it too, not just the API
-    response."""
-
-    movie_suggestions: List[MovieSearchResult] = Field(
-        default_factory=list,
-        description='Candidate TMDB matches for `movie`, most relevant first — '
-        'empty if TMDB is not configured, `movie` is empty, or nothing matched. '
-        'Never blocks or fails the extraction itself; a TMDB hiccup just means '
-        'an empty list here, not an error response.',
-    )
-
-    model_config = ConfigDict(extra='ignore', frozen=False)
