@@ -15,9 +15,15 @@ class MovieSearchResult(BaseModel):
     release_date: Optional[str] = None
     poster_path: Optional[str] = Field(
         default=None,
-        description='TMDB poster path, e.g. "/abc123.jpg" — prepend '
-        'https://image.tmdb.org/t/p/w500 client-side to get a full image URL, '
-        'same "we store the path, client builds the URL" shape as avatar_path.',
+        description='TMDB poster path, e.g. "/abc123.jpg" — one value, no '
+        'separate small/large fields; the client builds the actual image URL '
+        'by prepending https://image.tmdb.org/t/p/{size} plus this path, '
+        'picking {size} per context (a fixed, stable TMDB size list, not '
+        'something this backend needs to proxy): w92/w154 for a small '
+        'thumbnail (e.g. a search-suggestions dropdown row), w500/w780 for a '
+        'large one (e.g. a movie detail page or search results grid), '
+        '"original" for full resolution. Same "we store the path, client '
+        'builds the URL" shape as avatar_path.',
     )
 
 
