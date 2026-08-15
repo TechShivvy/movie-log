@@ -127,10 +127,17 @@ async def list_movie_logs(
     screen_id: Optional[str] = None,
     movie: Optional[str] = None,
     favorites_only: bool = False,
+    archived_only: bool = False,
 ) -> list[dict[str, Any]]:
     params = {
         'select': _MOVIE_LOG_SELECT,
         'user_id': f'eq.{user_id}',
+        # Archived logs are "cold storage" — excluded from the caller's own
+        # default list, same as they're excluded from everyone else's view
+        # entirely, not just hidden from other people. archived_only flips
+        # this to show just the archive instead of mixing it into the
+        # regular list.
+        'is_archived': 'eq.true' if archived_only else 'eq.false',
         'order': order,
         'limit': str(limit),
         'offset': str(offset),
@@ -164,6 +171,7 @@ async def search_movie_logs(
     theatre_id: Optional[str] = None,
     screen_id: Optional[str] = None,
     favorites_only: bool = False,
+    archived_only: bool = False,
     sort: str,
     order: str,
     limit: int,
@@ -174,6 +182,7 @@ async def search_movie_logs(
         'p_theatre_id': theatre_id,
         'p_screen_id': screen_id,
         'p_favorites_only': favorites_only,
+        'p_archived_only': archived_only,
         'p_sort': sort,
         'p_order': order,
         'p_limit': limit,

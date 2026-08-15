@@ -63,9 +63,12 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     'before?" for a revisit-prefill suggestion, or to show a "my visits to this '
     'theatre" history. `favorites_only` returns just the caller\'s up-to-4 favorite '
     'logs (see PUT .../favorite), any visibility — this is the caller\'s own '
-    "view; GET /public/users/{username} exposes only the public ones. Unlike GET "
-    "/venues/theatres/{id}/reviews, this always includes the caller's `private` "
-    "logs too (it's their own data, scoped by RLS).",
+    "view; GET /public/users/{username} exposes only the public ones. Archived "
+    "logs (see PATCH /{id} is_archived) are excluded by default, from the "
+    "caller's own list too, not just everyone else's — cold storage means "
+    'genuinely put away; `archived_only` flips this to show just the archive '
+    "instead. Unlike GET /venues/theatres/{id}/reviews, this always includes "
+    "the caller's `private` logs too (it's their own data, scoped by RLS).",
     response_description='A page of movie logs.',
     responses=responses['list_logs'],
     operation_id='ListMovieLogs',
@@ -82,6 +85,7 @@ async def list_logs(
     screen_id: Annotated[str | None, Query()] = None,
     movie: Annotated[str | None, Query(min_length=1)] = None,
     favorites_only: Annotated[bool, Query()] = False,
+    archived_only: Annotated[bool, Query()] = False,
 ) -> Any:
     if sort not in _SORT_FIELDS:
         raise APIError(400, 'BAD_REQUEST', 'Invalid sort field.')
@@ -102,6 +106,7 @@ async def list_logs(
         theatre_id=theatre_id,
         screen_id=screen_id,
         favorites_only=favorites_only,
+        archived_only=archived_only,
         movie=movie,
     )
 
@@ -228,6 +233,7 @@ async def search_logs(
     theatre_id: Annotated[str | None, Query()] = None,
     screen_id: Annotated[str | None, Query()] = None,
     favorites_only: Annotated[bool, Query()] = False,
+    archived_only: Annotated[bool, Query()] = False,
     sort: Literal['relevance', 'created_at', 'updated_at', 'watched_date', 'movie'] = 'relevance',
     order: Literal['asc', 'desc'] = 'desc',
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -239,6 +245,7 @@ async def search_logs(
         theatre_id=theatre_id,
         screen_id=screen_id,
         favorites_only=favorites_only,
+        archived_only=archived_only,
         sort=sort,
         order=order,
         limit=limit,

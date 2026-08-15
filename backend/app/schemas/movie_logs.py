@@ -106,6 +106,7 @@ WRITABLE_FIELDS = (
     'screening_start_delta_minutes',
     'is_fdfs',
     'is_first_day',
+    'is_archived',
 )
 
 
@@ -253,6 +254,15 @@ class MovieLogInput(BaseModel):
         'compared against watched_date, which this app doesn\'t do '
         'automatically; stays explicit like is_fdfs.',
     )
+    is_archived: bool = Field(
+        default=False,
+        description='A genuinely distinct tier from `private`, not another name '
+        'for it — a `private` log still counts toward theatre/screen/movie '
+        "aggregate stats (it's venue signal, not review content); an archived "
+        "one doesn't count toward anything, and never appears anywhere but the "
+        "owner's own GET /movie-logs, regardless of visibility. Reversible — "
+        'archiving is not deleting.',
+    )
 
     @model_validator(mode='after')
     def _check_punctuality_pairs(self) -> 'MovieLogInput':
@@ -377,6 +387,7 @@ class MovieLogUpdate(BaseModel):
     )
     is_fdfs: Optional[bool] = Field(default=None)
     is_first_day: Optional[bool] = Field(default=None)
+    is_archived: Optional[bool] = Field(default=None)
     # No cross-field validator here unlike MovieLogInput's
     # _check_punctuality_pairs — this is a partial update, Pydantic can't
     # see whether arrival_status was already set by a prior call, so it
