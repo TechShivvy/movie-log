@@ -151,11 +151,16 @@ responses = {
                             'value': {
                                 'profile': _PROFILE_ROUTE_EXAMPLE,
                                 'logs': [_MOVIE_LOG_PUBLIC_EXAMPLE],
+                                'favorites': [{**_MOVIE_LOG_PUBLIC_EXAMPLE, 'favorite_position': 1}],
                             },
                         },
                         'cannot_view': {
                             'summary': 'can_view_content: false — profile shell only',
-                            'value': {'profile': _PRIVATE_PROFILE_ROUTE_EXAMPLE, 'logs': []},
+                            'value': {
+                                'profile': _PRIVATE_PROFILE_ROUTE_EXAMPLE,
+                                'logs': [],
+                                'favorites': [],
+                            },
                         },
                     }
                 }

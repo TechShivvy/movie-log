@@ -445,6 +445,58 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'set_favorite': {
+        200: {
+            'description': "The log's updated row, with favorite_position set.",
+            'content': {'application/json': {'example': {**_MOVIE_LOG_EXAMPLE, 'favorite_position': 1}}},
+        },
+        404: {
+            'description': "No log with this id belonging to the caller.",
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Movie log not found.'}
+                }
+            },
+        },
+        422: {
+            'description': 'position not between 1 and 4.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'less_than_equal',
+                                'loc': ['body', 'position'],
+                                'msg': 'Input should be less than or equal to 4',
+                                'input': 7,
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'delete_favorite': {
+        204: {'description': 'Unfavorited — no response body. The log itself is untouched.'},
+        404: {
+            'description': "This log isn't currently a favorite (nothing to remove), "
+            "or it doesn't belong to the caller.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'NOT_FOUND',
+                        'message': 'This log is not currently a favorite.',
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'delete_log': {
         204: {'description': 'Deleted — no response body.'},
         **_UNAUTHORIZED,

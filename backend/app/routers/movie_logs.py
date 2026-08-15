@@ -15,6 +15,7 @@ from loguru_setup import LOGGER
 from responses.movie_logs import responses
 from schemas.movie_logs import (
     WRITABLE_FIELDS,
+    FavoritePositionUpdate,
     MovieLog,
     MovieLogInput,
     MovieLogSearchResult,
@@ -60,8 +61,11 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     '`theatre_id`/`screen_id`/`movie` filters narrow this to the caller\'s own past '
     "visits to a venue or past logs of a movie — e.g. to answer \"have I been here "
     'before?" for a revisit-prefill suggestion, or to show a "my visits to this '
-    'theatre" history. Unlike GET /venues/theatres/{id}/reviews, this always includes '
-    "the caller's `private` logs too (it's their own data, scoped by RLS).",
+    'theatre" history. `favorites_only` returns just the caller\'s up-to-4 favorite '
+    'logs (see PUT .../favorite), any visibility — this is the caller\'s own '
+    "view; GET /public/users/{username} exposes only the public ones. Unlike GET "
+    "/venues/theatres/{id}/reviews, this always includes the caller's `private` "
+    "logs too (it's their own data, scoped by RLS).",
     response_description='A page of movie logs.',
     responses=responses['list_logs'],
     operation_id='ListMovieLogs',
@@ -77,6 +81,7 @@ async def list_logs(
     theatre_id: Annotated[str | None, Query()] = None,
     screen_id: Annotated[str | None, Query()] = None,
     movie: Annotated[str | None, Query(min_length=1)] = None,
+    favorites_only: Annotated[bool, Query()] = False,
 ) -> Any:
     if sort not in _SORT_FIELDS:
         raise APIError(400, 'BAD_REQUEST', 'Invalid sort field.')
@@ -96,6 +101,7 @@ async def list_logs(
         order=order_str,
         theatre_id=theatre_id,
         screen_id=screen_id,
+        favorites_only=favorites_only,
         movie=movie,
     )
 
@@ -203,9 +209,9 @@ async def import_logs(
     "query still finds a log. Each result's `matched_fields` names which of "
     "those six actually matched, for the frontend to highlight — not a "
     "duplicate of their values, those are already on the same object. "
-    "`theatre_id`/`screen_id` narrow the search server-side (same filters "
-    "GET / already has; `favorites_only` joins them once favoriting ships), "
-    "and `sort`/`order` are also applied server-side — both matter once "
+    "`theatre_id`/`screen_id`/`favorites_only` narrow the search server-side "
+    "(same filters GET / already has), and `sort`/`order` are also applied "
+    "server-side — both matter once "
     "there's more than one page of matches, where a client-side version "
     "would silently only affect the currently-loaded page. Registered "
     "before GET /{log_id} so the literal path segment \"search\" is never "
@@ -221,6 +227,7 @@ async def search_logs(
     current_user: AuthenticatedUser = Depends(get_current_user),
     theatre_id: Annotated[str | None, Query()] = None,
     screen_id: Annotated[str | None, Query()] = None,
+    favorites_only: Annotated[bool, Query()] = False,
     sort: Literal['relevance', 'created_at', 'updated_at', 'watched_date', 'movie'] = 'relevance',
     order: Literal['asc', 'desc'] = 'desc',
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -231,6 +238,7 @@ async def search_logs(
         query=q,
         theatre_id=theatre_id,
         screen_id=screen_id,
+        favorites_only=favorites_only,
         sort=sort,
         order=order,
         limit=limit,
@@ -359,6 +367,69 @@ async def delete_venue_rating(
     if not deleted:
         raise APIError(404, 'NOT_FOUND', 'No venue rating for this log.')
     LOGGER.info('delete_venue_rating user={} log_id={}', _uid(current_user.user_id), log_id)
+
+
+@router.put(
+    '/{log_id}/favorite',
+    response_model=MovieLog,
+    tags=['Movie Logs'],
+    description='Mark one of the caller\'s own logs as a favorite (Letterboxd-'
+    'style "Top 4"), in slot `position` (1-4). If another of the caller\'s logs '
+    'already holds that slot, it\'s atomically moved out (favorite_position set '
+    "to null) and this log takes it — a move, not a 409 requiring the client to "
+    'clear the old slot first. A `private` favorite still occupies its slot '
+    "(visible via GET /movie-logs?favorites_only=true), it just never appears "
+    "in GET /public/users/{username}'s public favorites list.",
+    response_description="The log's updated row.",
+    responses=responses['set_favorite'],
+    operation_id='SetFavoriteLog',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_favorite(
+    request: Request,
+    log_id: str,
+    payload: FavoritePositionUpdate,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    try:
+        result = await supabase_rest.set_favorite(
+            current_user.access_token, log_id, payload.position
+        )
+    except APIError as e:
+        if e.status_code == 400:
+            # set_favorite_position raises when log_id isn't the caller's
+            # own — same 404-not-403 posture as every other own-resource
+            # lookup in this router.
+            raise APIError(404, 'NOT_FOUND', 'Movie log not found.')
+        raise
+    LOGGER.info(
+        'set_favorite user={} log_id={} position={}',
+        _uid(current_user.user_id), log_id, payload.position,
+    )
+    return result
+
+
+@router.delete(
+    '/{log_id}/favorite',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Movie Logs'],
+    description="Unfavorite one of the caller's own logs, freeing its slot for "
+    'reuse — the log itself is untouched.',
+    responses=responses['delete_favorite'],
+    operation_id='DeleteFavoriteLog',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_favorite(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_favorite(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if not deleted:
+        raise APIError(404, 'NOT_FOUND', 'This log is not currently a favorite.')
+    LOGGER.info('delete_favorite user={} log_id={}', _uid(current_user.user_id), log_id)
 
 
 @router.delete(

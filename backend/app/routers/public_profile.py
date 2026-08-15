@@ -61,11 +61,15 @@ async def search_users(
     "`visibility: public` (never `anonymous` ones — those intentionally never "
     'appear here) to anyone; `followers_only` accounts show it only to '
     "accepted followers (send a bearer token to be recognized as one); "
-    "`private` accounts show it to nobody but the owner. Otherwise `logs` is "
-    'an empty list — same "private account" behavior most social apps use, '
-    'rather than 404ing. Public — no sign-in required, but sending a token '
-    "lets the response reflect the caller's own follow access.",
-    response_description='The profile shell, plus public logs if the caller can view them.',
+    "`private` accounts show it to nobody but the owner. Otherwise `logs`/"
+    '`favorites` are both empty — same "private account" behavior most '
+    'social apps use, rather than 404ing. `favorites` is the owner\'s up-to-4 '
+    'Letterboxd-style "Top 4" (see PUT /movie-logs/{id}/favorite), ordered '
+    'by slot, gated by the same visibility rule as `logs` — never includes '
+    'a `private` favorite regardless of who\'s asking, same as `logs`. '
+    'Public — no sign-in required, but sending a token lets the response '
+    "reflect the caller's own follow access.",
+    response_description='The profile shell, plus public logs/favorites if the caller can view them.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
 )
@@ -86,7 +90,18 @@ async def public_profile(
         if profile['can_view_content']
         else []
     )
-    return {'profile': profile, 'logs': logs}
+    # Same can_view_content gate as `logs` — a favorite is content like any
+    # other, not a separate always-visible showcase tier this app doesn't
+    # otherwise have. A `private` favorite already can't appear here
+    # regardless (list_favorite_logs_for_user's view excludes private rows
+    # entirely), this only controls whether the (public-eligible) favorites
+    # are shown to *this* caller at all.
+    favorites = (
+        await supabase_rest.list_favorite_logs_for_user(profile['user_id'])
+        if profile['can_view_content']
+        else []
+    )
+    return {'profile': profile, 'logs': logs, 'favorites': favorites}
 
 
 @router.patch(

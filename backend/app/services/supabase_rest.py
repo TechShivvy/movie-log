@@ -121,6 +121,7 @@ async def list_movie_logs(
     theatre_id: Optional[str] = None,
     screen_id: Optional[str] = None,
     movie: Optional[str] = None,
+    favorites_only: bool = False,
 ) -> list[dict[str, Any]]:
     params = {
         'select': '*',
@@ -143,6 +144,8 @@ async def list_movie_logs(
         params['screen_id'] = f'eq.{screen_id}'
     if movie:
         params['movie'] = f'eq.{movie}'
+    if favorites_only:
+        params['favorite_position'] = 'not.is.null'
     response = await _request(
         'GET', f'/{_TABLE}', user_token, 'list_movie_logs', params=params
     )
@@ -155,17 +158,17 @@ async def search_movie_logs(
     query: str,
     theatre_id: Optional[str] = None,
     screen_id: Optional[str] = None,
+    favorites_only: bool = False,
     sort: str,
     order: str,
     limit: int,
     offset: int,
 ) -> list[dict[str, Any]]:
-    # p_favorites_only is added to the RPC signature in Phase 2
-    # (20260813000008) — this call is extended to match then, not before.
     body = {
         'p_query': query,
         'p_theatre_id': theatre_id,
         'p_screen_id': screen_id,
+        'p_favorites_only': favorites_only,
         'p_sort': sort,
         'p_order': order,
         'p_limit': limit,
@@ -175,6 +178,33 @@ async def search_movie_logs(
         'POST', '/rpc/search_movie_logs', user_token, 'search_movie_logs', json=body
     )
     return response.json()
+
+
+async def set_favorite(user_token: str, log_id: str, position: int) -> dict[str, Any]:
+    # set_favorite_position (RPC) atomically vacates whichever other log
+    # currently holds this position for the caller, then assigns it here —
+    # both in one function call, no separate "clear the old slot first" step.
+    response = await _request(
+        'POST', '/rpc/set_favorite_position', user_token, 'set_favorite',
+        json={'p_log_id': log_id, 'p_position': position},
+    )
+    result = response.json()
+    return result[0] if isinstance(result, list) else result
+
+
+async def delete_favorite(user_token: str, user_id: str, log_id: str) -> bool:
+    # Only matches (and reports success for) a log that was actually
+    # favorited — same "404 if there was nothing to remove" shape as
+    # delete_venue_rating, not a silent no-op on an already-unfavorited log.
+    params = {
+        'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}',
+        'favorite_position': 'not.is.null',
+    }
+    response = await _request(
+        'PATCH', f'/{_TABLE}', user_token, 'delete_favorite',
+        params=params, json={'favorite_position': None}, prefer='return=representation',
+    )
+    return bool(response.json())
 
 
 async def get_movie_log(
@@ -499,6 +529,23 @@ async def list_public_logs_for_user(user_id: str) -> list[dict]:
     }
     response = await _anon_request(
         'GET', '/public_movie_log_entries', 'list_public_logs_for_user', params=params
+    )
+    return response.json()
+
+
+async def list_favorite_logs_for_user(user_id: str) -> list[dict]:
+    # Same view/user_id-nulling reasoning as list_public_logs_for_user
+    # above — a `private` favorite already can't match here (its row is
+    # excluded from the view entirely), so no separate visibility check
+    # is needed beyond the existing user_id filter.
+    params = {
+        'select': '*',
+        'user_id': f'eq.{user_id}',
+        'favorite_position': 'not.is.null',
+        'order': 'favorite_position.asc',
+    }
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'list_favorite_logs_for_user', params=params
     )
     return response.json()
 

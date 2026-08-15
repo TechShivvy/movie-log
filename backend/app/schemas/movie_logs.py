@@ -346,6 +346,16 @@ class MovieLogUpdate(BaseModel):
         return _check_currency(v)
 
 
+class FavoritePositionUpdate(BaseModel):
+    """Body for PUT /movie-logs/{id}/favorite. Moving into an already-taken
+    slot vacates whichever other log currently holds it — a move, not a
+    conflict to resolve client-side first."""
+
+    position: int = Field(..., ge=1, le=4)
+
+    model_config = ConfigDict(json_schema_extra={'example': {'position': 1}})
+
+
 class MovieLog(MovieLogInput):
     """A stored movie log as returned by the database."""
 
@@ -362,6 +372,15 @@ class MovieLog(MovieLogInput):
         'e.g. this field going null on account deletion). Client-facing '
         'equivalent of Reddit/GitHub\'s "(edited)" marker — non-null is the '
         'flag, the timestamp itself is free extra context ("edited 3 days ago").',
+    )
+    favorite_position: Optional[int] = Field(
+        default=None,
+        description='1-4 if this is one of the caller\'s up-to-4 favorite logs '
+        '(Letterboxd-style), null otherwise — this doubles as the favorite '
+        "flag, no separate boolean. Read-only here: set via PUT/DELETE "
+        ".../favorite, not via PATCH — it has its own business rule (moving "
+        "another log out of a taken slot) that doesn't belong in a general "
+        'field update.',
     )
 
 
