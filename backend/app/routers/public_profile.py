@@ -86,7 +86,7 @@ async def public_profile(
         # from "this user doesn't exist" to the blocked/blocking party.
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
     logs = (
-        await supabase_rest.list_public_logs_for_user(profile['user_id'])
+        await supabase_rest.list_public_logs_for_user(profile['user_id'], viewer_token=viewer_token)
         if profile['can_view_content']
         else []
     )
@@ -97,7 +97,7 @@ async def public_profile(
     # entirely), this only controls whether the (public-eligible) favorites
     # are shown to *this* caller at all.
     favorites = (
-        await supabase_rest.list_favorite_logs_for_user(profile['user_id'])
+        await supabase_rest.list_favorite_logs_for_user(profile['user_id'], viewer_token=viewer_token)
         if profile['can_view_content']
         else []
     )

@@ -439,6 +439,64 @@ async def delete_favorite(
     LOGGER.info('delete_favorite user={} log_id={}', _uid(current_user.user_id), log_id)
 
 
+@router.post(
+    '/{log_id}/like',
+    tags=['Movie Logs'],
+    description='Like a log — a single reaction, no dislike/downvote exists. '
+    'Requires the log to be currently public/anonymous-visible and not '
+    "archived, same rule commenting already follows; a blocked pair can't "
+    "like each other's `public` (attributed) logs. Liking twice is a no-op, "
+    "not an error — same call either way.",
+    response_description='The updated like count.',
+    responses=responses['like_log'],
+    operation_id='LikeMovieLog',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def like_log(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    if not await supabase_rest.is_movie_log_reportable(log_id):
+        raise APIError(404, 'NOT_FOUND', 'Movie log not found.')
+    try:
+        count = await supabase_rest.like_movie_log(
+            current_user.access_token, log_id, current_user.user_id
+        )
+    except APIError as e:
+        if e.status_code == 400:
+            # Either a blocked pair, or the same (log_id, user_id) pair
+            # already exists (primary key conflict) — liking twice should
+            # be a no-op, not an error, so fall back to just returning the
+            # current count instead of surfacing this as a failure. Can't
+            # tell the two cases apart from the collapsed 400
+            # _raise_for_upstream produces, so this covers both.
+            return {'like_count': await supabase_rest.get_like_count(log_id)}
+        raise
+    return {'like_count': count}
+
+
+@router.delete(
+    '/{log_id}/like',
+    tags=['Movie Logs'],
+    description='Unlike a log. Not liking it in the first place is a no-op, '
+    'not an error — same call either way.',
+    response_description='The updated like count.',
+    responses=responses['unlike_log'],
+    operation_id='UnlikeMovieLog',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def unlike_log(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    await supabase_rest.unlike_movie_log(
+        current_user.access_token, log_id, current_user.user_id
+    )
+    return {'like_count': await supabase_rest.get_like_count(log_id)}
+
+
 @router.delete(
     '/{log_id}',
     status_code=status.HTTP_204_NO_CONTENT,

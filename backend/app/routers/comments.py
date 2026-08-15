@@ -151,3 +151,61 @@ async def delete_comment(
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'Comment not found.')
     LOGGER.info('delete_comment user={} id={}', current_user.user_id[:8], comment_id)
     return deleted
+
+
+@router.post(
+    '/{comment_id}/like',
+    tags=['Comments'],
+    description='Like a comment — a single reaction, no dislike/downvote. '
+    'Liking twice is a no-op, not an error — same call either way.',
+    response_description='The updated like count.',
+    responses=responses['like_comment'],
+    operation_id='LikeComment',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def like_comment(
+    request: Request,
+    comment_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    # Pre-check existence/visibility so a genuinely missing comment_id can
+    # be told apart from "already liked" — both would otherwise 400
+    # identically once _raise_for_upstream collapses them.
+    existing_count = await supabase_rest.get_comment_like_count(
+        current_user.access_token, comment_id
+    )
+    if existing_count is None:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'Comment not found.')
+    try:
+        comment = await supabase_rest.like_comment(
+            current_user.access_token, comment_id, current_user.user_id
+        )
+    except APIError as e:
+        if e.status_code == 400:
+            # Already liked (primary key conflict on comment_likes) — a
+            # no-op, not an error, now that existence is already confirmed.
+            return {'like_count': existing_count}
+        raise
+    return {'like_count': comment.get('like_count', existing_count)}
+
+
+@router.delete(
+    '/{comment_id}/like',
+    tags=['Comments'],
+    description='Unlike a comment. Not liking it in the first place is a '
+    'no-op, not an error — same call either way.',
+    response_description='The updated like count.',
+    responses=responses['unlike_comment'],
+    operation_id='UnlikeComment',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def unlike_comment(
+    request: Request,
+    comment_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    await supabase_rest.unlike_comment(
+        current_user.access_token, comment_id, current_user.user_id
+    )
+    count = await supabase_rest.get_comment_like_count(current_user.access_token, comment_id)
+    return {'like_count': count if count is not None else 0}

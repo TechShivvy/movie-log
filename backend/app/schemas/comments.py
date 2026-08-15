@@ -42,6 +42,11 @@ class Comment(BaseModel):
         "replies underneath it don't orphan, only the text is cleared.",
     )
     like_count: int = 0
+    liked_by_caller: Optional[bool] = Field(
+        default=None,
+        description='Whether the caller has liked this comment — null when not '
+        'computed for this response path.',
+    )
     edited_at: Optional[str] = None
     deleted_at: Optional[str] = None
     created_at: str

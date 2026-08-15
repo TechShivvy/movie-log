@@ -6,9 +6,14 @@ a new one via Google Places (place_id is the real dedup key — name
 similarity is only ever used for the prompt, never for auto-merging).
 """
 
-from typing import Annotated, Any, List
+from typing import Annotated, Any, List, Optional
 
-from auth.supabase_auth import AuthenticatedUser, get_current_admin, get_current_user
+from auth.supabase_auth import (
+    AuthenticatedUser,
+    get_current_admin,
+    get_current_user,
+    get_current_user_optional,
+)
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request
 from loguru_setup import LOGGER
@@ -338,8 +343,12 @@ async def theatre_reviews(
     theatre_id: str,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
 ) -> Any:
-    return await supabase_rest.list_theatre_reviews(theatre_id, limit=limit, offset=offset)
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.list_theatre_reviews(
+        theatre_id, limit=limit, offset=offset, viewer_token=viewer_token
+    )
 
 
 @router.get(
@@ -452,8 +461,12 @@ async def screen_reviews(
     screen_id: str,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
 ) -> Any:
-    return await supabase_rest.list_screen_reviews(screen_id, limit=limit, offset=offset)
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.list_screen_reviews(
+        screen_id, limit=limit, offset=offset, viewer_token=viewer_token
+    )
 
 
 @router.get(

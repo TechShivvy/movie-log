@@ -496,6 +496,18 @@ class MovieLog(MovieLogInput):
         'read, so it can never drift from watched_time. Read-only: not settable '
         'via POST/PATCH, sending it has no effect.',
     )
+    like_count: int = Field(
+        default=0,
+        description='A single reaction, not a vote — no dislike/downvote exists. '
+        'Trigger-maintained, not computed on read.',
+    )
+    liked_by_caller: Optional[bool] = Field(
+        default=None,
+        description="Whether the caller has liked this log — only meaningful "
+        "(non-null) where someone else's content can appear (a theatre/screen/"
+        "movie's reviews, a profile, the feed); always null on the caller's own "
+        "GET /movie-logs, where every row is already their own.",
+    )
 
 
 class MovieLogSearchResult(MovieLog):

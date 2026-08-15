@@ -551,26 +551,33 @@ async def get_public_profile(username: str, viewer_token: Optional[str] = None) 
     return rows[0] if rows else None
 
 
-async def list_public_logs_for_user(user_id: str) -> list[dict]:
+async def list_public_logs_for_user(
+    user_id: str, viewer_token: Optional[str] = None
+) -> list[dict]:
     # public_movie_log_entries excludes booking_ref/ticket_image_path/seats,
     # and only includes visibility IN ('anonymous', 'public') rows — see
     # migrations 20260710000003 and 20260810000001. Filtering by
     # `user_id=eq.<theirs>` here only ever matches 'public' rows: the view
     # nulls out user_id for 'anonymous' ones specifically so they can never
     # show up attributed to anyone, including on their own writer's profile.
-    # anon has no grant on movie_logs itself, only on this view.
+    # anon has no grant on movie_logs itself, only on this view. viewer_token
+    # is optional (this stays fully anonymous-callable) but matters for
+    # liked_by_caller, which only resolves to something real over the
+    # caller's own token.
     params = {
         'select': '*',
         'user_id': f'eq.{user_id}',
         'order': 'watched_date.desc',
     }
-    response = await _anon_request(
-        'GET', '/public_movie_log_entries', 'list_public_logs_for_user', params=params
+    response = await _optional_auth_get(
+        '/public_movie_log_entries', viewer_token, 'list_public_logs_for_user', params=params
     )
     return response.json()
 
 
-async def list_favorite_logs_for_user(user_id: str) -> list[dict]:
+async def list_favorite_logs_for_user(
+    user_id: str, viewer_token: Optional[str] = None
+) -> list[dict]:
     # Same view/user_id-nulling reasoning as list_public_logs_for_user
     # above — a `private` favorite already can't match here (its row is
     # excluded from the view entirely), so no separate visibility check
@@ -581,18 +588,22 @@ async def list_favorite_logs_for_user(user_id: str) -> list[dict]:
         'favorite_position': 'not.is.null',
         'order': 'favorite_position.asc',
     }
-    response = await _anon_request(
-        'GET', '/public_movie_log_entries', 'list_favorite_logs_for_user', params=params
+    response = await _optional_auth_get(
+        '/public_movie_log_entries', viewer_token, 'list_favorite_logs_for_user', params=params
     )
     return response.json()
 
 
 async def list_theatre_reviews(
-    theatre_id: str, *, limit: int, offset: int
+    theatre_id: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
 ) -> list[dict]:
     # Same view as list_public_logs_for_user, but scoped to a theatre
     # instead of a writer — this is where 'anonymous' entries actually
     # surface (they're deliberately excluded from anyone's own profile).
+    # viewer_token is optional (this stays fully anonymous-callable) but
+    # matters for liked_by_caller — that column reads auth.uid() inside
+    # the view, which only resolves to something real over the caller's
+    # own token, not the anon key.
     params = {
         'select': '*',
         'theatre_id': f'eq.{theatre_id}',
@@ -600,13 +611,15 @@ async def list_theatre_reviews(
         'limit': str(limit),
         'offset': str(offset),
     }
-    response = await _anon_request(
-        'GET', '/public_movie_log_entries', 'list_theatre_reviews', params=params
+    response = await _optional_auth_get(
+        '/public_movie_log_entries', viewer_token, 'list_theatre_reviews', params=params
     )
     return response.json()
 
 
-async def list_screen_reviews(screen_id: str, *, limit: int, offset: int) -> list[dict]:
+async def list_screen_reviews(
+    screen_id: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
     params = {
         'select': '*',
         'screen_id': f'eq.{screen_id}',
@@ -614,8 +627,8 @@ async def list_screen_reviews(screen_id: str, *, limit: int, offset: int) -> lis
         'limit': str(limit),
         'offset': str(offset),
     }
-    response = await _anon_request(
-        'GET', '/public_movie_log_entries', 'list_screen_reviews', params=params
+    response = await _optional_auth_get(
+        '/public_movie_log_entries', viewer_token, 'list_screen_reviews', params=params
     )
     return response.json()
 
@@ -704,6 +717,19 @@ async def is_movie_log_reportable(movie_log_id: str) -> bool:
         'GET', '/public_movie_log_entries', 'is_movie_log_reportable', params=params
     )
     return bool(response.json())
+
+
+async def get_like_count(movie_log_id: str) -> int:
+    # Liking someone else's log is the common case — get_movie_log is
+    # scoped to the caller's *own* rows (user_id = caller), wrong tool
+    # here. This reads through the same public view liking itself already
+    # required the log to appear in, regardless of whose log it is.
+    params = {'select': 'like_count', 'id': f'eq.{movie_log_id}', 'limit': '1'}
+    response = await _anon_request(
+        'GET', '/public_movie_log_entries', 'get_like_count', params=params
+    )
+    rows = response.json()
+    return rows[0]['like_count'] if rows else 0
 
 
 async def is_profile_reportable(user_id: str) -> bool:
@@ -979,7 +1005,9 @@ async def get_movie_stats(movie_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
-async def list_movie_reviews(movie_id: str, *, limit: int, offset: int) -> list[dict]:
+async def list_movie_reviews(
+    movie_id: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
     # Same public_movie_log_entries view theatre/screen reviews already use
     # (visibility in ('anonymous', 'public') only) — see list_theatre_reviews.
     params = {
@@ -989,8 +1017,8 @@ async def list_movie_reviews(movie_id: str, *, limit: int, offset: int) -> list[
         'limit': str(limit),
         'offset': str(offset),
     }
-    response = await _anon_request(
-        'GET', '/public_movie_log_entries', 'list_movie_reviews', params=params
+    response = await _optional_auth_get(
+        '/public_movie_log_entries', viewer_token, 'list_movie_reviews', params=params
     )
     return response.json()
 
@@ -1129,3 +1157,59 @@ async def delete_comment(
     )
     rows = response.json()
     return rows[0] if rows else None
+
+
+# ── Likes ────────────────────────────────────────────────────────────────
+# A single reaction, not a vote — no dislike/downvote exists anywhere in
+# this API. Both tables use the same (target_id, user_id) primary key
+# shape, so inserting twice is a clean conflict, not a double-count.
+
+async def like_movie_log(user_token: str, movie_log_id: str, user_id: str) -> int:
+    await _request(
+        'POST', '/movie_log_likes', user_token, 'like_movie_log',
+        json={'movie_log_id': movie_log_id, 'user_id': user_id},
+    )
+    return await get_like_count(movie_log_id)
+
+
+async def unlike_movie_log(user_token: str, movie_log_id: str, user_id: str) -> bool:
+    params = {'movie_log_id': f'eq.{movie_log_id}', 'user_id': f'eq.{user_id}'}
+    response = await _request(
+        'DELETE', '/movie_log_likes', user_token, 'unlike_movie_log',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
+async def like_comment(user_token: str, comment_id: str, user_id: str) -> dict[str, Any]:
+    await _request(
+        'POST', '/comment_likes', user_token, 'like_comment',
+        json={'comment_id': comment_id, 'user_id': user_id},
+    )
+    params = {'select': '*', 'id': f'eq.{comment_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/movie_log_comments', user_token, 'get_comment_after_like', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else {}
+
+
+async def unlike_comment(user_token: str, comment_id: str, user_id: str) -> bool:
+    params = {'comment_id': f'eq.{comment_id}', 'user_id': f'eq.{user_id}'}
+    response = await _request(
+        'DELETE', '/comment_likes', user_token, 'unlike_comment',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
+async def get_comment_like_count(user_token: str, comment_id: str) -> Optional[int]:
+    # None (not 0) when the comment doesn't exist or isn't visible to the
+    # caller — lets like_comment/unlike_comment tell "nothing to count"
+    # apart from "genuinely not found", instead of collapsing both to 0.
+    params = {'select': 'like_count', 'id': f'eq.{comment_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/movie_log_comments', user_token, 'get_comment_like_count', params=params
+    )
+    rows = response.json()
+    return rows[0]['like_count'] if rows else None

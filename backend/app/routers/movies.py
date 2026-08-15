@@ -8,7 +8,7 @@ just a free-typed title), not a bug to work around client-side.
 
 from typing import Annotated, Any, List, Optional
 
-from auth.supabase_auth import AuthenticatedUser, get_current_user
+from auth.supabase_auth import AuthenticatedUser, get_current_user, get_current_user_optional
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request, status
 from loguru_setup import LOGGER
@@ -162,5 +162,9 @@ async def movie_reviews(
     movie_id: str,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
 ) -> Any:
-    return await supabase_rest.list_movie_reviews(movie_id, limit=limit, offset=offset)
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.list_movie_reviews(
+        movie_id, limit=limit, offset=offset, viewer_token=viewer_token
+    )

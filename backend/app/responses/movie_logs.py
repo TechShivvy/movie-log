@@ -508,6 +508,33 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'like_log': {
+        200: {
+            'description': 'The updated like count. Liking twice is a no-op, not '
+            'an error — this is still returned, not a 4xx.',
+            'content': {'application/json': {'example': {'like_count': 4}}},
+        },
+        404: {
+            'description': "No log with this id, or it isn't currently public/"
+            'anonymous-visible (private, or archived).',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Movie log not found.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'unlike_log': {
+        200: {
+            'description': "The updated like count. Not having liked it in the "
+            'first place is a no-op, not an error.',
+            'content': {'application/json': {'example': {'like_count': 3}}},
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'delete_log': {
         204: {'description': 'Deleted — no response body.'},
         **_UNAUTHORIZED,
