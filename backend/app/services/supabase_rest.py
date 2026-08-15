@@ -417,6 +417,24 @@ async def get_screen_stats(screen_id: str) -> Optional[dict]:
     return rows[0] if rows else None
 
 
+async def get_theatre_punctuality_stats(theatre_id: str) -> Optional[dict]:
+    params = {'select': '*', 'theatre_id': f'eq.{theatre_id}', 'limit': '1'}
+    response = await _anon_request(
+        'GET', '/theatre_punctuality_stats', 'get_theatre_punctuality_stats', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def get_screen_punctuality_stats(screen_id: str) -> Optional[dict]:
+    params = {'select': '*', 'screen_id': f'eq.{screen_id}', 'limit': '1'}
+    response = await _anon_request(
+        'GET', '/screen_punctuality_stats', 'get_screen_punctuality_stats', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
 # ── Venue notes: private, per-user, one per (user, theatre)/(user, screen) ─
 
 async def get_venue_note(

@@ -15,6 +15,7 @@ from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.venues import responses
 from schemas.venues import (
+    PunctualityStats,
     Screen,
     ScreenCreate,
     ScreenMatchCandidate,
@@ -233,23 +234,37 @@ async def match_screens(
 @router.get(
     '/theatres/{theatre_id}/stats',
     tags=['Venues'],
-    description='Aggregate ratings across every screen at this theatre. Public — no '
-    'sign-in needed, unlike every other endpoint in this API.',
-    response_description='Aggregate rating stats for the theatre.',
+    description='Aggregate ratings across every screen at this theatre, plus '
+    '`punctuality` — screening on-time/early/delayed/cancelled counts and average '
+    'delay, rolled up the same way (regardless of a log\'s visibility, it\'s venue '
+    'signal not review content). The two are fetched and merged independently, not '
+    'one SQL join — a theatre can have one without the other (nobody\'s rated the '
+    "venue itself yet, but people have logged cancellations, or vice versa), so "
+    'this only 404s if *both* are completely empty. Public — no sign-in needed, '
+    'unlike every other endpoint in this API.',
+    response_description='Aggregate rating and punctuality stats for the theatre.',
     responses=responses['theatre_stats'],
     operation_id='GetTheatreStats',
 )
 @limiter.limit(_DEFAULT_LIMIT)
 async def theatre_stats(request: Request, theatre_id: str) -> Any:
     stats = await supabase_rest.get_theatre_stats(theatre_id)
-    if stats is None:
-        # Same for an unknown theatre_id and a real one with no ratings yet —
+    punctuality = await supabase_rest.get_theatre_punctuality_stats(theatre_id)
+    if stats is None and punctuality is None:
+        # Same for an unknown theatre_id and a real one with no stats yet —
         # distinguishing the two would need an extra existence check for
         # marginal benefit. Was previously returning `null` with a 200 here,
         # which is surprising for clients to handle correctly; a real error
         # code matches every other "not found" case in this API.
-        raise APIError(404, 'NOT_FOUND', 'No rating stats for this theatre yet.')
-    return stats
+        raise APIError(404, 'NOT_FOUND', 'No stats for this theatre yet.')
+    empty_rating_stats = {
+        'theatre_id': theatre_id, 'overall': {}, 'computed_at': None,
+        'overall_avg': None, 'screens_avg': None,
+    }
+    return {
+        **(stats or empty_rating_stats),
+        'punctuality': punctuality or PunctualityStats().model_dump(),
+    }
 
 
 @router.get(
@@ -347,17 +362,26 @@ async def delete_theatre_note(
 @router.get(
     '/screens/{screen_id}/stats',
     tags=['Venues'],
-    description='Aggregate ratings for a single screen. Public — no sign-in needed.',
-    response_description='Aggregate rating stats for the screen.',
+    description='Aggregate ratings for a single screen, plus `punctuality` — same '
+    'shape and same independent-fetch-and-merge reasoning as '
+    'GET /theatres/{id}/stats. Public — no sign-in needed.',
+    response_description='Aggregate rating and punctuality stats for the screen.',
     responses=responses['screen_stats'],
     operation_id='GetScreenStats',
 )
 @limiter.limit(_DEFAULT_LIMIT)
 async def screen_stats(request: Request, screen_id: str) -> Any:
     stats = await supabase_rest.get_screen_stats(screen_id)
-    if stats is None:
-        raise APIError(404, 'NOT_FOUND', 'No rating stats for this screen yet.')
-    return stats
+    punctuality = await supabase_rest.get_screen_punctuality_stats(screen_id)
+    if stats is None and punctuality is None:
+        raise APIError(404, 'NOT_FOUND', 'No stats for this screen yet.')
+    empty_rating_stats = {
+        'screen_id': screen_id, 'categories': {}, 'computed_at': None, 'overall_avg': None,
+    }
+    return {
+        **(stats or empty_rating_stats),
+        'punctuality': punctuality or PunctualityStats().model_dump(),
+    }
 
 
 @router.get(

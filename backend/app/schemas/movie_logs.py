@@ -72,7 +72,7 @@ def _check_seats(v: list[str]) -> list[str]:
 
 Visibility = Literal['private', 'anonymous', 'public']
 ArrivalStatus = Literal['early', 'on_time', 'late']
-ScreeningStartStatus = Literal['early', 'on_time', 'delayed']
+ScreeningStartStatus = Literal['early', 'on_time', 'delayed', 'cancelled']
 _MAX_PUNCTUALITY_DELTA_MINUTES = 300
 
 # Writable columns a client may set. Server-managed columns (id, user_id,
@@ -224,7 +224,9 @@ class MovieLogInput(BaseModel):
     screening_start_status: Optional[ScreeningStartStatus] = Field(
         default=None,
         description='Whether the movie itself started on time — "delayed", '
-        'not "late", since this describes the screening, not the caller.',
+        'not "late", since this describes the screening, not the caller. '
+        '"cancelled" for a screening that never started at all — no delta '
+        'makes sense for that, same as "on_time".',
     )
     screening_start_delta_minutes: Optional[int] = Field(
         default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES,

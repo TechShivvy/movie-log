@@ -384,19 +384,28 @@ responses = {
                         'overall_avg': 4.3,
                         'screens_avg': 4.2,
                         'computed_at': '2026-08-10T03:31:15.977764+00:00',
+                        'punctuality': {
+                            'on_time_count': 5,
+                            'early_count': 1,
+                            'delayed_count': 3,
+                            'cancelled_count': 0,
+                            'avg_delay_minutes': 12.3,
+                            'total_count': 9,
+                        },
                     }
                 }
             },
         },
         404: {
-            'description': "No rating stats yet — either the theatre doesn't exist, "
-            "or it does but has no venue ratings yet. (Both look the same here; if "
-            "you need to tell them apart, check GET /theatres/{id}/screens instead.)",
+            'description': "No stats yet at all — either the theatre doesn't exist, "
+            "or it does but has no venue ratings and no punctuality data yet. "
+            "(Both look the same here; if you need to tell them apart, check "
+            "GET /theatres/{id}/screens instead.)",
             'content': {
                 'application/json': {
                     'example': {
                         'code': 'NOT_FOUND',
-                        'message': 'No rating stats for this theatre yet.',
+                        'message': 'No stats for this theatre yet.',
                     }
                 }
             },
@@ -423,18 +432,26 @@ responses = {
                         },
                         'overall_avg': 4.3,
                         'computed_at': '2026-08-10T03:31:15.977764+00:00',
+                        'punctuality': {
+                            'on_time_count': 3,
+                            'early_count': 0,
+                            'delayed_count': 2,
+                            'cancelled_count': 0,
+                            'avg_delay_minutes': 8.5,
+                            'total_count': 5,
+                        },
                     }
                 }
             },
         },
         404: {
-            'description': "No rating stats yet — either the screen doesn't exist, "
-            'or it does but has no venue ratings yet.',
+            'description': "No stats yet at all — either the screen doesn't exist, "
+            'or it does but has no venue ratings and no punctuality data yet.',
             'content': {
                 'application/json': {
                     'example': {
                         'code': 'NOT_FOUND',
-                        'message': 'No rating stats for this screen yet.',
+                        'message': 'No stats for this screen yet.',
                     }
                 }
             },

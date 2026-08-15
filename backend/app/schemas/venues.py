@@ -170,3 +170,34 @@ class VenueNote(BaseModel):
     updated_at: str
 
     model_config = ConfigDict(extra='ignore')
+
+class PunctualityStats(BaseModel):
+    """Aggregate screening punctuality at a theatre or screen — same
+    "venue signal, counts regardless of visibility" reasoning as the star
+    ratings, sourced from movie_logs.screening_start_status/_delta_minutes
+    rather than visit_venue_ratings. `total_count` only ever counts logs
+    where screening_start_status was actually set — most logs won't have
+    an opinion on this, that's expected, not missing data."""
+
+    on_time_count: int = 0
+    early_count: int = 0
+    delayed_count: int = 0
+    cancelled_count: int = 0
+    avg_delay_minutes: Optional[float] = Field(
+        default=None, description='Average of screening_start_delta_minutes '
+        "among delayed screenings only — doesn't include early/on_time/cancelled."
+    )
+    total_count: int = 0
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'on_time_count': 5,
+                'early_count': 1,
+                'delayed_count': 3,
+                'cancelled_count': 0,
+                'avg_delay_minutes': 12.3,
+                'total_count': 9,
+            }
+        }
+    )
