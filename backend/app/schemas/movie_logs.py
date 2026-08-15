@@ -7,7 +7,7 @@ database (accessed through Supabase PostgREST under the caller's RLS scope).
 import re
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from schemas._validators import validate_storage_path
 
 _ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -71,6 +71,9 @@ def _check_seats(v: list[str]) -> list[str]:
     return expanded
 
 Visibility = Literal['private', 'anonymous', 'public']
+ArrivalStatus = Literal['early', 'on_time', 'late']
+ScreeningStartStatus = Literal['early', 'on_time', 'delayed']
+_MAX_PUNCTUALITY_DELTA_MINUTES = 300
 
 # Writable columns a client may set. Server-managed columns (id, user_id,
 # created_at, updated_at, verified, verified_at, verified_source) are
@@ -96,6 +99,10 @@ WRITABLE_FIELDS = (
     'screen_id',
     'movie_id',
     'visibility',
+    'arrival_status',
+    'arrival_delta_minutes',
+    'screening_start_status',
+    'screening_start_delta_minutes',
 )
 
 
@@ -203,6 +210,35 @@ class MovieLogInput(BaseModel):
         "that would defeat the point. 'public': visible on both, attributed "
         "to the owner's username.",
     )
+    arrival_status: Optional[ArrivalStatus] = Field(
+        default=None,
+        description="How the caller's own arrival compared to their booked "
+        'showtime — independent of screening_start_status (you can arrive '
+        'late to an on-time screening, or early to a delayed one).',
+    )
+    arrival_delta_minutes: Optional[int] = Field(
+        default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES,
+        description='Optional, only meaningful alongside arrival_status '
+        "early/late — 'late' without a number is still a valid entry.",
+    )
+    screening_start_status: Optional[ScreeningStartStatus] = Field(
+        default=None,
+        description='Whether the movie itself started on time — "delayed", '
+        'not "late", since this describes the screening, not the caller.',
+    )
+    screening_start_delta_minutes: Optional[int] = Field(
+        default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES,
+        description='Optional, only meaningful alongside screening_start_status '
+        "early/delayed — 'delayed' without a number is still a valid entry.",
+    )
+
+    @model_validator(mode='after')
+    def _check_punctuality_pairs(self) -> 'MovieLogInput':
+        if self.arrival_delta_minutes is not None and self.arrival_status not in ('early', 'late'):
+            raise ValueError('arrival_delta_minutes requires arrival_status to be early or late')
+        if self.screening_start_delta_minutes is not None and self.screening_start_status not in ('early', 'delayed'):
+            raise ValueError('screening_start_delta_minutes requires screening_start_status to be early or delayed')
+        return self
 
     @field_validator('watched_date')
     @classmethod
@@ -297,6 +333,21 @@ class MovieLogUpdate(BaseModel):
         default=None, description='FK into public.movies — see MovieLogInput.movie_id'
     )
     visibility: Optional[Visibility] = Field(default=None)
+    arrival_status: Optional[ArrivalStatus] = Field(default=None)
+    arrival_delta_minutes: Optional[int] = Field(
+        default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES
+    )
+    screening_start_status: Optional[ScreeningStartStatus] = Field(default=None)
+    screening_start_delta_minutes: Optional[int] = Field(
+        default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES
+    )
+    # No cross-field validator here unlike MovieLogInput's
+    # _check_punctuality_pairs — this is a partial update, Pydantic can't
+    # see whether arrival_status was already set by a prior call, so it
+    # can't safely reject "just updating the delta" the way create can
+    # reject an inconsistent pair up front. The DB constraint (which sees
+    # the row's final state after the patch, not just this payload) is
+    # what actually enforces this on update.
 
     @field_validator('watched_date')
     @classmethod
