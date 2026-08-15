@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru_setup import LOGGER
 from middlewares import middleware
-from routers import auth, dev_oauth, follows, movie_logs, movie_metadata, movies, notifications, reports, root, venues, public_profile
+from routers import auth, comments, dev_oauth, follows, movie_logs, movie_metadata, movies, notifications, reports, root, venues, public_profile
 from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -134,6 +134,14 @@ def create_app() -> FastAPI:
                 'state, not a bug.',
             },
             {
+                'name': 'Comments',
+                'description': 'Comments on a log, with one level of replies. Flat '
+                'resource filtered by movie_log_id, not nested under /movie-logs — '
+                "only on a currently public/anonymous-visible, non-archived log; "
+                'deleting always clears the text and keeps the row (so replies '
+                "never orphan) rather than a real delete.",
+            },
+            {
                 'name': 'Notifications',
                 'description': "The caller's own follow/request notifications — "
                 'read + mark-read only, rows are written exclusively by database '
@@ -186,6 +194,7 @@ def create_app() -> FastAPI:
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
     app.include_router(movies.router, prefix=f'{api_prefix}/movies')
+    app.include_router(comments.router, prefix=f'{api_prefix}/comments')
     app.include_router(public_profile.router, prefix=f'{api_prefix}/public')
     app.include_router(follows.router, prefix=f'{api_prefix}/public')
     app.include_router(notifications.router, prefix=f'{api_prefix}/notifications')

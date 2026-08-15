@@ -6,6 +6,7 @@ is sent as the required ``apikey`` header.
 """
 
 import time
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -1031,3 +1032,100 @@ async def export_venue_notes(user_token: str, user_id: str) -> list[dict[str, An
         'GET', '/venue_notes', user_token, 'export_venue_notes', params=params
     )
     return response.json()
+
+
+# ── Comments ─────────────────────────────────────────────────────────────
+
+async def _optional_auth_get(
+    path: str, viewer_token: Optional[str], operation: str, *, params: dict[str, Any]
+) -> httpx.Response:
+    # movie_log_comments_view reads auth.uid() itself (to allow the log's own
+    # owner to see comments regardless of visibility) — only meaningful with
+    # the caller's real token; no token still works, auth.uid() is simply
+    # null, same "no token = anonymous, not a special case" shape used
+    # everywhere else optional auth appears in this file.
+    if viewer_token:
+        return await _request('GET', path, viewer_token, operation, params=params)
+    return await _anon_request('GET', path, operation, params=params)
+
+
+async def list_comments(
+    viewer_token: Optional[str], movie_log_id: str, *, limit: int, offset: int
+) -> list[dict[str, Any]]:
+    top_level_params = {
+        'select': '*',
+        'movie_log_id': f'eq.{movie_log_id}',
+        'parent_comment_id': 'is.null',
+        'order': 'created_at.asc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _optional_auth_get(
+        '/movie_log_comments_view', viewer_token, 'list_comments', params=top_level_params
+    )
+    top_level = response.json()
+    for comment in top_level:
+        comment['replies'] = []
+    if not top_level:
+        return top_level
+
+    # One extra query for every reply to this page's top-level comments —
+    # not paginated separately, this is deliberately shallow (one level),
+    # so a "load more replies" call isn't needed the way it would be for
+    # real threading.
+    ids = ','.join(c['id'] for c in top_level)
+    reply_params = {
+        'select': '*',
+        'parent_comment_id': f'in.({ids})',
+        'order': 'created_at.asc',
+    }
+    reply_response = await _optional_auth_get(
+        '/movie_log_comments_view', viewer_token, 'list_comment_replies', params=reply_params
+    )
+    by_parent: dict[str, list[dict[str, Any]]] = {}
+    for reply in reply_response.json():
+        by_parent.setdefault(reply['parent_comment_id'], []).append(reply)
+    for comment in top_level:
+        comment['replies'] = by_parent.get(comment['id'], [])
+    return top_level
+
+
+async def create_comment(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST', '/movie_log_comments', user_token, 'create_comment',
+        json=row, prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created
+
+
+async def update_comment(
+    user_token: str, user_id: str, comment_id: str, text: str
+) -> Optional[dict[str, Any]]:
+    params = {'id': f'eq.{comment_id}', 'user_id': f'eq.{user_id}', 'deleted_at': 'is.null'}
+    response = await _request(
+        'PATCH', '/movie_log_comments', user_token, 'update_comment',
+        params=params, json={'text': text}, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def delete_comment(
+    user_token: str, user_id: str, comment_id: str
+) -> Optional[dict[str, Any]]:
+    # Always a soft delete — clears text, sets deleted_at — never a real
+    # DELETE, regardless of whether this comment has replies: one code
+    # path, not a conditional hard/soft split. deleted_at: is.null in the
+    # filter makes this idempotent-safe (a second delete finds no matching
+    # row rather than re-clearing an already-cleared comment) and lets the
+    # caller distinguish "not found" from "already deleted" the same way.
+    params = {'id': f'eq.{comment_id}', 'user_id': f'eq.{user_id}', 'deleted_at': 'is.null'}
+    response = await _request(
+        'PATCH', '/movie_log_comments', user_token, 'delete_comment',
+        params=params,
+        json={'text': None, 'deleted_at': datetime.now(timezone.utc).isoformat()},
+        prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
