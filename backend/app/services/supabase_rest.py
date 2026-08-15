@@ -149,6 +149,34 @@ async def list_movie_logs(
     return response.json()
 
 
+async def search_movie_logs(
+    user_token: str,
+    *,
+    query: str,
+    theatre_id: Optional[str] = None,
+    screen_id: Optional[str] = None,
+    sort: str,
+    order: str,
+    limit: int,
+    offset: int,
+) -> list[dict[str, Any]]:
+    # p_favorites_only is added to the RPC signature in Phase 2
+    # (20260813000008) — this call is extended to match then, not before.
+    body = {
+        'p_query': query,
+        'p_theatre_id': theatre_id,
+        'p_screen_id': screen_id,
+        'p_sort': sort,
+        'p_order': order,
+        'p_limit': limit,
+        'p_offset': offset,
+    }
+    response = await _request(
+        'POST', '/rpc/search_movie_logs', user_token, 'search_movie_logs', json=body
+    )
+    return response.json()
+
+
 async def get_movie_log(
     user_token: str, user_id: str, log_id: str
 ) -> Optional[dict[str, Any]]:

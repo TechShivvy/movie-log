@@ -258,6 +258,20 @@ responses = {
         **_VALIDATION,
         **_UPSTREAM,
     },
+    'search_logs': {
+        200: {
+            'description': "Matching logs from the caller's own history, most "
+            'relevant first by default.',
+            'content': {
+                'application/json': {
+                    'example': [{**_MOVIE_LOG_EXAMPLE, 'matched_fields': ['theater', 'notes']}]
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_QUERY,
+        **_UPSTREAM,
+    },
     'export_logs': {
         200: {
             'description': 'All of the caller\'s logs, for backup/migration.',

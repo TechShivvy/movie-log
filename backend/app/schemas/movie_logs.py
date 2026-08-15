@@ -363,3 +363,17 @@ class MovieLog(MovieLogInput):
         'equivalent of Reddit/GitHub\'s "(edited)" marker — non-null is the '
         'flag, the timestamp itself is free extra context ("edited 3 days ago").',
     )
+
+
+class MovieLogSearchResult(MovieLog):
+    """GET /movie-logs/search's response shape — every MovieLog field plus
+    which ones matched the query, for the frontend to highlight. The
+    matched value itself isn't duplicated here — it's already on the row
+    (e.g. `theater`) — this only flags which fields to visually emphasize."""
+
+    matched_fields: List[str] = Field(
+        default_factory=list,
+        description="Which of movie/theater/screen/seats/language/notes the "
+        "query matched, e.g. [\"theater\", \"notes\"] — not a duplicate of "
+        "their values, those are already on this same object.",
+    )

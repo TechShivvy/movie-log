@@ -13,7 +13,13 @@ from config import settings
 from fastapi import APIRouter, Body, Depends, Query, Request, status
 from loguru_setup import LOGGER
 from responses.movie_logs import responses
-from schemas.movie_logs import WRITABLE_FIELDS, MovieLog, MovieLogInput, MovieLogUpdate
+from schemas.movie_logs import (
+    WRITABLE_FIELDS,
+    MovieLog,
+    MovieLogInput,
+    MovieLogSearchResult,
+    MovieLogUpdate,
+)
 from schemas.venues import VenueRatingInput
 from services import supabase_rest
 from utils.errors import APIError
@@ -185,6 +191,51 @@ async def import_logs(
         'import_logs user={} count={}', _uid(current_user.user_id), len(created)
     )
     return {'imported': len(created), 'items': created}
+
+
+@router.get(
+    '/search',
+    response_model=List[MovieLogSearchResult],
+    tags=['Movie Logs'],
+    description="Fuzzy, multi-field search over the caller's own logs — movie, "
+    "theater, screen, seats, language, and notes are all matched (trigram "
+    "similarity, not exact substring), so a partial or slightly-misspelled "
+    "query still finds a log. Each result's `matched_fields` names which of "
+    "those six actually matched, for the frontend to highlight — not a "
+    "duplicate of their values, those are already on the same object. "
+    "`theatre_id`/`screen_id` narrow the search server-side (same filters "
+    "GET / already has; `favorites_only` joins them once favoriting ships), "
+    "and `sort`/`order` are also applied server-side — both matter once "
+    "there's more than one page of matches, where a client-side version "
+    "would silently only affect the currently-loaded page. Registered "
+    "before GET /{log_id} so the literal path segment \"search\" is never "
+    "swallowed by that route's {log_id} pattern.",
+    response_description='Matching logs, most relevant first by default.',
+    responses=responses['search_logs'],
+    operation_id='SearchMovieLogs',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def search_logs(
+    request: Request,
+    q: Annotated[str, Query(min_length=1, max_length=300)],
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    theatre_id: Annotated[str | None, Query()] = None,
+    screen_id: Annotated[str | None, Query()] = None,
+    sort: Literal['relevance', 'created_at', 'updated_at', 'watched_date', 'movie'] = 'relevance',
+    order: Literal['asc', 'desc'] = 'desc',
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.search_movie_logs(
+        current_user.access_token,
+        query=q,
+        theatre_id=theatre_id,
+        screen_id=screen_id,
+        sort=sort,
+        order=order,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
