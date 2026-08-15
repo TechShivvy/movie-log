@@ -15,6 +15,11 @@ from utils.errors import APIError
 
 _TABLE = 'movie_logs'
 _TIMEOUT = 15.0
+# time_of_day is a PostgREST computed column (movie_logs_time_of_day, migration
+# 20260813000012) -- a pure function of watched_time, never stored, so every
+# select against movie_logs asks for it by name alongside a plain '*' rather
+# than needing its own column.
+_MOVIE_LOG_SELECT = '*,time_of_day:movie_logs_time_of_day'
 
 
 def _rest_base() -> str:
@@ -124,7 +129,7 @@ async def list_movie_logs(
     favorites_only: bool = False,
 ) -> list[dict[str, Any]]:
     params = {
-        'select': '*',
+        'select': _MOVIE_LOG_SELECT,
         'user_id': f'eq.{user_id}',
         'order': order,
         'limit': str(limit),
@@ -186,7 +191,7 @@ async def set_favorite(user_token: str, log_id: str, position: int) -> dict[str,
     # both in one function call, no separate "clear the old slot first" step.
     response = await _request(
         'POST', '/rpc/set_favorite_position', user_token, 'set_favorite',
-        json={'p_log_id': log_id, 'p_position': position},
+        params={'select': _MOVIE_LOG_SELECT}, json={'p_log_id': log_id, 'p_position': position},
     )
     result = response.json()
     return result[0] if isinstance(result, list) else result
@@ -211,7 +216,7 @@ async def get_movie_log(
     user_token: str, user_id: str, log_id: str
 ) -> Optional[dict[str, Any]]:
     params = {
-        'select': '*',
+        'select': _MOVIE_LOG_SELECT,
         'id': f'eq.{log_id}',
         'user_id': f'eq.{user_id}',
         'limit': '1',
@@ -229,6 +234,7 @@ async def create_movie_log(user_token: str, row: dict[str, Any]) -> dict[str, An
         f'/{_TABLE}',
         user_token,
         'create_movie_log',
+        params={'select': _MOVIE_LOG_SELECT},
         json=row,
         prefer='return=representation',
     )
@@ -239,7 +245,9 @@ async def create_movie_log(user_token: str, row: dict[str, Any]) -> dict[str, An
 async def update_movie_log(
     user_token: str, user_id: str, log_id: str, patch: dict[str, Any]
 ) -> Optional[dict[str, Any]]:
-    params = {'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}'}
+    params = {
+        'select': _MOVIE_LOG_SELECT, 'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}',
+    }
     response = await _request(
         'PATCH',
         f'/{_TABLE}',
@@ -304,7 +312,7 @@ async def delete_private_movie_logs(user_token: str, user_id: str) -> None:
 
 async def export_movie_logs(user_token: str, user_id: str) -> list[dict[str, Any]]:
     params = {
-        'select': '*',
+        'select': _MOVIE_LOG_SELECT,
         'user_id': f'eq.{user_id}',
         'order': 'created_at.desc',
     }
@@ -322,6 +330,7 @@ async def import_movie_logs(
         f'/{_TABLE}',
         user_token,
         'import_movie_logs',
+        params={'select': _MOVIE_LOG_SELECT},
         json=rows,
         prefer='return=representation',
     )
@@ -994,7 +1003,7 @@ async def export_movie_logs_with_ratings(user_token: str, user_id: str) -> list[
     # instead of fetching logs and ratings separately and joining in
     # Python. A log with no rating gets an empty array back, not null.
     params = {
-        'select': '*,venue_rating:visit_venue_ratings(screen_rating,speaker_rating,ac_rating,seat_rating)',
+        'select': f'{_MOVIE_LOG_SELECT},venue_rating:visit_venue_ratings(screen_rating,speaker_rating,ac_rating,seat_rating)',
         'user_id': f'eq.{user_id}',
         'order': 'created_at.desc',
     }

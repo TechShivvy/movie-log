@@ -73,6 +73,7 @@ def _check_seats(v: list[str]) -> list[str]:
 Visibility = Literal['private', 'anonymous', 'public']
 ArrivalStatus = Literal['early', 'on_time', 'late']
 ScreeningStartStatus = Literal['early', 'on_time', 'delayed', 'cancelled']
+TimeOfDay = Literal['morning', 'afternoon', 'evening', 'night']
 _MAX_PUNCTUALITY_DELTA_MINUTES = 300
 
 # Writable columns a client may set. Server-managed columns (id, user_id,
@@ -103,6 +104,8 @@ WRITABLE_FIELDS = (
     'arrival_delta_minutes',
     'screening_start_status',
     'screening_start_delta_minutes',
+    'is_fdfs',
+    'is_first_day',
 )
 
 
@@ -233,6 +236,23 @@ class MovieLogInput(BaseModel):
         description='Optional, only meaningful alongside screening_start_status '
         "early/delayed — 'delayed' without a number is still a valid entry.",
     )
+    is_fdfs: bool = Field(
+        default=False,
+        description='First Day First Show — the very first screening of this '
+        "movie's opening day, not just any showing on that day. Not derivable "
+        "from watched_time alone (no canonical \"first show\" registry to check "
+        'against), stays an explicit, manually-set fact. Setting this true '
+        'forces is_first_day true too, in the same call — you don\'t need to '
+        'send both.',
+    )
+    is_first_day: bool = Field(
+        default=False,
+        description="Watched on the movie's opening day (any showing, not "
+        'necessarily the first). Also not derivable from watched_time alone — '
+        "would need the movie's real release date (from a linked movie_id) "
+        'compared against watched_date, which this app doesn\'t do '
+        'automatically; stays explicit like is_fdfs.',
+    )
 
     @model_validator(mode='after')
     def _check_punctuality_pairs(self) -> 'MovieLogInput':
@@ -240,6 +260,18 @@ class MovieLogInput(BaseModel):
             raise ValueError('arrival_delta_minutes requires arrival_status to be early or late')
         if self.screening_start_delta_minutes is not None and self.screening_start_status not in ('early', 'delayed'):
             raise ValueError('screening_start_delta_minutes requires screening_start_status to be early or delayed')
+        return self
+
+    @model_validator(mode='after')
+    def _fdfs_implies_first_day(self) -> 'MovieLogInput':
+        # One-directional, always safe to apply regardless of what else is in
+        # this payload: turning FDFS on always also turns first_day on, in
+        # the same call — the frontend gets this UX for free by sending only
+        # is_fdfs, and a raw API call bypassing the frontend can't produce an
+        # inconsistent state either. The DB carries the same rule as a CHECK
+        # constraint, defense in depth for anything reaching PostgREST directly.
+        if self.is_fdfs:
+            self.is_first_day = True
         return self
 
     @field_validator('watched_date')
@@ -343,13 +375,24 @@ class MovieLogUpdate(BaseModel):
     screening_start_delta_minutes: Optional[int] = Field(
         default=None, ge=0, le=_MAX_PUNCTUALITY_DELTA_MINUTES
     )
+    is_fdfs: Optional[bool] = Field(default=None)
+    is_first_day: Optional[bool] = Field(default=None)
     # No cross-field validator here unlike MovieLogInput's
     # _check_punctuality_pairs — this is a partial update, Pydantic can't
     # see whether arrival_status was already set by a prior call, so it
     # can't safely reject "just updating the delta" the way create can
     # reject an inconsistent pair up front. The DB constraint (which sees
     # the row's final state after the patch, not just this payload) is
-    # what actually enforces this on update.
+    # what actually enforces this on update. The FDFS coupling below is
+    # different — safe on a partial update, since it only ever forces a
+    # value forward, it never needs to know prior row state to decide
+    # whether to reject something.
+
+    @model_validator(mode='after')
+    def _fdfs_implies_first_day(self) -> 'MovieLogUpdate':
+        if self.is_fdfs:
+            self.is_first_day = True
+        return self
 
     @field_validator('watched_date')
     @classmethod
@@ -434,6 +477,13 @@ class MovieLog(MovieLogInput):
         ".../favorite, not via PATCH — it has its own business rule (moving "
         "another log out of a taken slot) that doesn't belong in a general "
         'field update.',
+    )
+    time_of_day: Optional[TimeOfDay] = Field(
+        default=None,
+        description='Computed from watched_time (morning <12:00, afternoon '
+        '<17:00, evening <21:00, else night) — never stored, always derived on '
+        'read, so it can never drift from watched_time. Read-only: not settable '
+        'via POST/PATCH, sending it has no effect.',
     )
 
 

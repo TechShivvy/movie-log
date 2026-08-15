@@ -30,9 +30,19 @@ _MOVIE_LOG_EXAMPLE = {
     'ticket_image_path': None,
     'theatre_id': None,
     'screen_id': None,
+    'movie_id': None,
     'visibility': 'private',
+    'arrival_status': None,
+    'arrival_delta_minutes': None,
+    'screening_start_status': None,
+    'screening_start_delta_minutes': None,
+    'is_fdfs': False,
+    'is_first_day': False,
+    'time_of_day': 'night',
     'created_at': '2026-08-10T03:30:16.719405+00:00',
     'updated_at': '2026-08-10T03:30:16.719405+00:00',
+    'edited_at': None,
+    'favorite_position': None,
 }
 
 _UNAUTHORIZED = {
