@@ -59,14 +59,18 @@ async def me(
     'private content is removed, shared contributions are kept and anonymized '
     'instead: `private` movie logs, follow/block relationships, '
     'venue notes, profile (username/bio/avatar/links), and any reports the '
-    'caller filed are all removed; `public`/`anonymous` movie logs and their '
-    'venue ratings are kept (so theatre/screen review pages and rating '
-    'averages the caller contributed to don\'t retroactively change), just no '
-    'longer attributed to anyone — the same "username: null" shape already '
-    'used for a profile that never set one. Irreversible. Requires '
-    '`{"confirm": true}` in the body — DELETE requests commonly go out with '
-    'no body at all, this exists to stop a bodyless/accidental call from '
-    'going through; the bearer token is the real authorization.',
+    'caller filed are all removed; `public`/`anonymous` movie logs, their '
+    'venue ratings, and their comments (including replies the caller left on '
+    'other people\'s logs) are kept (so theatre/screen review pages, rating '
+    'averages, and comment threads the caller contributed to don\'t '
+    'retroactively change or orphan), just no longer attributed to anyone — '
+    'the same "username: null" shape already used for a profile that never '
+    'set one. Likes the caller gave or received are removed outright, not '
+    'anonymized — a like carries no content worth keeping once its giver is '
+    'gone. Irreversible. Requires `{"confirm": true}` in the body — DELETE '
+    'requests commonly go out with no body at all, this exists to stop a '
+    'bodyless/accidental call from going through; the bearer token is the '
+    'real authorization.',
     response_description='No content — the account and its owned data are gone.',
     responses=responses['delete_account'],
     operation_id='DeleteAccount',
