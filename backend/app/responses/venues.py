@@ -16,6 +16,7 @@ _THEATRE_EXAMPLE = {
     'place_id': 'ChIJ_______example_______',
     'formatted_address': 'Nexus Mall, Vadapalani, Chennai, Tamil Nadu 600026',
     'source': 'google_places',
+    'status': 'open',
 }
 
 _SCREEN_EXAMPLE = {
@@ -23,6 +24,7 @@ _SCREEN_EXAMPLE = {
     'theatre_id': _THEATRE_EXAMPLE['id'],
     'name': 'Screen 4 - IMAX',
     'screen_type': 'IMAX',
+    'status': 'open',
 }
 
 _THEATRE_NOTE_EXAMPLE = {
@@ -291,6 +293,38 @@ responses = {
         **_VALIDATION,
         **_UPSTREAM,
     },
+    'set_theatre_status': {
+        200: {
+            'description': 'The updated theatre.',
+            'content': {
+                'application/json': {
+                    'example': {**_THEATRE_EXAMPLE, 'status': 'closed'},
+                }
+            },
+        },
+        403: {
+            'description': "Caller isn't in ADMIN_USER_IDS.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'FORBIDDEN',
+                        'message': 'This action requires admin access.',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'No theatre with this id.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Theatre not found.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
     'match_screens': {
         200: {
             'description': 'Candidate screens at this theatre ranked by name '
@@ -351,6 +385,38 @@ responses = {
                             },
                         },
                     }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'set_screen_status': {
+        200: {
+            'description': 'The updated screen.',
+            'content': {
+                'application/json': {
+                    'example': {**_SCREEN_EXAMPLE, 'status': 'renovation'},
+                }
+            },
+        },
+        403: {
+            'description': "Caller isn't in ADMIN_USER_IDS.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'FORBIDDEN',
+                        'message': 'This action requires admin access.',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'No screen with this id.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Screen not found.'}
                 }
             },
         },

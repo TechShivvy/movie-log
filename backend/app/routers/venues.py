@@ -8,7 +8,7 @@ similarity is only ever used for the prompt, never for auto-merging).
 
 from typing import Annotated, Any, List
 
-from auth.supabase_auth import AuthenticatedUser, get_current_user
+from auth.supabase_auth import AuthenticatedUser, get_current_admin, get_current_user
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request
 from loguru_setup import LOGGER
@@ -28,8 +28,9 @@ from schemas.venues import (
     TheatreSearchRequest,
     VenueNote,
     VenueNoteInput,
+    VenueStatusUpdate,
 )
-from services import google_places, supabase_rest
+from services import google_places, supabase_admin, supabase_rest
 from utils.errors import APIError
 
 router = APIRouter()
@@ -164,6 +165,34 @@ async def create_theatre(
     return await supabase_rest.create_theatre(current_user.access_token, row)
 
 
+@router.patch(
+    '/theatres/{theatre_id}/status',
+    response_model=Theatre,
+    tags=['Venues'],
+    description='Admin-only: mark a theatre open/closed/renovation. This is '
+    'shared directory data referenced by many users\' history — a false claim '
+    'here misleads everyone who sees this theatre afterward, same reasoning '
+    'that\'s kept theatre editing out of scope generally — so this needs the '
+    'same allowlist gate (ADMIN_USER_IDS) report triage already uses, not a '
+    'crowd-sourced write. Never hides the theatre from search/match/history, '
+    'purely an annotation for the frontend to badge.',
+    response_description='The updated theatre.',
+    responses=responses['set_theatre_status'],
+    operation_id='SetTheatreStatus',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_theatre_status(
+    request: Request,
+    theatre_id: str,
+    payload: VenueStatusUpdate,
+    admin: AuthenticatedUser = Depends(get_current_admin),
+) -> Any:
+    updated = await supabase_admin.update_theatre_status(theatre_id, payload.status)
+    if updated is None:
+        raise APIError(404, 'NOT_FOUND', 'Theatre not found.')
+    return updated
+
+
 @router.get(
     '/theatres/{theatre_id}/screens',
     response_model=List[Screen],
@@ -204,6 +233,29 @@ async def create_screen(
     row['theatre_id'] = theatre_id
     row['created_by'] = current_user.user_id
     return await supabase_rest.create_screen(current_user.access_token, row)
+
+
+@router.patch(
+    '/screens/{screen_id}/status',
+    response_model=Screen,
+    tags=['Venues'],
+    description='Admin-only: mark a screen open/closed/renovation. Same '
+    'shape and same admin-only reasoning as PATCH /theatres/{id}/status.',
+    response_description='The updated screen.',
+    responses=responses['set_screen_status'],
+    operation_id='SetScreenStatus',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_screen_status(
+    request: Request,
+    screen_id: str,
+    payload: VenueStatusUpdate,
+    admin: AuthenticatedUser = Depends(get_current_admin),
+) -> Any:
+    updated = await supabase_admin.update_screen_status(screen_id, payload.status)
+    if updated is None:
+        raise APIError(404, 'NOT_FOUND', 'Screen not found.')
+    return updated
 
 
 @router.post(

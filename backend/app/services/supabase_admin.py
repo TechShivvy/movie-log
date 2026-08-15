@@ -186,3 +186,28 @@ async def delete_movie_log_as_admin(log_id: str) -> bool:
         params=params, prefer='return=representation',
     )
     return bool(response.json())
+
+
+async def update_theatre_status(theatre_id: str, status: str) -> Optional[dict[str, Any]]:
+    # theatres has no RLS UPDATE policy at all (only select/insert grants) —
+    # ADMIN_USER_IDS lives in backend settings, not the database, so there's
+    # nothing for a Postgres policy to check. get_current_admin gates who can
+    # reach this code path; the write itself goes through the service-role
+    # key, same as report triage.
+    params = {'id': f'eq.{theatre_id}'}
+    response = await _rest_request(
+        'PATCH', '/theatres', 'update_theatre_status',
+        params=params, json={'status': status}, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def update_screen_status(screen_id: str, status: str) -> Optional[dict[str, Any]]:
+    params = {'id': f'eq.{screen_id}'}
+    response = await _rest_request(
+        'PATCH', '/screens', 'update_screen_status',
+        params=params, json={'status': status}, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None

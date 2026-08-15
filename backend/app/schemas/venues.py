@@ -1,5 +1,7 @@
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+VenueStatus = Literal['open', 'closed', 'renovation']
 
 
 def _check_half_star(v: Optional[float]) -> Optional[float]:
@@ -50,6 +52,13 @@ class Theatre(TheatreCreate):
         "server-side from a real Google Places place_id; 'user_submitted' if "
         "it was free-typed with no place_id to back it. Not client-settable "
         '— the server decides this from whether place_id resolved.',
+    )
+    status: VenueStatus = Field(
+        default='open',
+        description="'closed'/'renovation' don't hide the theatre from search/"
+        'match/history — historical logs still reference it — this is purely '
+        'an annotation for the frontend to badge. Admin-only to change, see '
+        'PATCH /theatres/{id}/status.',
     )
     model_config = ConfigDict(extra='ignore')
 
@@ -119,7 +128,18 @@ class ScreenCreate(BaseModel):
 class Screen(ScreenCreate):
     id: str
     theatre_id: str
+    status: VenueStatus = Field(
+        default='open',
+        description='Same shape as Theatre.status — admin-only to change, see '
+        'PATCH /screens/{id}/status.',
+    )
     model_config = ConfigDict(extra='ignore')
+
+
+class VenueStatusUpdate(BaseModel):
+    status: VenueStatus
+
+    model_config = ConfigDict(json_schema_extra={'example': {'status': 'closed'}})
 
 
 class VenueRatingInput(BaseModel):
