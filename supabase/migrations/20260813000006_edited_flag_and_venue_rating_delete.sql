@@ -1,7 +1,7 @@
 -- Three independent fixes found by auditing CRUD completeness end to end:
 --
--- 1. movie_logs.edited_at: a Reddit/GitHub-style "this was edited after
---    posting" signal. Deliberately its own column, not derived from
+-- 1. movie_logs.edited_at: a visible "this was edited after posting"
+--    signal. Deliberately its own column, not derived from
 --    updated_at > created_at -- updated_at is bumped by every UPDATE,
 --    including ones that aren't a content edit at all (e.g. the account-
 --    deletion FK nulling movie_logs.user_id to null, migration

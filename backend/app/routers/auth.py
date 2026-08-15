@@ -56,7 +56,8 @@ async def me(
     tags=['Auth'],
     status_code=status.HTTP_204_NO_CONTENT,
     description='Permanently delete the caller\'s own account. Not a full wipe — '
-    'Reddit-style instead: `private` movie logs, follow/block relationships, '
+    'private content is removed, shared contributions are kept and anonymized '
+    'instead: `private` movie logs, follow/block relationships, '
     'venue notes, profile (username/bio/avatar/links), and any reports the '
     'caller filed are all removed; `public`/`anonymous` movie logs and their '
     'venue ratings are kept (so theatre/screen review pages and rating '

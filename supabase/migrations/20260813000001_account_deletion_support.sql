@@ -1,4 +1,4 @@
--- Account self-deletion support (Reddit-style, not a full wipe): a
+-- Account self-deletion support (anonymized-but-kept, not a full wipe): a
 -- deleted user's PUBLIC and ANONYMOUS movie_logs -- and any
 -- visit_venue_ratings tied to them -- survive account deletion, so
 -- venue aggregate stats (theatre_rating_stats/screen_rating_stats) and
@@ -40,7 +40,7 @@ alter table public.visit_venue_ratings
 -- Unrelated latent bug fixed alongside the above: theatres.created_by /
 -- screens.created_by / reports.reviewed_by reference auth.users with no
 -- ON DELETE action at all (implicit RESTRICT) -- meaning ANY account
--- deletion, Reddit-style or otherwise, would have failed outright the
+-- deletion, anonymized or otherwise, would have failed outright the
 -- moment that user had ever created a theatre/screen or been set as a
 -- report reviewer. These are attribution/audit columns, not ownership,
 -- so they should survive deletion as null rather than block it.

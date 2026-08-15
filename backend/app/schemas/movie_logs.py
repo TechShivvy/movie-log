@@ -465,9 +465,9 @@ class MovieLog(MovieLogInput):
         "notes, visibility, ...) actually changes after creation — null means "
         'never edited. Deliberately not derived from updated_at (which is '
         'bumped by any row change, including ones that are not a content edit, '
-        'e.g. this field going null on account deletion). Client-facing '
-        'equivalent of Reddit/GitHub\'s "(edited)" marker — non-null is the '
-        'flag, the timestamp itself is free extra context ("edited 3 days ago").',
+        'e.g. this field going null on account deletion). The client-facing '
+        '"edited" indicator on a log — non-null is the flag, the timestamp '
+        'itself is free extra context ("edited 3 days ago").',
     )
     favorite_position: Optional[int] = Field(
         default=None,
