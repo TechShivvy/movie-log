@@ -82,8 +82,14 @@ async def client() -> AsyncIterator[httpx.AsyncClient]:
     triggered — too slow/heavy and irrelevant to nearly every test; see
     tests/README.md for what that means link-extraction tests need."""
 
+    # timeout=60.0, not httpx's 5s default: a real extraction call against
+    # a real, detailed ticket image (as opposed to the tiny synthetic
+    # images used where content doesn't matter) genuinely takes up to
+    # ~15s for a real provider to process — confirmed live, a 5s default
+    # was cutting these off mid-call. Matches the same order of magnitude
+    # as gunicorn's own --timeout 60 in production (docker-entry.sh).
     transport = ASGITransport(app=fastapi_app)
-    async with httpx.AsyncClient(transport=transport, base_url='http://test') as c:
+    async with httpx.AsyncClient(transport=transport, base_url='http://test', timeout=60.0) as c:
         yield c
 
 
@@ -340,6 +346,24 @@ async def delete_theatre_by_id(theatre_id: str) -> None:
     async with httpx.AsyncClient(timeout=15.0) as http:
         await http.delete(f'{base}/rest/v1/movie_logs', headers=headers, params={'theatre_id': f'eq.{theatre_id}'})
         await http.delete(f'{base}/rest/v1/theatres', headers=headers, params={'id': f'eq.{theatre_id}'})
+
+
+# Real ticket photos (backend/test-images/) — the canonical fixtures
+# this whole project's manual testing has used since before this pytest
+# suite existed (ticket-1.png is the exact "Ekkadiki Pothavu Chinnavada"
+# example already baked into the API's own OpenAPI response examples;
+# ticket-2.png's Baahubali booking matches the real rows still sitting in
+# movie_logs from actual dev usage). Needed as a real, distinct fixture
+# from the tiny synthetic images used elsewhere in this suite once the
+# NOT_A_TICKET check (schemas/movie_metadata.py) shipped — confirmed
+# live, a real model reliably (and correctly) flags a blank/featureless
+# test image as not a ticket, so any test asserting a real successful
+# extraction needs genuine ticket content to extract, not a 1x1 pixel.
+_TEST_IMAGES_DIR = Path(__file__).resolve().parent.parent / 'test-images'
+
+
+def real_ticket_image_bytes(name: str = 'ticket-1.png') -> bytes:
+    return (_TEST_IMAGES_DIR / name).read_bytes()
 
 
 def personal_test_key(name: str) -> Optional[str]:

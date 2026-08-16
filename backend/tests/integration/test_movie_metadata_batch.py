@@ -13,7 +13,14 @@ import base64
 import httpx
 import pytest
 from config import settings
+from conftest import real_ticket_image_bytes
 
+# Genuinely blank/featureless — confirmed live, a real model reliably
+# (and correctly) flags this as NOT_A_TICKET (schemas/movie_metadata.py),
+# so it's only used below where that rejection is the point of the test,
+# or where the LLM is never actually reached at all (a 400/422/404
+# before extraction, or batch-size/RLS checks). Anywhere a batch item
+# needs to genuinely succeed, real_ticket_image_bytes() is used instead.
 _TINY_PNG = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
     'YAAAAASUVORK5CYII='
@@ -113,11 +120,12 @@ async def test_unknown_batch_id_404s(client, make_user):
 async def test_batch_happy_path_against_real_shared_openrouter_key(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
+    real_image = real_ticket_image_bytes()
     created = await client.post(
         '/api/v1/movie-metadata/extract-batch', headers=headers,
         files=[
-            ('ticket_images', ('t1.png', _TINY_PNG, 'image/png')),
-            ('ticket_images', ('t2.png', _TINY_PNG, 'image/png')),
+            ('ticket_images', ('t1.png', real_image, 'image/png')),
+            ('ticket_images', ('t2.png', real_image, 'image/png')),
         ],
     )
     assert created.status_code == 202
@@ -127,14 +135,16 @@ async def test_batch_happy_path_against_real_shared_openrouter_key(client, make_
 
     final = await _poll_until_terminal(client, headers, body['id'])
     assert final['status'] == 'completed'
-    assert final['completed_items'] + final['failed_items'] == 2
+    assert final['completed_items'] == 2
+    assert final['failed_items'] == 0
     assert len(final['items']) == 2
     assert {item['position'] for item in final['items']} == {0, 1}
     # Same image both times -> the second item should hit the
     # content-addressed cache, but still resolve to a real completed
-    # result independently.
+    # result independently, with real extracted content either way.
     for item in final['items']:
-        assert item['status'] in ('completed', 'failed')
+        assert item['status'] == 'completed'
+        assert item['result']['movie']
 
 
 @pytest.mark.slow
@@ -145,7 +155,7 @@ async def test_batch_one_bad_item_does_not_fail_the_whole_batch(client, make_use
     created = await client.post(
         '/api/v1/movie-metadata/extract-batch', headers=headers,
         files=[
-            ('ticket_images', ('good.png', _TINY_PNG, 'image/png')),
+            ('ticket_images', ('good.png', real_ticket_image_bytes(), 'image/png')),
             ('ticket_images', ('bad.txt', b'this is not an image at all', 'text/plain')),
         ],
     )
@@ -156,6 +166,36 @@ async def test_batch_one_bad_item_does_not_fail_the_whole_batch(client, make_use
     assert final['status'] == 'completed'  # the batch itself finished processing
     statuses = sorted(item['status'] for item in final['items'])
     assert statuses == ['completed', 'failed']  # mixed outcome, not all-or-nothing
+
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_batch_not_a_ticket_item_fails_only_that_item(client, make_user):
+    """The per-item NOT_A_TICKET path specifically (distinct from the
+    malformed-file case above) — a real, blank/featureless image the
+    model confidently flags as not a ticket must fail only that item,
+    with error_code='NOT_A_TICKET', alongside a real ticket in the same
+    batch completing normally."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    created = await client.post(
+        '/api/v1/movie-metadata/extract-batch', headers=headers,
+        files=[
+            ('ticket_images', ('good.png', real_ticket_image_bytes(), 'image/png')),
+            ('ticket_images', ('blank.png', _TINY_PNG, 'image/png')),
+        ],
+    )
+    assert created.status_code == 202
+    batch_id = created.json()['id']
+
+    final = await _poll_until_terminal(client, headers, batch_id)
+    assert final['status'] == 'completed'
+    by_position = {item['position']: item for item in final['items']}
+    assert by_position[0]['status'] == 'completed'
+    assert by_position[0]['result']['movie']
+    assert by_position[1]['status'] == 'failed'
+    assert by_position[1]['error_code'] == 'NOT_A_TICKET'
 
 
 @pytest.mark.asyncio

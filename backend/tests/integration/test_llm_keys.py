@@ -8,7 +8,7 @@ OPENROUTER_API_KEY.
 """
 
 import pytest
-from conftest import personal_test_key
+from conftest import personal_test_key, real_ticket_image_bytes
 
 
 @pytest.mark.asyncio
@@ -130,12 +130,6 @@ async def test_stored_key_is_genuinely_usable_for_a_real_extraction(client, make
     if not key:
         pytest.skip('GEMINI_API_KEY_1 not configured in backend/.env')
 
-    import base64
-    tiny_png = base64.b64decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
-        'YAAAAASUVORK5CYII='
-    )
-
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     stored = await client.put('/api/v1/public/me/llm-keys/gemini', headers=headers, json={'api_key': key})
@@ -143,7 +137,7 @@ async def test_stored_key_is_genuinely_usable_for_a_real_extraction(client, make
 
     extract = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', tiny_png, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'provider': 'gemini', 'model': 'gemini-flash-latest'},
     )
     assert extract.status_code == 200

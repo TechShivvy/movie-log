@@ -9,6 +9,7 @@ import base64
 import uuid
 
 import pytest
+from conftest import real_ticket_image_bytes
 
 
 async def _set_username(client, headers):
@@ -155,14 +156,10 @@ async def test_batch_sourced_auto_insert_does_not_double_notify(client, make_use
 
     user_id, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
-    tiny_png = base64.b64decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
-        'YAAAAASUVORK5CYII='
-    )
 
     created = await client.post(
         '/api/v1/movie-metadata/extract-batch', headers=headers,
-        files=[('ticket_images', ('t.png', tiny_png, 'image/png'))],
+        files=[('ticket_images', ('ticket-1.png', real_ticket_image_bytes(), 'image/png'))],
         data={'auto_insert': 'true'},
     )
     assert created.status_code == 202
@@ -176,6 +173,12 @@ async def test_batch_sourced_auto_insert_does_not_double_notify(client, make_use
         await asyncio.sleep(1.0)
     else:
         pytest.fail('batch did not finish in time')
+
+    # Confirms auto-insert genuinely fired (not just that no *extra*
+    # notification happened, which would trivially hold even if
+    # auto-insert had silently failed and never ran at all).
+    final = status_resp.json()
+    assert final['items'][0]['auto_insert_status'] == 'inserted'
 
     notifications = await client.get('/api/v1/notifications', headers=headers)
     types = [n['type'] for n in notifications.json()]

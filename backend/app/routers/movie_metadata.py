@@ -19,7 +19,7 @@ from loguru_setup import LOGGER
 from openai import OpenAIError
 from pydantic import ValidationError
 from responses.movie_metadata import responses
-from schemas.movie_metadata import MovieMetadata, MovieMetadataResult, TicketLinkRequest
+from schemas.movie_metadata import MovieMetadata, MovieMetadataResult, TicketLinkRequest, ticket_rejection_message
 from starlette.formparsers import MultiPartParser
 from services import (
     auto_insert as auto_insert_service,
@@ -32,6 +32,7 @@ from services import (
 )
 from services.quota import ensure_within_daily_quota
 from utils import image
+from utils.errors import APIError
 from utils.openai_utils import openai_error_to_http
 
 from rate_limit import limiter
@@ -235,6 +236,27 @@ async def resolve_llm_api_key(
     return require_llm_api_key(provider, header_api_key)
 
 
+def ensure_is_ticket(metadata: MovieMetadata) -> None:
+    """Raises APIError(422, 'NOT_A_TICKET', ...) when the model reported
+    the input isn't a movie ticket at all (schemas.movie_metadata.
+    ticket_rejection_message) — called by both /extract and
+    /extract-from-link right after a fresh (cache-miss) extraction,
+    before building a MovieMetadataResult, caching anything, or
+    attempting auto-insert. Deliberately not cached (extraction_cache
+    only ever stores a genuine MovieMetadataResult dump) and deliberately
+    not checked again on a cache *hit* — a cached entry can only ever
+    exist from a past call that got this far, i.e. was already a real
+    ticket. The batch loop (services/extraction_batches.py) handles the
+    same rejection differently — marks that one item 'failed' rather
+    than raising, since one bad image must never abort the whole batch —
+    calling schemas.movie_metadata.ticket_rejection_message directly
+    instead of this HTTP-raising wrapper."""
+
+    rejection = ticket_rejection_message(metadata)
+    if rejection:
+        raise APIError(status.HTTP_422_UNPROCESSABLE_ENTITY, 'NOT_A_TICKET', rejection)
+
+
 async def apply_auto_insert(
     result: dict,
     *,
@@ -313,6 +335,11 @@ async def apply_auto_insert(
         'resolved provider/model returns the cached result instantly, skips the LLM call '
         'entirely, and does **not** count against your daily quota (nothing was '
         'actually run).\n\n'
+        '**Not a ticket at all**: if the model is confident the uploaded image isn\'t a '
+        'movie ticket at all (a random photo, a blank/corrupted image, something else '
+        'entirely) — as opposed to a real, if unreadable, ticket — this returns `422 '
+        'NOT_A_TICKET` instead of `200` with all-null fields. A genuinely blurry/partial '
+        'ticket still succeeds normally with whatever fields were readable.\n\n'
         '**Catalog matching**: the returned `movie` is a free-typed guess, not a '
         'TMDB match — deliberately not resolved here, since that would tie this '
         "endpoint's latency/reliability to a third-party call it doesn't need. "
@@ -420,6 +447,7 @@ async def extract_movie_metadata(
                 'extract rid={} provider={} model={} used_model={} cache=miss',
                 getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
             )
+            ensure_is_ticket(ticket)
             final = MovieMetadataResult(
                 **ticket.model_dump(),
                 used_provider=effective_provider,
@@ -448,6 +476,12 @@ async def extract_movie_metadata(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail='Model returned an invalid/non-JSON response. Try a specific free model such as qwen/qwen2.5-vl-72b-instruct:free.',
             )
+        except APIError:
+            # ensure_is_ticket's NOT_A_TICKET — an expected, well-handled
+            # rejection, not a bug; re-raised as-is rather than falling
+            # into the generic handler below, which would log it as an
+            # "unexpected error" and mislead anyone reading the logs.
+            raise
         except Exception as e:
             LOGGER.error(f'Unexpected error during metadata extraction: {e}')
             raise e
@@ -479,7 +513,9 @@ async def extract_movie_metadata(
         'populated, rather than expecting a TMDB match bundled here. Same `auto_insert` '
         'behavior as `/extract` too, with one difference: there\'s no image here (the '
         'extraction comes from scraped page text), so an auto-inserted log from this '
-        'endpoint has no `ticket_image_path` — same as any other manually-typed log.'
+        'endpoint has no `ticket_image_path` — same as any other manually-typed log. Same '
+        '`422 NOT_A_TICKET` behavior as `/extract` too, for a scraped page with no real '
+        'booking/ticket content on it at all.'
     ),
     response_description='Movie Metadata',
     response_model=MovieMetadataResult,
@@ -552,6 +588,7 @@ async def extract_movie_metadata_from_link(
                 'extract-from-link rid={} provider={} model={} used_model={} cache=miss',
                 getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
             )
+            ensure_is_ticket(ticket)
             final = MovieMetadataResult(
                 **ticket.model_dump(),
                 used_provider=effective_provider,
@@ -575,6 +612,10 @@ async def extract_movie_metadata_from_link(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail='Model returned an invalid/non-JSON response.',
             )
+        except APIError:
+            # Same reasoning as /extract's identical clause — ensure_is_ticket's
+            # NOT_A_TICKET is expected, not a bug.
+            raise
         except Exception as e:
             LOGGER.error(f'Unexpected error during link metadata extraction: {e}')
             raise e

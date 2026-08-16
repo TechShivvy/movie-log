@@ -102,3 +102,40 @@ def test_price_strips_currency_symbols_and_thousands_separators():
 def test_price_defensive_against_garbage_input():
     m = MovieMetadata(movie='Test', price='not a number at all')
     assert m.price is None
+
+
+class TestTicketRejectionMessage:
+    """schemas/movie_metadata.py's ticket_rejection_message — the shared,
+    pure helper both /extract's ensure_is_ticket (raises APIError) and
+    the batch loop (marks that one item 'failed', never raises) build on.
+    """
+
+    def test_none_when_is_ticket_true(self):
+        from schemas.movie_metadata import ticket_rejection_message
+
+        metadata = MovieMetadata(is_ticket=True, movie='Nexus')
+        assert ticket_rejection_message(metadata) is None
+
+    def test_uses_the_models_own_rejection_reason_when_given(self):
+        from schemas.movie_metadata import ticket_rejection_message
+
+        metadata = MovieMetadata(is_ticket=False, rejection_reason='This is a photo of a cat.')
+        assert ticket_rejection_message(metadata) == 'This is a photo of a cat.'
+
+    def test_falls_back_to_a_generic_message_when_reason_is_missing(self):
+        """A model that sets is_ticket=false but (despite instructions)
+        omits rejection_reason still gets a sensible, non-empty message —
+        never an empty string surfaced to the client."""
+
+        from schemas.movie_metadata import ticket_rejection_message
+
+        metadata = MovieMetadata(is_ticket=False, rejection_reason=None)
+        assert ticket_rejection_message(metadata) == 'This does not appear to be a movie ticket.'
+
+    def test_is_ticket_defaults_true(self):
+        """Fail-open: a model that omits is_ticket entirely in the less-
+        strictly-enforced JSON-mode fallback path falls back to today's
+        pre-existing behavior, not a new rejection."""
+
+        metadata = MovieMetadata(movie='Nexus')
+        assert metadata.is_ticket is True

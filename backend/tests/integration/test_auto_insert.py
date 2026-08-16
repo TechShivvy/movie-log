@@ -19,9 +19,17 @@ routers/movie_metadata.py's apply_auto_insert). Two kinds of test here:
 import base64
 
 import pytest
+from conftest import real_ticket_image_bytes
 from schemas.movie_metadata import MovieMetadata
 from services.auto_insert import auto_insert_log
 
+# Only used for the direct auto_insert_log() calls below, which never go
+# through a real LLM call at all — the metadata is constructed by hand,
+# so the actual image content is irrelevant there. Any test going
+# through the real /extract HTTP path uses real_ticket_image_bytes()
+# instead — a blank/featureless image is now correctly rejected as
+# NOT_A_TICKET (schemas/movie_metadata.py), confirmed live, so it can no
+# longer stand in for "a real ticket" in those tests.
 _TINY_PNG = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
     'YAAAAASUVORK5CYII='
@@ -96,7 +104,7 @@ async def test_extract_auto_insert_false_or_omitted_does_not_attempt_insert(clie
 
     omitted = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
     )
     assert omitted.status_code == 200
     assert omitted.json()['auto_insert_status'] is None
@@ -104,7 +112,7 @@ async def test_extract_auto_insert_false_or_omitted_does_not_attempt_insert(clie
 
     explicit_false = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'auto_insert': 'false'},
     )
     assert explicit_false.json()['auto_insert_status'] is None
@@ -116,7 +124,7 @@ async def test_extract_auto_insert_explicit_true_is_attempted(client, make_user)
     headers = {'Authorization': f'Bearer {token}'}
     response = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'auto_insert': 'true'},
     )
     assert response.status_code == 200
@@ -137,7 +145,7 @@ async def test_extract_auto_insert_uses_stored_profile_default_when_omitted(clie
 
     response = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
     )
     assert response.json()['auto_insert_status'] is not None  # attempted, from the stored default alone
 
@@ -151,7 +159,7 @@ async def test_extract_auto_insert_explicit_false_overrides_stored_true_default(
     )
     response = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'auto_insert': 'false'},
     )
     assert response.json()['auto_insert_status'] is None  # explicit param wins over the stored default
@@ -172,16 +180,18 @@ async def test_extract_auto_insert_cache_hit_still_runs_auto_insert_fresh(client
 
     first = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'auto_insert': 'true'},
     )
     assert first.status_code == 200
-    assert first.json()['auto_insert_status'] is not None
+    assert first.json()['auto_insert_status'] == 'inserted'
 
     second = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
         data={'auto_insert': 'true'},
     )
     assert second.status_code == 200
-    assert second.json()['auto_insert_status'] is not None
+    assert second.json()['auto_insert_status'] == 'inserted'
+    # Two real, distinct logs — not one insert echoed back twice.
+    assert second.json()['movie_log_id'] != first.json()['movie_log_id']

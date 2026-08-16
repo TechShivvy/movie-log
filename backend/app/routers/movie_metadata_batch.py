@@ -86,9 +86,10 @@ async def resolve_batch_api_key(
         'explanation): request value beats stored preference beats static default. '
         'Authorization is checked once, up front — an unusable provider/key 400s before '
         'any batch or item row is created, no partial batch left behind.\n\n'
-        'One bad image (wrong format, a genuinely unreadable photo) fails *that item*, '
-        'never the whole batch — check each item\'s own `status`/`error_code` rather '
-        'than assuming an all-or-nothing outcome. Images are processed with real '
+        'One bad image (wrong format, a genuinely unreadable photo, or one the model is '
+        'confident isn\'t a ticket at all — `error_code: "NOT_A_TICKET"`) fails *that '
+        'item*, never the whole batch — check each item\'s own `status`/`error_code` '
+        'rather than assuming an all-or-nothing outcome. Images are processed with real '
         "internal pacing against each provider's rate limits (tighter for Gemini's real "
         '~5 RPM free tier than for OpenRouter/OpenAI), not fired all at once.'
     ).format(max_batch_size=settings.max_batch_size),

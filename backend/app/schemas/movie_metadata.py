@@ -128,6 +128,28 @@ class TicketLinkRequest(BaseModel):
 
 
 class MovieMetadata(BaseModel):
+    # A two-step-ingestion-in-one-call signal: the model self-reports
+    # whether the input is a movie ticket at all, alongside extracting
+    # it — rather than a separate, dedicated validation call before this
+    # one (double the latency/quota for every single extraction, not
+    # just the rare bad upload, given this app runs almost entirely on
+    # quota-constrained free-tier models). Defaults True (fail open): a
+    # model that omits this in the less-strictly-enforced JSON-mode
+    # fallback path (see llm/llm_client.py's _call_model) falls back to
+    # today's pre-existing behavior (an all-null result) rather than
+    # newly rejecting something that was previously accepted.
+    is_ticket: bool = Field(
+        True, description='Whether the input actually appears to be a movie ticket at all. '
+        'False only for input that is confidently something else entirely (an unrelated '
+        'photo, a blank/corrupted image, an unrelated webpage) — every other field must be '
+        'null/empty when this is false, there was no ticket content to extract. A genuinely '
+        'blurry or partially-readable ticket is still true, just with fewer fields filled in.',
+    )
+    rejection_reason: Optional[str] = Field(
+        None, description='A short, human-readable reason set only when is_ticket is false '
+        '(e.g. "This looks like a photo of a person, not a ticket."). Always null when '
+        'is_ticket is true.',
+    )
     movie: Optional[str] = Field(None, description='Name of the movie')
     date: Optional[str] = Field(None, description='Date of the movie')
     time: Optional[str] = Field(None, description='Time of the movie')
@@ -263,3 +285,21 @@ class MovieMetadataResult(MovieMetadata):
     )
 
     model_config = ConfigDict(extra='forbid', frozen=True)
+
+
+def ticket_rejection_message(metadata: MovieMetadata) -> Optional[str]:
+    """None when metadata.is_ticket is true (nothing to reject); a
+    human-readable rejection message otherwise. Deliberately a pure,
+    side-effect-free helper rather than one that raises directly — this
+    module stays a plain data/validation-shape module, not an HTTP-
+    raising one (no schemas/*.py file imports utils.errors today).
+    Callers decide how to act on a non-None return in their own idiom:
+    routers/movie_metadata.py's ensure_is_ticket turns it into a real
+    APIError(422, 'NOT_A_TICKET', ...); services/extraction_batches.py's
+    per-item loop turns it into that one item's own 'failed' status
+    instead, without raising anything (one bad image must never abort
+    the whole batch)."""
+
+    if metadata.is_ticket:
+        return None
+    return metadata.rejection_reason or 'This does not appear to be a movie ticket.'

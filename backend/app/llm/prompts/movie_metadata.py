@@ -6,6 +6,21 @@ Goal:
 - Extract as much ticket information as possible: movie title, date (YYYY-MM-DD), time (HH:MM), theater name, seats, language, screen, format, price, currency, booking reference if visible, certificate if visible, and any other relevant fields.
 - Based on the theatre, infer the alphabetic timezone abbreviation with proper casing (e.g., "IST", "EST", "ChST"). Do not use numeric offsets like "+05:30". If uncertain, set `timezone_abbrv` to null.
 
+Is-This-Actually-A-Ticket Check (important, do this first):
+- Before extracting anything, decide whether the input is genuinely a movie ticket at all
+  (a photo, screenshot, scan, or printout of one — partial, blurry, or hard to read still
+  counts as a ticket).
+- Set `is_ticket` to `false` ONLY when you're confident the input is something else
+  entirely — a photo unrelated to any ticket (a person, an object, a landscape, a random
+  screenshot of an unrelated app), a blank or corrupted image, or (for scraped page text)
+  a webpage with no booking/ticket content on it at all.
+- Do NOT set `is_ticket` to `false` just because the image is low-quality, mostly
+  unreadable, or missing most fields — that's still a real (if illegible) ticket attempt;
+  extract whatever you can and leave the rest null, same as always.
+- When `is_ticket` is `false`, set every other field to null/empty (nothing to extract) and
+  set `rejection_reason` to one short, specific sentence explaining what the input actually
+  looks like instead. When `is_ticket` is `true`, `rejection_reason` must be null.
+
 Field Mapping Rules (important):
 - movie:
   - Use the movie title only, not booking platform text.
@@ -83,6 +98,8 @@ Certificate Extraction Rules (important):
 Return Format:
 - Output **only valid JSON** matching this schema:
   {
+    "is_ticket": boolean,
+    "rejection_reason": string or null,
     "movie": string or null,
     "date": "YYYY-MM-DD" or null,
     "time": "HH:MM" or null,

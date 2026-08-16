@@ -15,11 +15,16 @@ those live in test_llm_keys.py under @pytest.mark.llm.
 import base64
 
 import pytest
+from conftest import real_ticket_image_bytes
 
-# A 1x1 white PNG — enough to exercise the real extraction pipeline
-# without needing a realistic ticket image; the LLM output content isn't
-# what these tests care about, only which provider/model actually got
-# called.
+# A 1x1 white PNG — enough to exercise the real extraction pipeline for
+# tests that 400 before ever reaching the LLM call (no key for the
+# resolved provider), where the LLM never actually sees the bytes at
+# all. For any test that asserts a genuinely successful 200 extraction,
+# use real_ticket_image_bytes() instead — a real (if tiny) blank image
+# is now correctly rejected as NOT_A_TICKET by schemas/movie_metadata.py's
+# is_ticket check, confirmed live, so it can't stand in for "a real
+# ticket" anymore.
 _TINY_PNG = base64.b64decode(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
     'YAAAAASUVORK5CYII='
@@ -101,7 +106,7 @@ async def test_fresh_user_settings_row_never_freezes_a_stale_default_model(clien
 
     response = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('t.png', real_ticket_image_bytes(), 'image/png')},
     )
     assert response.status_code == 200
     assert response.json()['used_provider'] == 'openrouter'
@@ -127,7 +132,7 @@ async def test_explicit_provider_override_ignores_a_mismatched_stored_model(clie
 
     response = await client.post(
         '/api/v1/movie-metadata/extract', headers=headers,
-        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+        files={'ticket_image': ('t.png', real_ticket_image_bytes(), 'image/png')},
         data={'provider': 'openrouter'},
     )
     # Before the fix this would have sent "gemini-flash-latest" to
@@ -156,3 +161,41 @@ async def test_explicit_request_model_overrides_everything(client, make_user):
     )
     assert response.status_code == 400
     assert 'OpenAI' in response.json()['message']  # confirms openai (the explicit override), not gemini, was resolved
+
+
+@pytest.mark.asyncio
+async def test_extract_rejects_a_confidently_non_ticket_image(client, make_user):
+    """The two-step-ingestion-in-one-call feature: the model self-reports
+    whether the input is even a ticket, alongside extracting it.
+    _TINY_PNG (a genuinely blank/featureless image) is a real, confirmed-
+    live case a real model reliably flags is_ticket=false for — not a
+    contrived example. A real, if illegible, ticket photo (see the
+    real_ticket_image_bytes()-using tests elsewhere in this file) still
+    succeeds normally; this is specifically for input that's confidently
+    something else."""
+
+    _, token = await make_user()
+    response = await client.post(
+        '/api/v1/movie-metadata/extract', headers={'Authorization': f'Bearer {token}'},
+        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+    )
+    assert response.status_code == 422
+    assert response.json()['code'] == 'NOT_A_TICKET'
+    assert response.json()['message']  # a real, non-empty reason, not just the bare code
+
+
+@pytest.mark.asyncio
+async def test_extract_a_real_ticket_succeeds_with_populated_fields(client, make_user):
+    """The positive-control counterpart to the rejection test above —
+    confirms real_ticket_image_bytes() itself genuinely round-trips
+    through a real extraction with is_ticket true and real fields
+    populated, not just an empty 200."""
+
+    _, token = await make_user()
+    response = await client.post(
+        '/api/v1/movie-metadata/extract', headers={'Authorization': f'Bearer {token}'},
+        files={'ticket_image': ('ticket-1.png', real_ticket_image_bytes(), 'image/png')},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body['movie']  # a real title was actually extracted, not null

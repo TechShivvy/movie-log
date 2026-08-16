@@ -25,7 +25,7 @@ from config import settings
 from loguru_setup import LOGGER
 from openai import OpenAIError
 from pydantic import ValidationError
-from schemas.movie_metadata import MovieMetadata, MovieMetadataResult
+from schemas.movie_metadata import MovieMetadata, MovieMetadataResult, ticket_rejection_message
 from services import auto_insert as auto_insert_service
 from services import extraction_cache
 from services.quota import ensure_within_daily_quota
@@ -297,6 +297,13 @@ async def run_batch(
                         provider=provider,
                         auto_fallback=auto_fallback,
                     )
+                    # Reuses the existing `except APIError` clause below —
+                    # NOT_A_TICKET becomes this one item's error_code/
+                    # error_message, same as any other per-item failure.
+                    # One bad image must never abort the whole batch.
+                    rejection = ticket_rejection_message(ticket)
+                    if rejection:
+                        raise APIError(422, 'NOT_A_TICKET', rejection)
                     final = MovieMetadataResult(
                         **ticket.model_dump(),
                         used_provider=provider,

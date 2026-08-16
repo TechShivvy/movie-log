@@ -76,12 +76,26 @@ responses = {
             'read — a real, expected outcome (page structure changed, the specific '
             "booking is no longer accessible, a transient block), not a bug. Frontend "
             'should treat this as a signal to offer photo upload instead, not as an error '
-            'to alarm the user with.',
+            'to alarm the user with. Also covers NOT_A_TICKET — the scraped page had no '
+            'booking/ticket content on it at all (see /extract\'s own docs for the '
+            'image-upload equivalent).',
             'content': {
                 'application/json': {
-                    'example': {
-                        'code': 'LINK_EXTRACTION_FAILED',
-                        'message': "Couldn't read that link — try uploading a photo of the ticket instead.",
+                    'examples': {
+                        'link_extraction_failed': {
+                            'summary': "The page couldn't be read",
+                            'value': {
+                                'code': 'LINK_EXTRACTION_FAILED',
+                                'message': "Couldn't read that link — try uploading a photo of the ticket instead.",
+                            },
+                        },
+                        'not_a_ticket': {
+                            'summary': 'The page has no ticket/booking content at all',
+                            'value': {
+                                'code': 'NOT_A_TICKET',
+                                'message': 'This does not appear to be a movie ticket.',
+                            },
+                        },
                     }
                 }
             },
@@ -277,20 +291,36 @@ responses = {
         },
         422: {
             'description': 'No ticket_image part in the multipart form (it\'s '
-            'required), or content_length header present and negative/malformed.',
+            'required), content_length header present and negative/malformed, or the '
+            'model itself reported the image isn\'t a movie ticket at all (NOT_A_TICKET) '
+            '— a real (if unreadable) ticket attempt still succeeds with 200 and mostly-'
+            'null fields; this is specifically for input the model is confident is '
+            'something else entirely.',
             'content': {
                 'application/json': {
-                    'example': {
-                        'code': 'VALIDATION_ERROR',
-                        'message': 'Request validation failed',
-                        'detail': [
-                            {
-                                'type': 'missing',
-                                'loc': ['body', 'ticket_image'],
-                                'msg': 'Field required',
-                                'input': None,
-                            }
-                        ],
+                    'examples': {
+                        'missing_ticket_image': {
+                            'summary': 'No ticket_image part in the multipart form',
+                            'value': {
+                                'code': 'VALIDATION_ERROR',
+                                'message': 'Request validation failed',
+                                'detail': [
+                                    {
+                                        'type': 'missing',
+                                        'loc': ['body', 'ticket_image'],
+                                        'msg': 'Field required',
+                                        'input': None,
+                                    }
+                                ],
+                            },
+                        },
+                        'not_a_ticket': {
+                            'summary': 'The uploaded image isn\'t a movie ticket at all',
+                            'value': {
+                                'code': 'NOT_A_TICKET',
+                                'message': 'This looks like a photo of a person, not a ticket.',
+                            },
+                        },
                     }
                 }
             },
