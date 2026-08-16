@@ -29,4 +29,21 @@ dependencies = [
 dev = [
     "ipykernel>=6.29.5",
     "pre-commit-hooks>=5.0.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# `llm`: makes a real call to a provider (OpenRouter/OpenAI/Gemini) with a
+# personal test key — opt-in via `-m llm`, never run by default. Burning
+# through Gemini's 5 RPM free tier or real OpenAI cost on every default
+# run isn't acceptable; see tests/README.md.
+# `slow`: multi-step flows (e.g. the full key-rotation lifecycle) that are
+# fine to include by default but worth being able to skip with `-m "not slow"`
+# for a fast inner loop.
+markers = [
+    "llm: makes a real call to an LLM provider with a personal test key (opt-in, see -m llm)",
+    "slow: a multi-step flow, still run by default but skippable with -m 'not slow'",
 ]
