@@ -36,20 +36,27 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# `-m "not llm"`: excludes @pytest.mark.llm tests by default (see below) —
-# without this, `uv run pytest` with no -m flag runs *everything*,
-# markers alone only make `-m llm`/`-m "not llm"` available, they don't
-# change the default selection. Pass `-m llm` (which overrides addopts)
-# to run only the llm-marked tests, or `-m ""` to run literally everything.
-addopts = "-m \"not llm\""
-# `llm`: makes a real call to a provider (OpenRouter/OpenAI/Gemini) with a
-# personal test key — opt-in via `-m llm`, never run by default. Burning
-# through Gemini's 5 RPM free tier or real OpenAI cost on every default
-# run isn't acceptable; see tests/README.md.
+# `-m "not llm and not external"`: excludes @pytest.mark.llm and
+# @pytest.mark.external tests by default (see below) — without this,
+# `uv run pytest` with no -m flag runs *everything*, markers alone only
+# make `-m llm`/`-m "not llm"` etc. available, they don't change the
+# default selection. Pass `-m llm`, `-m external`, or `-m "llm or external"`
+# (each overrides addopts) to run those specifically, or `-m ""` to run
+# literally everything.
+addopts = "-m \"not llm and not external\""
+# `llm`: makes a real call to an LLM provider (OpenRouter/OpenAI/Gemini)
+# with a personal test key — opt-in via `-m llm`, never run by default.
+# Burning through Gemini's 5 RPM free tier or real OpenAI cost on every
+# default run isn't acceptable; see tests/README.md.
+# `external`: makes a real call to a real, billed third-party API (Google
+# Places) with the backend's own configured key — opt-in via `-m external`,
+# same reasoning as `llm`. TMDB is NOT under this marker: it's genuinely
+# free with no billing risk, so real TMDB calls run by default.
 # `slow`: multi-step flows (e.g. the full key-rotation lifecycle) that are
 # fine to include by default but worth being able to skip with `-m "not slow"`
 # for a fast inner loop.
 markers = [
     "llm: makes a real call to an LLM provider with a personal test key (opt-in, see -m llm)",
+    "external: makes a real call to a billed third-party API like Google Places (opt-in, see -m external)",
     "slow: a multi-step flow, still run by default but skippable with -m 'not slow'",
 ]

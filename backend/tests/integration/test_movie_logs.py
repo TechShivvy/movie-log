@@ -282,9 +282,11 @@ async def test_venue_rating_delete_recomputes_stats(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     import uuid
+
+    from conftest import THEATRE_TEST_TAG
     theatre = await client.post(
         '/api/v1/venues/theatres', headers=headers,
-        json={'name': 'Rating Delete Test Theatre', 'place_id': f'ratedel-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+        json={'name': f'Rating Delete Test Theatre{THEATRE_TEST_TAG}', 'place_id': f'ratedel-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
     )
     theatre_id = theatre.json()['id']
     log = await client.post(

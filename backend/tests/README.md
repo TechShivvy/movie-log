@@ -27,8 +27,10 @@ error-code mapping) — fast, deterministic, no network.
 
 ```bash
 cd backend
-uv run pytest                  # default: everything except @pytest.mark.llm
+uv run pytest                  # default: everything except @pytest.mark.llm and @pytest.mark.external
 uv run pytest -m llm           # only the tests that make a real LLM provider call
+uv run pytest -m external      # only the tests that make a real billed third-party call (Google Places)
+uv run pytest -m "llm or external"  # both opt-in categories together
 uv run pytest -m "not slow"    # skip multi-step flows (e.g. the key-rotation lifecycle)
 uv run pytest tests/unit       # fast, no network, no real data
 ```
@@ -46,6 +48,14 @@ throwaway test keys already established for manual verification
 `.env`) via `conftest.py`'s `personal_test_key()` helper, and are opt-in
 specifically to avoid burning through Gemini's 5 RPM free tier or racking
 up real OpenAI cost on every default run.
+
+`@pytest.mark.external` is the same idea for Google Places: any test
+that makes a real call to a *billed* third-party API using the backend's
+own configured key is opt-in, not run by default, so a routine `pytest`
+run never quietly consumes real Places budget. TMDB is deliberately
+**not** under this marker — it's genuinely free with no billing risk, so
+real TMDB search/create tests run by default (skipped, not marked
+opt-in, if `TMDB_API_KEY` isn't configured).
 
 Rate limiting is force-disabled for the whole suite — it isn't the
 feature under test in nearly any of these, and per-IP buckets would make

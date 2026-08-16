@@ -9,6 +9,7 @@ keys removed outright).
 """
 
 import pytest
+from conftest import delete_theatre_by_id
 
 
 @pytest.mark.asyncio
@@ -149,29 +150,39 @@ async def test_account_deletion_cascade(client, make_user):
     )
     assert deletion.status_code == 204
 
-    # Private log: gone. The old token still cryptographically verifies
-    # (not revoked), but nothing in the DB carries that user_id anymore.
-    private_after = await client.get(f'/api/v1/movie-logs/{private_log_id}', headers=owner_headers)
-    assert private_after.status_code == 404
+    try:
+        # Private log: gone. The old token still cryptographically verifies
+        # (not revoked), but nothing in the DB carries that user_id anymore.
+        private_after = await client.get(f'/api/v1/movie-logs/{private_log_id}', headers=owner_headers)
+        assert private_after.status_code == 404
 
-    # Profile: gone.
-    profile_after = await client.get(f'/api/v1/public/users/{username}')
-    assert profile_after.status_code == 404
+        # Profile: gone.
+        profile_after = await client.get(f'/api/v1/public/users/{username}')
+        assert profile_after.status_code == 404
 
-    # Public log: survives, anonymized, still reachable through the
-    # theatre's own public reviews list.
-    reviews_after = await client.get(f'/api/v1/venues/theatres/{theatre_id}/reviews')
-    assert reviews_after.status_code == 200
-    surviving = [r for r in reviews_after.json() if r['id'] == public_log_id]
-    assert len(surviving) == 1
-    assert surviving[0]['user_id'] is None
-    assert surviving[0]['username'] is None
-    assert surviving[0]['movie'] == 'Public Test Log'
+        # Public log: survives, anonymized, still reachable through the
+        # theatre's own public reviews list.
+        reviews_after = await client.get(f'/api/v1/venues/theatres/{theatre_id}/reviews')
+        assert reviews_after.status_code == 200
+        surviving = [r for r in reviews_after.json() if r['id'] == public_log_id]
+        assert len(surviving) == 1
+        assert surviving[0]['user_id'] is None
+        assert surviving[0]['username'] is None
+        assert surviving[0]['movie'] == 'Public Test Log'
 
-    # The comment the other (still-active) user left survives untouched.
-    comments_after = await client.get(
-        '/api/v1/comments', params={'movie_log_id': public_log_id}, headers=other_headers,
-    )
-    assert comments_after.status_code == 200
-    assert comments_after.json()[0]['user_id'] == other_id
-    assert comments_after.json()[0]['text'] == 'Nice log!'
+        # The comment the other (still-active) user left survives untouched.
+        comments_after = await client.get(
+            '/api/v1/comments', params={'movie_log_id': public_log_id}, headers=other_headers,
+        )
+        assert comments_after.status_code == 200
+        assert comments_after.json()[0]['user_id'] == other_id
+        assert comments_after.json()[0]['text'] == 'Nice log!'
+    finally:
+        # The whole point of this test is that public_log/theatre
+        # deliberately *survive* owner_id's deletion (anonymized) — so
+        # _UserFactory.cleanup()'s pre-delete-by-user_id step (conftest.py)
+        # never finds them, their user_id is already null by then. Clean
+        # them up explicitly here instead, or they'd sit in the real
+        # public feed/theatre-reviews surface forever, same class of bug
+        # as the theatre pollution this session found and fixed.
+        await delete_theatre_by_id(theatre_id)

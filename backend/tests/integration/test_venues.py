@@ -6,20 +6,84 @@ independent of any specific log.
 import uuid
 
 import pytest
+from conftest import THEATRE_TEST_TAG, delete_theatre_by_id
 
 
 @pytest.mark.asyncio
+async def test_search_places_500s_config_error_when_places_key_unset(client, make_user, patch_settings):
+    patch_settings(google_places_api_key=None)
+    _, token = await make_user()
+    response = await client.post(
+        '/api/v1/venues/theatres/search-places', headers={'Authorization': f'Bearer {token}'},
+        json={'query': 'PVR Cinemas'},
+    )
+    assert response.status_code == 500
+    assert response.json()['code'] == 'CONFIG_ERROR'
+
+
+@pytest.mark.external
+@pytest.mark.asyncio
 async def test_create_theatre_falls_back_to_submitted_data_on_places_failure(client, make_user):
-    """Google Places lookup failing (a fake place_id, no billing, etc.)
-    must never block theatre creation — falls back to source='user_submitted'."""
+    """Google Places lookup failing (a fake place_id) must never block
+    theatre creation — falls back to source='user_submitted'. Marked
+    external: routers/venues.py only calls Places at all when
+    GOOGLE_PLACES_API_KEY is configured (see google_places.is_configured()),
+    so whenever it is, this makes a real (billed) lookup against a
+    guaranteed-not-found id — opt-in for the same reason test_llm_keys.py's
+    real-provider tests are."""
 
     _, token = await make_user()
     response = await client.post(
         '/api/v1/venues/theatres', headers={'Authorization': f'Bearer {token}'},
-        json={'name': 'Fallback Test Theatre', 'place_id': f'fake-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+        json={'name': f'Fallback Test Theatre{THEATRE_TEST_TAG}', 'place_id': f'fake-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
     )
     assert response.status_code == 201
-    assert response.json()['name'] == 'Fallback Test Theatre'
+    assert response.json()['name'] == f'Fallback Test Theatre{THEATRE_TEST_TAG}'
+    assert response.json()['source'] == 'user_submitted'
+
+
+@pytest.mark.external
+@pytest.mark.asyncio
+async def test_create_theatre_with_a_real_place_id_populates_authoritative_fields(client, make_user):
+    """The success path the fallback test above doesn't cover: a real
+    place_id must make name/address/lat-lng/city/country come back
+    server-authoritative (source='google_places'), overriding whatever
+    was submitted — the actual point of the Places integration. Chains a
+    real autocomplete() search into place_details() the same way a real
+    client would (POST /theatres/search-places -> pick a result -> POST
+    /theatres), rather than hardcoding a place_id that could go stale."""
+
+    from services import google_places
+    if not google_places.is_configured():
+        pytest.skip('GOOGLE_PLACES_API_KEY not configured in backend/.env')
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    suggestions = await client.post(
+        '/api/v1/venues/theatres/search-places', headers=headers, json={'query': 'PVR Cinemas'},
+    )
+    assert suggestions.status_code == 200
+    candidates = suggestions.json()
+    if not candidates:
+        pytest.skip('Google Places returned no real suggestions for the test query')
+    place_id = candidates[0]['place_id']
+
+    response = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': 'Should Be Overridden', 'place_id': place_id, 'city': 'Should Be Overridden', 'country': 'ZZ'},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    try:
+        assert body['source'] == 'google_places'
+        assert body['name'] != 'Should Be Overridden'  # server-authoritative, client value discarded
+        assert body['place_id'] == place_id
+        assert body['lat'] is not None and body['lng'] is not None
+    finally:
+        # The name is real (server-authoritative from Places), not
+        # THEATRE_TEST_TAG-able — clean this one up directly by id
+        # instead of relying on the name-based sweep in conftest.py.
+        await delete_theatre_by_id(body['id'])
 
 
 @pytest.mark.asyncio
@@ -28,7 +92,7 @@ async def test_venue_note_independent_of_any_log(client, make_user):
     headers = {'Authorization': f'Bearer {token}'}
     theatre = await client.post(
         '/api/v1/venues/theatres', headers=headers,
-        json={'name': 'Note Test Theatre', 'place_id': f'note-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+        json={'name': f'Note Test Theatre{THEATRE_TEST_TAG}', 'place_id': f'note-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
     )
     theatre_id = theatre.json()['id']
 
@@ -50,7 +114,7 @@ async def test_theatre_with_no_data_at_all_404s_stats(client, make_user):
     _, token = await make_user()
     theatre = await client.post(
         '/api/v1/venues/theatres', headers={'Authorization': f'Bearer {token}'},
-        json={'name': 'Empty Stats Theatre', 'place_id': f'empty-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+        json={'name': f'Empty Stats Theatre{THEATRE_TEST_TAG}', 'place_id': f'empty-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
     )
     theatre_id = theatre.json()['id']
     stats = await client.get(f'/api/v1/venues/theatres/{theatre_id}/stats')
@@ -63,7 +127,7 @@ async def test_venue_status_admin_only_and_never_hides_from_search(client, make_
     admin_id, admin_token = admin_user
     theatre = await client.post(
         '/api/v1/venues/theatres', headers={'Authorization': f'Bearer {admin_token}'},
-        json={'name': 'Status Test Theatre', 'place_id': f'status-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+        json={'name': f'Status Test Theatre{THEATRE_TEST_TAG}', 'place_id': f'status-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
     )
     theatre_id = theatre.json()['id']
 
@@ -83,6 +147,6 @@ async def test_venue_status_admin_only_and_never_hides_from_search(client, make_
     # Still fully matchable/searchable — status never hides a venue.
     match = await client.post(
         '/api/v1/venues/theatres/match', headers={'Authorization': f'Bearer {non_admin_token}'},
-        json={'query': 'Status Test Theatre'},
+        json={'query': f'Status Test Theatre{THEATRE_TEST_TAG}'},
     )
     assert theatre_id in [m['id'] for m in match.json()]

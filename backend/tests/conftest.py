@@ -192,11 +192,45 @@ class _UserFactory:
         headers = {'apikey': self._admin_key, 'Authorization': f'Bearer {self._admin_key}'}
         for user_id in self.created_user_ids:
             try:
+                # Hard-delete this user's movie_logs *before* deleting the
+                # user itself. movie_logs.user_id (and visit_venue_ratings.
+                # user_id) is `on delete set null`, not cascade — by design
+                # (see supabase/migrations/20260813000001), a real user's
+                # PUBLIC/ANONYMOUS logs are meant to survive their own
+                # account deletion, anonymized, so venue stats and other
+                # people's feeds don't retroactively lose data. That's
+                # correct for real users but wrong for test data: skipping
+                # this step left ~195 orphaned test logs (and the theatres
+                # some of them referenced) permanently sitting in the real
+                # public feed/search/venue-stats surface — found live,
+                # cleaned up once by hand, and this is what stops it from
+                # recurring on every future test run. Delete-before-cascade
+                # here also handles the private-logs case for free: the
+                # app's own DELETE /auth/me hard-deletes private logs via
+                # its own code path (services/supabase_rest.py:
+                # delete_private_movie_logs) before ever reaching the DB
+                # cascade, but this fixture goes straight through the Auth
+                # Admin API and never runs that endpoint at all — without
+                # this, a test user's private logs would *also* end up
+                # orphaned-with-user_id-null instead of gone (harmless
+                # since visibility stays 'private', so RLS/views still
+                # never surface them, but still wasted rows).
+                await self._http.delete(
+                    self._rest_url('/movie_logs'),
+                    headers={**headers, 'Prefer': 'return=minimal'},
+                    params={'user_id': f'eq.{user_id}'},
+                )
+            except httpx.HTTPError:
+                pass  # Best-effort — see the broad except on the user-delete call below.
+            try:
                 await _paced_auth_delete(
                     self._http, f'{self._base_url}/auth/v1/admin/users/{user_id}', headers=headers,
                 )
             except httpx.HTTPError:
                 pass  # Best-effort — a leftover throwaway test user is inert clutter, not a correctness problem.
+
+    def _rest_url(self, path: str) -> str:
+        return f'{self._base_url}/rest/v1{path}'
 
 
 @pytest_asyncio.fixture
@@ -230,6 +264,70 @@ async def admin_user(make_user) -> AsyncIterator[tuple[str, str]]:
         yield user_id, token
     finally:
         object.__setattr__(settings, 'admin_user_ids', original)
+
+
+# theatres (and screens) are shared directory data, not user-owned —
+# theatres.created_by is `on delete set null` (an attribution column, not
+# ownership; see supabase/migrations/20260813000001), so deleting the
+# creating test user never removes a theatre a test created. Found live:
+# 34 synthetic test theatres (one of them a real Google Places row) had
+# been silently accumulating in the real linked project across this
+# session's test runs, cleaned up once by hand. Tests should tag any
+# theatre name they invent with this suffix (`f'{name}{THEATRE_TEST_TAG}'`)
+# so _cleanup_test_theatres can find and remove it at the end of the run;
+# a theatre whose name is server-authoritative (a real Google Places
+# result, so the client's own name is discarded — see
+# test_create_theatre_with_a_real_place_id_populates_authoritative_fields)
+# can't be tagged this way and must delete itself directly by id instead.
+THEATRE_TEST_TAG = ' [pytest]'
+
+
+@pytest.fixture(scope='session', autouse=True)
+def _cleanup_test_theatres() -> AsyncIterator[None]:
+    yield
+
+    async def _sweep() -> None:
+        key = _admin_key()
+        base = settings.supabase_url.rstrip('/')
+        headers = {'apikey': key, 'Authorization': f'Bearer {key}', 'Prefer': 'return=representation'}
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            # theatre_id on movie_logs has no ON DELETE action (implicit
+            # RESTRICT) — any tagged theatre still referenced by a
+            # movie_log (itself already meant to be gone via
+            # _UserFactory.cleanup, but best-effort in case a test failed
+            # before reaching its own teardown) would otherwise 409 on the
+            # theatre delete below. PostgREST has no subquery filter, so
+            # this is list-then-delete-each rather than one bulk delete.
+            listed = await http.get(
+                f'{base}/rest/v1/theatres', headers=headers,
+                params={'name': f'like.*{THEATRE_TEST_TAG}', 'select': 'id'},
+            )
+            ids = [row['id'] for row in listed.json()] if listed.status_code == 200 else []
+            for theatre_id in ids:
+                await http.delete(
+                    f'{base}/rest/v1/movie_logs', headers=headers,
+                    params={'theatre_id': f'eq.{theatre_id}'},
+                )
+                await http.delete(
+                    f'{base}/rest/v1/theatres', headers=headers, params={'id': f'eq.{theatre_id}'},
+                )
+
+    asyncio.run(_sweep())
+
+
+async def delete_theatre_by_id(theatre_id: str) -> None:
+    """For the one case THEATRE_TEST_TAG can't cover: a theatre whose name
+    came back server-authoritative from a real Google Places lookup, so
+    the client never controlled it. Callers (e.g. the real-place-id test
+    in test_venues.py) call this directly in their own cleanup instead of
+    relying on the name-based sweep above."""
+
+    key = _admin_key()
+    base = settings.supabase_url.rstrip('/')
+    headers = {'apikey': key, 'Authorization': f'Bearer {key}', 'Prefer': 'return=minimal'}
+    async with httpx.AsyncClient(timeout=15.0) as http:
+        await http.delete(f'{base}/rest/v1/movie_logs', headers=headers, params={'theatre_id': f'eq.{theatre_id}'})
+        await http.delete(f'{base}/rest/v1/theatres', headers=headers, params={'id': f'eq.{theatre_id}'})
 
 
 def personal_test_key(name: str) -> Optional[str]:
