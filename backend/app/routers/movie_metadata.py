@@ -230,10 +230,12 @@ async def resolve_llm_api_key(
         'the time of writing), unlike OpenAI which has none worth relying on.\n\n'
         '**`auto_fallback`** (default `false`): if the resolved `model` 404s as not-found, '
         'off means fail normally; on retries once against that provider\'s default/'
-        'suggested model instead. When a fallback actually happens, the response carries '
-        '`fallback_occurred: true` plus `requested_model`/`used_model` so you can toast '
-        'the swap rather than have it be invisible — show something like "used '
-        '{used_model} instead of {requested_model}."\n\n'
+        'suggested model instead. Every response — regardless of `auto_fallback` — always '
+        'carries `used_provider`/`used_model` (which actually served this extraction) and '
+        '`requested_model` (equal to `used_model` unless a fallback fired), plus '
+        '`fallback_occurred`, so the client always knows which model produced a result '
+        '(worth a small "Extracted with Gemini" attribution in the UI) and can toast the '
+        'rarer swap case — "used {used_model} instead of {requested_model}."\n\n'
         '**Caching**: results are cached by the exact image content (not filename) plus '
         'the resolved `provider`/`model` (not `used_model` — a repeat request for the '
         'same since-removed model correctly re-reports the fallback from cache rather '
@@ -327,12 +329,12 @@ async def extract_movie_metadata(
             'extract rid={} provider={} model={} used_model={} cache=miss',
             getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
         )
-        fell_back = used_model != model_name
         final = MovieMetadataResult(
             **ticket.model_dump(),
-            fallback_occurred=fell_back,
-            requested_model=model_name if fell_back else None,
-            used_model=used_model if fell_back else None,
+            used_provider=effective_provider,
+            used_model=used_model,
+            requested_model=model_name,
+            fallback_occurred=used_model != model_name,
         )
         result = final.model_dump()
         # Cached under the originally *requested* model, not used_model —
@@ -447,12 +449,12 @@ async def extract_movie_metadata_from_link(
             'extract-from-link rid={} provider={} model={} used_model={} cache=miss',
             getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
         )
-        fell_back = used_model != model_name
         final = MovieMetadataResult(
             **ticket.model_dump(),
-            fallback_occurred=fell_back,
-            requested_model=model_name if fell_back else None,
-            used_model=used_model if fell_back else None,
+            used_provider=effective_provider,
+            used_model=used_model,
+            requested_model=model_name,
+            fallback_occurred=used_model != model_name,
         )
         result = final.model_dump()
         await extraction_cache.store_extraction(content_hash, f'{effective_provider}:{model_name}', result)

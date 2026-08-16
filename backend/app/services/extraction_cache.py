@@ -16,23 +16,32 @@ same as if this module didn't exist.
 """
 
 import hashlib
+import json
 from typing import Any, Optional
 
 import httpx
 from config import settings
 from llm.prompts import movie_metadata as _prompts
 from loguru_setup import LOGGER
+from schemas.movie_metadata import MovieMetadataResult
 
 _TIMEOUT = 10.0
 
-# Derived from the actual prompt content, not hand-maintained — a manually
-# bumped version string is only as reliable as remembering to bump it,
-# which already failed once in practice (a real prompt change shipped
-# without the bump, serving a stale cached extraction that was missing
-# the new fields until caught and fixed by hand). Hashing the prompts
-# themselves means ANY change to them — not just ones someone remembers
-# to flag — automatically stops matching old cache entries, no
-# discipline required. All four prompt variants are included even though
+# Derived from the actual prompt content *and* the response schema, not
+# hand-maintained — a manually bumped version string is only as reliable
+# as remembering to bump it, which already failed once in practice (a
+# real prompt change shipped without the bump, serving a stale cached
+# extraction that was missing the new fields until caught and fixed by
+# hand). Caught live a second, different way this same session: the
+# *schema* changed (fallback-tracking fields went from optional to
+# required on MovieMetadataResult) while the prompt text didn't move at
+# all — a stale cache entry from before that change was missing the new
+# required fields entirely, and got served as-is straight into a
+# FastAPI ResponseValidationError. Hashing prompts alone couldn't catch
+# that; hashing the response model's own JSON schema alongside them
+# means ANY future shape change — a new required field, a rename,
+# whatever — also auto-invalidates old entries, no discipline required
+# either way. All four prompt variants are included even though
 # SYSTEM_PROMPT_TEXT/USER_PROMPT_TEXT currently derive from the other two
 # (via .replace() in llm/prompts/movie_metadata.py) — hashing all of them
 # is what's actually correct if that ever stops being true, at the cost
@@ -43,6 +52,7 @@ PROMPT_VERSION = hashlib.sha256(
         + _prompts.USER_PROMPT
         + _prompts.SYSTEM_PROMPT_TEXT
         + _prompts.USER_PROMPT_TEXT
+        + json.dumps(MovieMetadataResult.model_json_schema(), sort_keys=True)
     ).encode('utf-8')
 ).hexdigest()[:16]
 

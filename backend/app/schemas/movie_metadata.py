@@ -224,20 +224,26 @@ class MovieMetadataResult(MovieMetadata):
     know it's meant to be routing metadata, not ticket content. Keeping
     them here means the LLM never sees these fields at all."""
 
+    # Always populated, every call — not gated behind fallback_occurred.
+    # Knowing which model actually produced a result is useful on its own
+    # (e.g. a small "Extracted with Gemini" attribution in the UI), not
+    # just when something went differently than requested.
+    used_provider: str = Field(
+        ..., description='The provider that actually served this extraction.',
+    )
+    used_model: str = Field(
+        ..., description='The model that actually produced this result.',
+    )
+    requested_model: str = Field(
+        ..., description='The model that was resolved/requested before any '
+        '`auto_fallback` retry — equal to `used_model` unless `fallback_occurred` '
+        'is true.',
+    )
     fallback_occurred: bool = Field(
         False, description='True if `auto_fallback: true` was set and the originally '
-        "requested model wasn't usable (not found), so a different model actually "
-        'served this extraction. Always false when `auto_fallback` was off — a '
-        'request never silently changes models unless explicitly opted in.',
-    )
-    requested_model: Optional[str] = Field(
-        None, description='The model that was actually requested — only set when '
-        '`fallback_occurred` is true, null otherwise.',
-    )
-    used_model: Optional[str] = Field(
-        None, description='The model that actually produced this result — only set '
-        'when `fallback_occurred` is true (differs from `requested_model` in that '
-        'case), null otherwise.',
+        "requested model wasn't usable (not found), so `used_model` differs from "
+        '`requested_model`. Always false when `auto_fallback` was off — a request '
+        'never silently changes models unless explicitly opted in.',
     )
 
     model_config = ConfigDict(extra='forbid', frozen=True)

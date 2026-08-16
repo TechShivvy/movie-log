@@ -18,9 +18,10 @@ responses = {
                         'currency': 'INR',
                         'booking_ref': 'WNJ2T8D',
                         'certificate': None,
+                        'used_provider': 'openrouter',
+                        'used_model': 'qwen/qwen2.5-vl-72b-instruct:free',
+                        'requested_model': 'qwen/qwen2.5-vl-72b-instruct:free',
                         'fallback_occurred': False,
-                        'requested_model': None,
-                        'used_model': None,
                     }
                 }
             },
@@ -266,9 +267,10 @@ responses = {
                         'currency': 'INR',
                         'booking_ref': None,
                         'certificate': 'U/A',
-                        'fallback_occurred': True,
-                        'requested_model': 'gemini-2.5-flash',
+                        'used_provider': 'gemini',
                         'used_model': 'gemini-flash-latest',
+                        'requested_model': 'gemini-2.5-flash',
+                        'fallback_occurred': True,
                     }
                 }
             },

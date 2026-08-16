@@ -10,14 +10,17 @@ __date__ = 'Jul 2025'
 
 
 import os
+import warnings
 from typing import Annotated, Literal, Optional, Tuple, Type
 
+from cryptography.fernet import Fernet
 from dotenv import find_dotenv
 from pydantic import (
     Field,
     SecretStr,
     StringConstraints,
     field_validator,
+    model_validator,
 )
 from pydantic_settings import (
     BaseSettings,
@@ -146,10 +149,13 @@ class Settings(BaseSettings):
         exclude=True,
         description='Fernet key (cryptography.fernet.Fernet.generate_key()) encrypting '
         "users' own stored OpenAI/Gemini/OpenRouter API keys at rest "
-        '(services/llm_keys.py, utils/crypto.py). Optional at the settings level, but '
-        'storing/reading a key fails closed (500) if unset — never silently falls back '
-        'to plaintext. Rotating this key invalidates every already-stored key (they\'d '
-        'fail to decrypt) — there is no key-versioning/re-encryption path yet.',
+        '(services/llm_keys.py, utils/crypto.py). LOCAL: optional — auto-generated '
+        '(ephemeral, regenerated every restart) if left unset, so a fresh clone works '
+        'without a manual key-generation step. DEV/PROD: required — refuses to start '
+        'if unset (see require_llm_key_encryption_key below), since an ephemeral key '
+        "in a real deployment would silently break every already-stored user's key on "
+        'the next restart. Rotating this value invalidates every already-stored key '
+        '(they\'d fail to decrypt) — there is no key-versioning/re-encryption path yet.',
     )
     tmdb_api_key: Optional[SecretStr] = Field(
         default=None,
@@ -330,9 +336,53 @@ class Settings(BaseSettings):
             )
         return value
 
+    @model_validator(mode='after')
+    def auto_generate_local_encryption_key(self) -> 'Settings':
+        # type(self) is Settings, not isinstance — this must NOT fire for
+        # DevelopmentSettings/ProductionSettings instances, which instead
+        # carry their own require_llm_key_encryption_key field validator
+        # below rejecting a missing key outright. A LOCAL clone shouldn't
+        # need a manual `python -c "Fernet.generate_key()"` step just to
+        # exercise the stored-API-key feature, but DEV/PROD auto-
+        # generating one would be actively dangerous: it's ephemeral
+        # (regenerated every process restart), so every already-stored
+        # provider key would silently become undecipherable the moment a
+        # real deployment restarted — exactly the "quietly corrupts real
+        # user data" failure mode this project's other ENV-gated
+        # convenience toggles (DEV_BYPASS_AUTH) already refuse to allow
+        # outside LOCAL.
+        if type(self) is Settings and self.llm_key_encryption_key is None:
+            generated = Fernet.generate_key().decode('utf-8')
+            object.__setattr__(self, 'llm_key_encryption_key', SecretStr(generated))
+            warnings.warn(
+                'LLM_KEY_ENCRYPTION_KEY not set — auto-generated an ephemeral one for '
+                'this LOCAL run only. Any provider keys stored under it will fail to '
+                'decrypt after a restart. Set LLM_KEY_ENCRYPTION_KEY explicitly once '
+                'you need stored keys to persist across restarts.',
+                stacklevel=2,
+            )
+        return self
+
+
+def _require_llm_key_encryption_key(v: Optional[SecretStr]) -> Optional[SecretStr]:
+    if v is None:
+        raise ValueError(
+            'LLM_KEY_ENCRYPTION_KEY must be set explicitly outside LOCAL. Generate '
+            'one with: python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())" — LOCAL\'s auto-generated-if-'
+            'unset convenience is deliberately not available here, since an ephemeral '
+            'key would silently break every already-stored provider key on restart.'
+        )
+    return v
+
 
 class DevelopmentSettings(Settings):
     loguru_level: Literal['DEBUG', 'INFO'] = 'DEBUG'  # type: ignore[reportIncompatibleVariableOverride]
+
+    @field_validator('llm_key_encryption_key', mode='after')
+    @classmethod
+    def require_llm_key_encryption_key(cls, v: Optional[SecretStr]) -> Optional[SecretStr]:
+        return _require_llm_key_encryption_key(v)
 
 
 class ProductionSettings(Settings):
@@ -365,6 +415,11 @@ class ProductionSettings(Settings):
                 'ignoring a misconfiguration this sensitive.'
             )
         return v
+
+    @field_validator('llm_key_encryption_key', mode='after')
+    @classmethod
+    def require_llm_key_encryption_key(cls, v: Optional[SecretStr]) -> Optional[SecretStr]:
+        return _require_llm_key_encryption_key(v)
 
 
 def get_settings() -> Settings | DevelopmentSettings | ProductionSettings:
