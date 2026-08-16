@@ -11,6 +11,12 @@ from openai import (
     RateLimitError,
 )
 
+# Provider-agnostic wording — this SDK now drives OpenRouter, OpenAI, and
+# Gemini alike (see llm/llm_client.py), all through the same `openai`
+# package's exception hierarchy. Previously hardcoded "OpenAI" by name
+# even when the actual call was to OpenRouter — already a latent
+# inaccuracy before Gemini existed, fixed here rather than carried
+# forward into a third provider.
 OPENAI_ERROR_MAP = {
     AuthenticationError: (status.HTTP_401_UNAUTHORIZED, 'Invalid API key.'),
     PermissionDeniedError: (status.HTTP_403_FORBIDDEN, 'Permission denied.'),
@@ -18,10 +24,10 @@ OPENAI_ERROR_MAP = {
         status.HTTP_429_TOO_MANY_REQUESTS,
         'Too many requests. Please try again later.',
     ),
-    APITimeoutError: (status.HTTP_408_REQUEST_TIMEOUT, 'Request to OpenAI timed out.'),
+    APITimeoutError: (status.HTTP_408_REQUEST_TIMEOUT, 'Request to the LLM provider timed out.'),
     APIConnectionError: (
         status.HTTP_502_BAD_GATEWAY,
-        'Unable to connect to OpenAI. Please retry later.',
+        'Unable to connect to the LLM provider. Please retry later.',
     ),
     InternalServerError: (
         status.HTTP_502_BAD_GATEWAY,
@@ -49,7 +55,7 @@ def openai_error_to_http(exc: OpenAIError) -> HTTPException:
         (502, 'Unexpected error from upstream service.'),
     )
 
-    LOGGER.error(f'OpenAI error [{type(exc).__name__}]: {exc}')
+    LOGGER.error(f'LLM provider error [{type(exc).__name__}]: {exc}')
     LOGGER.debug(f'Exception details: {exc.__dict__}')
     LOGGER.debug(f'Error details: {str(exc)}')
 

@@ -10,7 +10,7 @@ access, refetch if needed" keeps the cache warm on its own — a
 background thread would only help the very first request after a long
 idle period, at the cost of real complexity (thread lifecycle, its
 interaction with the asyncio loop, orphaned timers across reloads) that
-buys nothing here. Same pattern as llm/openrouter_client.py's
+buys nothing here. Same pattern as llm/llm_client.py's
 _all_models() cache.
 
 Fallback chain, each layer only used if the one before it is unavailable:
@@ -43,7 +43,7 @@ _SNAPSHOT_URL = (
     'data/free-models/free-models.json'
 )
 _TIMEOUT = 10.0
-_CACHE_TTL = 3600.0  # 1 hour, matches llm/openrouter_client.py's model cache
+_CACHE_TTL = 3600.0  # 1 hour, matches llm/llm_client.py's model cache
 
 HARD_FALLBACK_MODEL = 'openrouter/free'
 
@@ -110,7 +110,7 @@ async def default_free_model(requires_image: bool = True) -> str:
     to image-capable models first — no point handing back a text-only
     model that would just fail on the very first real request.
     requires_image=False (/extract-from-link, plain scraped text — see
-    llm/openrouter_client.py's extract_movie_metadata_from_text) doesn't
+    llm/llm_client.py's extract_movie_metadata_from_text) doesn't
     filter by modality at all, since restricting to image-capable models
     there would only needlessly shrink the pool for no reason — a
     text-only free model (e.g. cohere/north-mini-code:free) works just

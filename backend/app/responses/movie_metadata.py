@@ -26,7 +26,8 @@ responses = {
             'description': 'The URL is malformed, not http(s), or its host is not on '
             'the supported-ticketing-site allowlist — checked before any scraping is '
             'attempted, so this never spends quota. Also covers the shared-key-must-'
-            'be-free-model rule, same as /extract.',
+            'be-free-model rule (OpenRouter only) and the missing-own-key rule '
+            '(OpenAI/Gemini only), same as /extract.',
             'content': {
                 'application/json': {
                     'examples': {
@@ -38,10 +39,19 @@ responses = {
                             },
                         },
                         'shared_model_not_free': {
-                            'summary': 'Non-free model requested without an own API key',
+                            'summary': 'Non-free model requested without an own API key (openrouter)',
                             'value': {
                                 'code': 'BAD_REQUEST',
                                 'message': 'Selected shared model must be a free model.',
+                            },
+                        },
+                        'llm_api_key_required': {
+                            'summary': 'No X-LLM-API-Key given for provider=openai/gemini',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'Gemini requires your own API key — there is no '
+                                'shared key for this provider. Provide one via the '
+                                'X-LLM-API-Key header.',
                             },
                         },
                     }
@@ -50,7 +60,7 @@ responses = {
         },
         401: {
             'description': 'Missing/invalid sign-in, or (if you supplied your own key) '
-            'OpenRouter rejected it — same two independent locks as /extract.',
+            'the provider rejected it — same two independent locks as /extract.',
             'content': {
                 'application/json': {
                     'example': {'code': 'UNAUTHORIZED', 'message': 'Missing bearer token.'}
@@ -73,7 +83,9 @@ responses = {
             },
         },
         429: {
-            'description': 'One of two independent limits — distinguish by `code`.',
+            'description': 'One of two independent limits — distinguish by `code`. The '
+            'daily quota only ever applies to provider=openrouter with no own key; '
+            'openai/gemini always require an own key, so this never fires for them.',
             'content': {
                 'application/json': {
                     'examples': {
@@ -86,7 +98,7 @@ responses = {
                             },
                         },
                         'daily_quota_exceeded': {
-                            'summary': 'Shared-key daily cap reached',
+                            'summary': 'Shared-key daily cap reached (openrouter only)',
                             'value': {
                                 'code': 'QUOTA_DAILY_EXCEEDED',
                                 'message': 'Daily free extraction limit reached. Add your '
@@ -111,13 +123,13 @@ responses = {
             },
         },
         502: {
-            'description': 'Could not reach OpenRouter/OpenAI, or it returned a '
+            'description': 'Could not reach the selected provider, or it returned a '
             'non-JSON / invalid response.',
             'content': {
                 'application/json': {
                     'example': {
                         'code': 'UPSTREAM_ERROR',
-                        'message': 'Unable to connect to OpenAI. Please retry later.',
+                        'message': 'Unable to connect to the LLM provider. Please retry later.',
                     }
                 }
             },
@@ -128,18 +140,25 @@ responses = {
             'description': 'Key/model check result — always 200 once signed in and a '
             'key was supplied; an invalid key or nonexistent model comes back as '
             '`valid: false` / `model.exists: false`, not an error status, since '
-            "that's itself a useful answer here.",
+            "that's itself a useful answer here. `is_free_tier`/`usage`/`limit`/"
+            '`limit_remaining` are OpenRouter-only fields (its key-info endpoint '
+            'returns them; OpenAI/Gemini have no equivalent, so those come back null '
+            'for the other two providers). Same asymmetry on `model`: OpenRouter '
+            'reports modality/pricing/context-length from its public catalog; '
+            'OpenAI/Gemini report only `exists`/`name`, no richer metadata available '
+            'generically for either.',
             'content': {
                 'application/json': {
                     'examples': {
-                        'valid_key_with_model': {
-                            'summary': 'Valid key, model given and found, supports images',
+                        'valid_key_with_model_openrouter': {
+                            'summary': 'OpenRouter: valid key, model given and found, supports images',
                             'value': {
                                 'valid': True,
                                 'is_free_tier': False,
                                 'usage': 0.42,
                                 'limit': None,
                                 'limit_remaining': None,
+                                'provider': 'openrouter',
                                 'model': {
                                     'requested': 'qwen/qwen2.5-vl-72b-instruct:free',
                                     'exists': True,
@@ -151,9 +170,17 @@ responses = {
                                 },
                             },
                         },
+                        'valid_key_with_model_gemini': {
+                            'summary': 'Gemini: valid key, model given and found',
+                            'value': {
+                                'valid': True,
+                                'provider': 'gemini',
+                                'model': {'requested': 'gemini-flash-latest', 'exists': True, 'name': 'gemini-flash-latest'},
+                            },
+                        },
                         'invalid_key': {
-                            'summary': 'Key rejected by OpenRouter',
-                            'value': {'valid': False, 'model': None},
+                            'summary': 'Key rejected by the provider',
+                            'value': {'valid': False, 'provider': 'openai', 'model': None},
                         },
                         'model_not_given': {
                             'summary': 'Key checked, no model requested',
@@ -163,17 +190,19 @@ responses = {
                                 'usage': 0.42,
                                 'limit': None,
                                 'limit_remaining': None,
+                                'provider': 'openrouter',
                                 'model': None,
                             },
                         },
                         'model_not_found': {
-                            'summary': "Model id doesn't exist in OpenRouter's catalog",
+                            'summary': "Model id doesn't exist in the provider's catalog",
                             'value': {
                                 'valid': True,
                                 'is_free_tier': False,
                                 'usage': 0.42,
                                 'limit': None,
                                 'limit_remaining': None,
+                                'provider': 'openrouter',
                                 'model': {'requested': 'made-up/not-a-real-model', 'exists': False},
                             },
                         },
@@ -182,21 +211,21 @@ responses = {
             },
         },
         400: {
-            'description': 'No X-OpenRouter-API-Key header supplied — this endpoint '
+            'description': 'No X-LLM-API-Key header supplied — this endpoint '
             'only makes sense for testing a key you provide, there is no shared-key '
-            'fallback here.',
+            'fallback here for any of the three providers.',
             'content': {
                 'application/json': {
                     'example': {
                         'code': 'BAD_REQUEST',
-                        'message': 'Provide a key to test via the X-OpenRouter-API-Key header.',
+                        'message': 'Provide a key to test via the X-LLM-API-Key header.',
                     }
                 }
             },
         },
         401: {
-            'description': 'Missing/invalid sign-in to this API (not the OpenRouter key '
-            'being tested — an invalid OpenRouter key is a 200 with valid: false).',
+            'description': 'Missing/invalid sign-in to this API (not the provider key '
+            'being tested — an invalid provider key is a 200 with valid: false).',
             'content': {
                 'application/json': {
                     'example': {'code': 'UNAUTHORIZED', 'message': 'Missing bearer token.'}
@@ -204,7 +233,7 @@ responses = {
             },
         },
         502: {
-            'description': 'Could not reach OpenRouter to perform the check.',
+            'description': 'Could not reach the selected provider to perform the check.',
             'content': {
                 'application/json': {
                     'example': {
@@ -259,8 +288,9 @@ responses = {
             },
         },
         400: {
-            'description': 'Invalid image file, empty/invalid model name, or the '
-            'upstream LLM rejected the request as malformed.',
+            'description': 'Invalid image file, empty/invalid model name, a missing '
+            'own key for provider=openai/gemini, or the upstream LLM rejected the '
+            'request as malformed.',
             'content': {
                 'application/json': {
                     'examples': {
@@ -269,14 +299,23 @@ responses = {
                             'value': {'code': 'BAD_REQUEST', 'message': 'Invalid image file'},
                         },
                         'shared_model_not_free': {
-                            'summary': 'Non-free model requested without an own API key',
+                            'summary': 'Non-free model requested without an own API key (openrouter)',
                             'value': {
                                 'code': 'BAD_REQUEST',
                                 'message': 'Selected shared model must be a free model.',
                             },
                         },
+                        'llm_api_key_required': {
+                            'summary': 'No X-LLM-API-Key given for provider=openai/gemini',
+                            'value': {
+                                'code': 'BAD_REQUEST',
+                                'message': 'OpenAI requires your own API key — there is no '
+                                'shared key for this provider. Provide one via the '
+                                'X-LLM-API-Key header.',
+                            },
+                        },
                         'upstream_bad_request': {
-                            'summary': 'OpenRouter/OpenAI rejected the request',
+                            'summary': 'The provider rejected the request',
                             'value': {
                                 'code': 'BAD_REQUEST',
                                 'message': 'Bad request. Please check input format.',
@@ -288,7 +327,7 @@ responses = {
         },
         401: {
             'description': "Missing/invalid sign-in, or (if you supplied your own key) "
-            "OpenRouter rejected it. These are the two independent locks in "
+            "the provider rejected it. These are the two independent locks in "
             "Swagger's Authorize dialog — see the endpoint description.",
             'content': {
                 'application/json': {
@@ -304,8 +343,8 @@ responses = {
                                 'message': 'Invalid or expired access token.',
                             },
                         },
-                        'bad_openrouter_key': {
-                            'summary': 'X-OpenRouter-API-Key was supplied but rejected upstream',
+                        'bad_provider_key': {
+                            'summary': 'X-LLM-API-Key was supplied but rejected upstream',
                             'value': {'code': 'UNAUTHORIZED', 'message': 'Invalid API key.'},
                         },
                     }
@@ -313,7 +352,7 @@ responses = {
             },
         },
         403: {
-            'description': 'OpenRouter/OpenAI permission denied for the requested model.',
+            'description': 'The provider denied permission for the requested model.',
             'content': {
                 'application/json': {
                     'example': {'code': 'FORBIDDEN', 'message': 'Permission denied.'}
@@ -326,7 +365,7 @@ responses = {
                 'application/json': {
                     'example': {
                         'code': 'REQUEST_TIMEOUT',
-                        'message': 'Request to OpenAI timed out.',
+                        'message': 'Request to the LLM provider timed out.',
                     }
                 }
             },
@@ -369,6 +408,17 @@ responses = {
                 }
             },
         },
+        404: {
+            'description': "Gemini-only: the requested model doesn't exist and the "
+            'one automatic healing retry (see the endpoint description) also failed '
+            '— genuinely exhausted, not something the client can usefully retry with '
+            'the same model.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Not found.'}
+                }
+            },
+        },
         429: {
             'description': 'One of three independent limits — distinguish by `code`, '
             'not just the 429 status.',
@@ -385,8 +435,8 @@ responses = {
                             },
                         },
                         'daily_quota_exceeded': {
-                            'summary': 'Shared-key daily cap reached (only applies without '
-                            'your own X-OpenRouter-API-Key)',
+                            'summary': 'Shared-key daily cap reached (only applies to '
+                            'provider=openrouter with no own X-LLM-API-Key)',
                             'value': {
                                 'code': 'QUOTA_DAILY_EXCEEDED',
                                 'message': 'Daily free extraction limit reached. Add your '
@@ -394,7 +444,8 @@ responses = {
                             },
                         },
                         'upstream_rate_limited': {
-                            'summary': 'OpenRouter/OpenAI itself rate-limited the request',
+                            'summary': 'The provider itself rate-limited the request — '
+                            'e.g. Gemini free-tier keys are capped at a low requests/minute',
                             'value': {
                                 'code': 'RATE_LIMITED',
                                 'message': 'Too many requests. Please try again later.',
@@ -418,7 +469,8 @@ responses = {
                             },
                         },
                         'missing_shared_key': {
-                            'summary': 'No X-OpenRouter-API-Key given and no shared key configured',
+                            'summary': 'provider=openrouter, no X-LLM-API-Key given, and no '
+                            'shared key configured on the backend',
                             'value': {
                                 'code': 'INTERNAL_ERROR',
                                 'message': 'OpenRouter API key is missing. Please provide '
@@ -437,7 +489,7 @@ responses = {
                         'quota_rpc_failed': {
                             'summary': "The quota-check call to Supabase itself failed "
                             "(only when using the shared key — irrelevant with your own "
-                            "X-OpenRouter-API-Key)",
+                            "X-LLM-API-Key, or with provider=openai/gemini)",
                             'value': {
                                 'code': 'INTERNAL_ERROR',
                                 'message': 'Failed to enforce daily usage limit.',
@@ -463,7 +515,7 @@ responses = {
             },
         },
         502: {
-            'description': 'Could not reach OpenRouter/OpenAI, or it returned a '
+            'description': 'Could not reach the selected provider, or it returned a '
             'non-JSON / invalid response.',
             'content': {
                 'application/json': {
@@ -472,7 +524,7 @@ responses = {
                             'summary': 'Could not connect to the upstream LLM',
                             'value': {
                                 'code': 'UPSTREAM_ERROR',
-                                'message': 'Unable to connect to OpenAI. Please retry later.',
+                                'message': 'Unable to connect to the LLM provider. Please retry later.',
                             },
                         },
                         'invalid_response': {

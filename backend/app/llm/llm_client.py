@@ -8,7 +8,9 @@ from config import settings
 from loguru_setup import LOGGER
 from openai import (
     AsyncOpenAI,
+    AuthenticationError,
     BadRequestError,
+    NotFoundError,
     OpenAIError,
 )
 from pydantic import ValidationError
@@ -17,20 +19,60 @@ from utils.timing import timed
 
 _META_TIMEOUT = 10.0
 
-# In-memory cache of GET /api/v1/models — used to answer "does this model
-# exist / does it accept image input" without a live fetch on every
-# test-key call. Not the same list PROMPT_VERSION-style free-model
-# validation uses (services/free_models.py) — that one's the free-only
-# subset, refreshed out-of-band via GitHub Actions specifically because
-# it's checked on every /extract call and needs to be fast/local. This
-# one covers *every* model (a user's own key may use a paid one), and
-# "test my key" should reflect OpenRouter's real catalog right now, not a
-# day-old snapshot, so it's a short-lived cache, not a persisted one.
+# Renamed from openrouter_client.py — generalized to drive OpenRouter,
+# OpenAI, and Gemini through the same AsyncOpenAI client, varying only
+# base_url/api_key. Gemini is reached via its OpenAI-compatible endpoint
+# rather than a native SDK — live-verified (see plan.md) as full parity
+# on latency and structured-output support, and Google's own native
+# generateContent is itself mid-migration to a different API shape right
+# now, so betting on "native" wasn't actually the more stable choice.
+# This shape is also what a future LiteLLM swap would present to callers
+# anyway, so unifying here isn't throwaway work.
+class ProviderConfig:
+    __slots__ = ('base_url', 'display_name', 'supports_shared_key')
+
+    def __init__(self, base_url: Optional[str], display_name: str, supports_shared_key: bool):
+        self.base_url = base_url
+        self.display_name = display_name
+        self.supports_shared_key = supports_shared_key
+
+
+PROVIDERS: dict[str, ProviderConfig] = {
+    'openrouter': ProviderConfig(
+        base_url='https://openrouter.ai/api/v1',
+        display_name='OpenRouter',
+        supports_shared_key=True,
+    ),
+    'openai': ProviderConfig(
+        base_url=None,  # SDK default (api.openai.com)
+        display_name='OpenAI',
+        supports_shared_key=False,
+    ),
+    'gemini': ProviderConfig(
+        base_url='https://generativelanguage.googleapis.com/v1beta/openai/',
+        display_name='Gemini',
+        supports_shared_key=False,
+    ),
+}
+
+
+def _client_for(provider: str, api_key: str) -> AsyncOpenAI:
+    config = PROVIDERS[provider]
+    if config.base_url:
+        return AsyncOpenAI(base_url=config.base_url, api_key=api_key)
+    return AsyncOpenAI(api_key=api_key)
+
+
+# In-memory cache of OpenRouter's GET /api/v1/models — OpenRouter-only,
+# it's the one provider with a free, no-auth, rich public catalog
+# (pricing, modality, context length). OpenAI/Gemini have no equivalent
+# public source — their check_model() branch below authenticates instead
+# (see check_model), returning less metadata by necessity, not oversight.
 _MODELS_CACHE_TTL = 3600.0
 _models_cache: dict[str, Any] = {'fetched_at': 0.0, 'by_id': {}}
 
 
-async def _all_models() -> dict[str, dict[str, Any]]:
+async def _openrouter_models() -> dict[str, dict[str, Any]]:
     now = time.monotonic()
     if now - _models_cache['fetched_at'] < _MODELS_CACHE_TTL and _models_cache['by_id']:
         return _models_cache['by_id']
@@ -44,47 +86,77 @@ async def _all_models() -> dict[str, dict[str, Any]]:
     return by_id
 
 
-async def check_api_key(api_key: str) -> dict[str, Any]:
-    """Validate an OpenRouter key via GET /api/v1/key — a metadata lookup
-    only, costs no tokens/credits regardless of whether the key is valid."""
+async def check_api_key(provider: str, api_key: str) -> dict[str, Any]:
+    """Validate a key for the given provider without spending tokens/credits.
 
-    async with httpx.AsyncClient(timeout=_META_TIMEOUT) as client:
-        response = await client.get(
-            'https://openrouter.ai/api/v1/key',
-            headers={'Authorization': f'Bearer {api_key}'},
-        )
-    if response.status_code == 401:
+    OpenRouter: GET /api/v1/key, a metadata lookup only (existing
+    behavior, unchanged). OpenAI/Gemini: client.models.list() via the
+    same AsyncOpenAI client extraction uses — listing models is a
+    metadata call on both, no completion/generation involved.
+    """
+
+    if provider == 'openrouter':
+        async with httpx.AsyncClient(timeout=_META_TIMEOUT) as client:
+            response = await client.get(
+                'https://openrouter.ai/api/v1/key',
+                headers={'Authorization': f'Bearer {api_key}'},
+            )
+        if response.status_code == 401:
+            return {'valid': False}
+        response.raise_for_status()
+        data = response.json().get('data', {})
+        return {
+            'valid': True,
+            'is_free_tier': data.get('is_free_tier'),
+            'usage': data.get('usage'),
+            'limit': data.get('limit'),
+            'limit_remaining': data.get('limit_remaining'),
+        }
+
+    client = _client_for(provider, api_key)
+    try:
+        await client.models.list()
+        return {'valid': True}
+    except AuthenticationError:
         return {'valid': False}
-    response.raise_for_status()
-    data = response.json().get('data', {})
-    return {
-        'valid': True,
-        'is_free_tier': data.get('is_free_tier'),
-        'usage': data.get('usage'),
-        'limit': data.get('limit'),
-        'limit_remaining': data.get('limit_remaining'),
-    }
 
 
-async def check_model(model_name: str) -> Optional[dict[str, Any]]:
-    """Look up a model in OpenRouter's public catalog — also a metadata
-    lookup, no tokens spent, no API key needed at all for this one.
-    Returns None if the model id doesn't exist."""
+async def check_model(
+    provider: str, model_name: str, api_key: Optional[str] = None
+) -> Optional[dict[str, Any]]:
+    """Look up a model for the given provider. OpenRouter: free, no-auth,
+    rich catalog lookup (existing behavior, unchanged) — returns
+    modality/pricing/context-length. OpenAI/Gemini: neither exposes a
+    public no-auth catalog the same way, so this authenticates
+    (client.models.retrieve) and returns only existence — real metadata
+    parity isn't available generically for these two, not hidden here.
+    Returns None if the model doesn't exist (or, for OpenAI/Gemini, if no
+    api_key was given to check with)."""
 
-    models = await _all_models()
-    model = models.get(model_name)
-    if model is None:
+    if provider == 'openrouter':
+        models = await _openrouter_models()
+        model = models.get(model_name)
+        if model is None:
+            return None
+        architecture = model.get('architecture') or {}
+        pricing = model.get('pricing') or {}
+        return {
+            'exists': True,
+            'name': model.get('name'),
+            'input_modalities': architecture.get('input_modalities', []),
+            'supports_image_input': 'image' in architecture.get('input_modalities', []),
+            'is_free': pricing.get('prompt') == '0' and pricing.get('completion') == '0',
+            'context_length': model.get('context_length'),
+        }
+
+    if not api_key:
         return None
-    architecture = model.get('architecture') or {}
-    pricing = model.get('pricing') or {}
-    return {
-        'exists': True,
-        'name': model.get('name'),
-        'input_modalities': architecture.get('input_modalities', []),
-        'supports_image_input': 'image' in architecture.get('input_modalities', []),
-        'is_free': pricing.get('prompt') == '0' and pricing.get('completion') == '0',
-        'context_length': model.get('context_length'),
-    }
+    client = _client_for(provider, api_key)
+    try:
+        model = await client.models.retrieve(model_name)
+        return {'exists': True, 'name': getattr(model, 'id', model_name)}
+    except NotFoundError:
+        return None
 
 
 def _build_image_messages(system_prompt: str, user_prompt: str, image_data_uri: str) -> list[dict]:
@@ -175,6 +247,20 @@ async def _call_model(
     return response_model.model_validate_json(content_text)
 
 
+async def _heal_gemini_model_if_needed(model_name: str) -> str:
+    """Gemini specifically churns model names (renames/deprecations) more
+    than OpenRouter/OpenAI do in practice — live-confirmed mid-build:
+    gemini-2.5-flash is already "no longer available to new users". This
+    resolves what to retry with if the *first* call 404s as
+    not-found — never called speculatively, never applied to any other
+    provider, see the NotFoundError catch in the two extract functions
+    below for where this actually gets invoked."""
+
+    from services import gemini_free_models
+
+    return await gemini_free_models.default_free_model()
+
+
 @timed(label='extract_movie_metadata_from_image')
 async def extract_movie_metadata_from_image(
     image_data_uri: str,
@@ -183,8 +269,9 @@ async def extract_movie_metadata_from_image(
     user_prompt: str,
     response_model,
     model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
+    provider: str = 'openrouter',
 ):
-    """Extract movie metadata from an image using OpenRouter API
+    """Extract movie metadata from an image via the given provider.
 
     Args:
         image_data_uri (str): The data URI of the image to analyze
@@ -192,7 +279,8 @@ async def extract_movie_metadata_from_image(
         system_prompt (str): The system prompt to guide the model
         user_prompt (str): The user prompt with specific questions
         response_model (_type_): The expected response model
-        model_name (str, optional): The name of the model to use. Defaults to 'qwen/qwen2.5-vl-72b-instruct:free'
+        model_name (str, optional): The name of the model to use.
+        provider (str, optional): 'openrouter' (default), 'openai', or 'gemini'.
 
     Raises:
         openai_error_to_http: If the OpenAI API returns an error
@@ -202,10 +290,11 @@ async def extract_movie_metadata_from_image(
         response_model: The extracted movie metadata as a Pydantic model instance (response_model)
     """
 
-    client = AsyncOpenAI(base_url='https://openrouter.ai/api/v1', api_key=api_key)
+    client = _client_for(provider, api_key)
+    healed_once = False
 
     for attempt in range(1, settings.max_attempts + 1):
-        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts})')
+        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts}) provider={provider}')
 
         try:
             return await _call_model(
@@ -214,6 +303,22 @@ async def extract_movie_metadata_from_image(
                 response_model,
                 model_name,
             )
+
+        except NotFoundError as exc:
+            # Gemini-only, one retry, only for a genuine "model not
+            # found" — never for OpenRouter/OpenAI, never more than once,
+            # never for any other error shape. See
+            # _heal_gemini_model_if_needed's docstring.
+            if provider == 'gemini' and not healed_once:
+                healed_once = True
+                old_model = model_name
+                model_name = await _heal_gemini_model_if_needed(model_name)
+                LOGGER.warning(
+                    'Gemini model {} not found, healing to {} and retrying once',
+                    old_model, model_name,
+                )
+                continue
+            raise openai_utils.openai_error_to_http(exc)
 
         except BadRequestError as exc:
             LOGGER.warning(f'BadRequestError: {exc}')
@@ -273,18 +378,19 @@ async def extract_movie_metadata_from_text(
     user_prompt: str,
     response_model,
     model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
+    provider: str = 'openrouter',
 ):
     """Extract movie metadata from scraped ticket-page text (see
-    services/ticket_link_extractor.py) using OpenRouter API — the text
+    services/ticket_link_extractor.py) via the given provider — the text
     equivalent of extract_movie_metadata_from_image, same retry structure,
     same response_model/parsing path via _call_model, differing only in
     how the message is built (_build_text_messages, no image_url) and how
     a context-length error is handled (truncate text, not shrink image).
 
     Unlike the image path, this doesn't require an image-capable model —
-    plain text input works with any OpenRouter model, free or not, so
-    callers aren't restricted to the image-capable subset of the free
-    model list the way /extract is.
+    plain text input works with any model on any of the three providers,
+    free or not, so callers aren't restricted to the image-capable subset
+    of the free model list the way /extract is (OpenRouter path only).
 
     Args:
         page_text (str): The extracted visible text of the ticket page
@@ -293,15 +399,17 @@ async def extract_movie_metadata_from_text(
         user_prompt (str): The user prompt with specific questions
         response_model (_type_): The expected response model
         model_name (str, optional): The name of the model to use
+        provider (str, optional): 'openrouter' (default), 'openai', or 'gemini'.
 
     Returns:
         response_model: The extracted movie metadata as a Pydantic model instance (response_model)
     """
 
-    client = AsyncOpenAI(base_url='https://openrouter.ai/api/v1', api_key=api_key)
+    client = _client_for(provider, api_key)
+    healed_once = False
 
     for attempt in range(1, settings.max_attempts + 1):
-        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts})')
+        LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts}) provider={provider}')
 
         try:
             return await _call_model(
@@ -310,6 +418,18 @@ async def extract_movie_metadata_from_text(
                 response_model,
                 model_name,
             )
+
+        except NotFoundError as exc:
+            if provider == 'gemini' and not healed_once:
+                healed_once = True
+                old_model = model_name
+                model_name = await _heal_gemini_model_if_needed(model_name)
+                LOGGER.warning(
+                    'Gemini model {} not found, healing to {} and retrying once',
+                    old_model, model_name,
+                )
+                continue
+            raise openai_utils.openai_error_to_http(exc)
 
         except BadRequestError as exc:
             LOGGER.warning(f'BadRequestError: {exc}')
