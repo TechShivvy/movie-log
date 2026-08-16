@@ -107,6 +107,9 @@ WRITABLE_FIELDS = (
     'is_fdfs',
     'is_first_day',
     'is_archived',
+    'extraction_provider',
+    'extraction_model',
+    'extraction_edited',
 )
 
 
@@ -263,6 +266,40 @@ class MovieLogInput(BaseModel):
         "owner's own GET /movie-logs, regardless of visibility. Reversible — "
         'archiving is not deleting.',
     )
+    extraction_provider: Optional[Literal['openrouter', 'openai', 'gemini']] = Field(
+        default=None,
+        description="Which LLM provider's POST /movie-metadata/extract call "
+        'informed this log, if any — null means it was entered fully manually. '
+        "Set by the client from that endpoint's own `used_provider`, not "
+        'independently re-derived here — provenance metadata the frontend can '
+        'show as a small attribution ("Extracted with Gemini"), not something '
+        'the backend verifies. Must be set together with extraction_model (both '
+        'null, or both set).',
+    )
+    extraction_model: Optional[str] = Field(
+        default=None, max_length=200,
+        description='Which model actually produced the extraction that informed '
+        "this log, if any — from POST /movie-metadata/extract's own `used_model`. "
+        'Must be set together with extraction_provider.',
+    )
+    extraction_edited: Optional[bool] = Field(
+        default=None,
+        description='Whether the caller changed any field after extraction, '
+        'before saving — only meaningful when extraction_model is set. Left null '
+        '(not false) on a fully-manual log, since "edited" presupposes something '
+        'was extracted to edit in the first place. Client-asserted, like '
+        "extraction_provider/extraction_model — the backend can't independently "
+        'verify whether the saved values differ from what extraction returned.',
+    )
+
+    @model_validator(mode='after')
+    def _check_extraction_pair(self) -> 'MovieLogInput':
+        if (self.extraction_provider is None) != (self.extraction_model is None):
+            raise ValueError(
+                'extraction_provider and extraction_model must be set together '
+                '(both null, or both set) — one without the other is meaningless.'
+            )
+        return self
 
     @model_validator(mode='after')
     def _check_punctuality_pairs(self) -> 'MovieLogInput':
@@ -388,6 +425,14 @@ class MovieLogUpdate(BaseModel):
     is_fdfs: Optional[bool] = Field(default=None)
     is_first_day: Optional[bool] = Field(default=None)
     is_archived: Optional[bool] = Field(default=None)
+    extraction_provider: Optional[Literal['openrouter', 'openai', 'gemini']] = Field(default=None)
+    extraction_model: Optional[str] = Field(default=None, max_length=200)
+    extraction_edited: Optional[bool] = Field(default=None)
+    # No cross-field validator here for the extraction_provider/extraction_model
+    # pairing either, same reasoning as the punctuality fields just below —
+    # a partial update can't see whether the other half was already set by a
+    # prior call. The DB CHECK constraint enforces the pair on the row's final
+    # state.
     # No cross-field validator here unlike MovieLogInput's
     # _check_punctuality_pairs — this is a partial update, Pydantic can't
     # see whether arrival_status was already set by a prior call, so it
