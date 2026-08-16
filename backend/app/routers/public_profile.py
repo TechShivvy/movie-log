@@ -11,6 +11,7 @@ from rate_limit import limiter
 from responses.public_profile import responses
 from schemas.public_profile import (
     AccountPrivacyUpdate,
+    LlmPreferenceUpdate,
     ProfileUpdate,
     PublicProfile,
     RevisitPrefillUpdate,
@@ -216,4 +217,30 @@ async def set_revisit_prefill(
 ) -> Any:
     return await supabase_rest.update_revisit_prefill(
         current_user.access_token, current_user.user_id, payload.prefill_repeat_visit
+    )
+
+
+@router.patch(
+    '/me/llm-preference',
+    tags=['Public'],
+    description="The caller's preferred LLM provider/model for "
+    'POST /movie-metadata/extract and /extract-from-link — `provider` is one of '
+    '`openrouter` (default, has a backend-funded shared/free path), `openai`, or '
+    '`gemini` (both bring-your-own-key only). Purely a stored preference, like '
+    '`/me/revisit-prefill`: the backend never reads this to change extraction '
+    "behavior on its own — fetch it once, then resend `provider`/`model` "
+    'explicitly on each extract call; an own API key still has to be sent there '
+    'too for `openai`/`gemini`, this endpoint never stores one.',
+    response_description="The caller's updated settings row.",
+    responses=responses['set_llm_preference'],
+    operation_id='SetLlmPreference',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_llm_preference(
+    request: Request,
+    payload: LlmPreferenceUpdate,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.update_llm_preference(
+        current_user.access_token, current_user.user_id, payload.provider, payload.model
     )

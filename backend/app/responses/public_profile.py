@@ -395,4 +395,39 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'set_llm_preference': {
+        200: {
+            'description': "The caller's updated settings row.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'user_id': _PROFILE_EXAMPLE['user_id'],
+                        'preferred_provider': 'gemini',
+                        'preferred_model': 'gemini-flash-latest',
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'provider was not one of openrouter/openai/gemini, or model was empty.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'enum',
+                                'loc': ['body', 'provider'],
+                                'msg': "Input should be 'openrouter', 'openai' or 'gemini'",
+                                'input': 'anthropic',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
 }

@@ -97,6 +97,24 @@ class ProfileUpdate(BaseModel):
         return validate_storage_path(v)
 
 
+class LlmPreferenceUpdate(BaseModel):
+    """Stored client preference for POST /movie-metadata/extract's
+    `provider`/`model` fields — purely informational, the backend never
+    reads this to change extraction behavior on its own (same reasoning
+    RevisitPrefillUpdate below already established: no extra DB read on
+    a hot path). The client fetches this once (GET /public/me or
+    wherever settings are read) and resends provider/model explicitly on
+    each extract call; leaving both at their defaults here changes
+    nothing about how /extract behaves without an own key sent too."""
+
+    provider: Literal['openrouter', 'openai', 'gemini']
+    model: str = Field(..., min_length=1, max_length=200)
+
+    model_config = ConfigDict(
+        json_schema_extra={'example': {'provider': 'gemini', 'model': 'gemini-flash-latest'}}
+    )
+
+
 class RevisitPrefillUpdate(BaseModel):
     """Controls what happens when the caller starts a new log at a theatre/
     screen (or for a movie) they've logged before. Off (default): the client

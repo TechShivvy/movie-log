@@ -689,6 +689,20 @@ async def update_revisit_prefill(user_token: str, user_id: str, prefill_repeat_v
     return rows[0] if rows else {}
 
 
+async def update_llm_preference(
+    user_token: str, user_id: str, provider: str, model: str
+) -> dict:
+    row = {'user_id': user_id, 'preferred_provider': provider, 'preferred_model': model}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_llm_preference',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    return rows[0] if rows else {}
+
+
 # ── Reports ──────────────────────────────────────────────────────────────
 # Existence/visibility checks below all use the anon key deliberately, even
 # though they're called from an authenticated route — they're answering
