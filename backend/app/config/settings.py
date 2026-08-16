@@ -149,14 +149,33 @@ class Settings(BaseSettings):
         exclude=True,
         description='Fernet key (cryptography.fernet.Fernet.generate_key()) encrypting '
         "users' own stored OpenAI/Gemini/OpenRouter API keys at rest "
-        '(services/llm_keys.py, utils/crypto.py). LOCAL: optional — auto-generated '
-        '(ephemeral, regenerated every restart) if left unset, so a fresh clone works '
-        'without a manual key-generation step. DEV/PROD: required — refuses to start '
-        'if unset (see require_llm_key_encryption_key below), since an ephemeral key '
-        "in a real deployment would silently break every already-stored user's key on "
-        'the next restart. Rotating this value invalidates every already-stored key '
-        '(they\'d fail to decrypt) — there is no key-versioning/re-encryption path yet.',
+        '(services/llm_keys.py, utils/crypto.py) — the *primary* key: new writes are '
+        'always encrypted under this one. LOCAL: optional — auto-generated (ephemeral, '
+        'regenerated every restart) if left unset, so a fresh clone works without a '
+        'manual key-generation step. DEV/PROD: required — refuses to start if unset '
+        '(see require_llm_key_encryption_key below), since an ephemeral key in a real '
+        "deployment would silently break every already-stored user's key on the next "
+        'restart. To rotate: generate a new key, set it here as the new primary, move '
+        'the old value into llm_key_encryption_key_previous (comma-separated if '
+        'rotating more than once before a full re-encryption) so already-stored keys '
+        'still decrypt, then run backend/scripts/rotate_llm_key_encryption.py to '
+        're-encrypt every stored key under the new primary — once that completes, the '
+        'old key can be dropped from llm_key_encryption_key_previous entirely.',
     )
+    llm_key_encryption_key_previous: Annotated[
+        tuple[str, ...],
+        NoDecode,
+        Field(
+            default=(),
+            description='Comma-separated older Fernet keys, most-recently-retired '
+            'first — used only for *decrypting* keys stored before the last rotation '
+            '(utils/crypto.py builds a cryptography.fernet.MultiFernet from '
+            '[primary, *these], which tries each in order). Never used to encrypt '
+            'anything new. Empty once every stored key has been re-encrypted under '
+            'the current primary (see rotate_llm_key_encryption.py) — keeping a '
+            'retired key here indefinitely defeats the point of rotating away from it.',
+        ),
+    ]
     tmdb_api_key: Optional[SecretStr] = Field(
         default=None,
         exclude=True,
@@ -293,6 +312,15 @@ class Settings(BaseSettings):
     @field_validator('admin_user_ids', mode='before')
     @classmethod
     def validate_admin_user_ids(cls, value: str | tuple[str, ...] | list[str]):
+        if isinstance(value, str):
+            return tuple(v.strip() for v in value.split(',') if v.strip())
+        if isinstance(value, list):
+            return tuple(v.strip() for v in value if v.strip())
+        return value
+
+    @field_validator('llm_key_encryption_key_previous', mode='before')
+    @classmethod
+    def validate_llm_key_encryption_key_previous(cls, value: str | tuple[str, ...] | list[str]):
         if isinstance(value, str):
             return tuple(v.strip() for v in value.split(',') if v.strip())
         if isinstance(value, list):

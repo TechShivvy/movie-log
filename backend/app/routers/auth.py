@@ -67,7 +67,10 @@ async def me(
     'the same "username: null" shape already used for a profile that never '
     'set one. Likes the caller gave or received are removed outright, not '
     'anonymized — a like carries no content worth keeping once its giver is '
-    'gone. Irreversible. Requires `{"confirm": true}` in the body — DELETE '
+    'gone. Any stored provider API keys (PUT /public/me/llm-keys/{provider}) '
+    "are removed outright too — a FK cascade, not application code, so it "
+    "can't be accidentally skipped. Irreversible. Requires "
+    '`{"confirm": true}` in the body — DELETE '
     'requests commonly go out with no body at all, this exists to stop a '
     'bodyless/accidental call from going through; the bearer token is the '
     'real authorization.',

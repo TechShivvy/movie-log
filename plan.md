@@ -112,3 +112,19 @@ Four direct follow-up questions after Phase 7 shipped.
 - Storing an obviously-wrong key still 422s (unaffected by the ENV changes); a `LOCAL` run with `LLM_KEY_ENCRYPTION_KEY` unset auto-generates one (confirmed via a real restart with the setting removed), and a stored key round-trips through encrypt→decrypt→real provider call successfully under that ephemeral key.
 - Every extraction response (fallback or not) now carries populated `used_provider`/`used_model`/`requested_model`; the stale-cache `ResponseValidationError` reproduced live, then confirmed fixed by the schema-aware cache version.
 - Creating a log with `extraction_provider`/`extraction_model` set round-trips correctly; `extraction_provider` without `extraction_model` `422`s; the fields correctly appear on the public profile view once the log is made public.
+
+## Phase 9 — Follow-up: account-deletion cascade check, key rotation, local-vs-server storage choice
+
+Three more direct questions after Phase 8 shipped.
+
+**Account deletion cascade — verified, not a gap.** `user_llm_keys.user_id references auth.users(id) on delete cascade` was already correct from Phase 5. Confirmed live rather than just re-reading the migration: stored a real key, ran `DELETE /auth/me`, queried the table directly with the admin key — the row was gone. `delete_account`'s own docstring updated to say so explicitly (a FK cascade, not application code, so it can't be silently skipped by a code change later).
+
+**Key rotation — the real gap the original design flagged but didn't solve.** `utils/crypto.py` now uses `cryptography`'s `MultiFernet` instead of a single `Fernet`: encryption always uses the *primary* key (`LLM_KEY_ENCRYPTION_KEY`), decryption tries the primary then each key in a new `LLM_KEY_ENCRYPTION_KEY_PREVIOUS` (comma-separated) in order. New `backend/scripts/rotate_llm_key_encryption.py` re-encrypts every stored row under the current primary — checks each row against the primary alone first (skips re-writing rows already current), decrypts via the full `MultiFernet` chain otherwise, re-encrypts, writes back. `--dry-run` reports counts without writing. The actual rotation procedure: generate a new key, set it as primary, move the old one into `_PREVIOUS`, restart, run the script, confirm 0 rows still need it, then drop the old key from `_PREVIOUS` entirely and restart again.
+
+**Local-vs-server key storage — both already worked, the missing piece was a remembered choice.** `PUT /me/llm-keys/{provider}` (store) and never calling it while always sending `X-LLM-API-Key` (local-only) were both already fully functional — nothing to build there. What was missing: a way for the *frontend* to remember which the user prefers, so it isn't re-prompting every session. New `user_settings.llm_keys_storage_opt_in` (default `false`, privacy-first) + `PATCH /public/me/llm-key-storage-preference` — purely a remembered UI signal, doesn't gate the actual store/read/delete endpoints (an explicit `PUT` is already itself explicit consent for that one key).
+
+### Verification
+
+- A real key stored, account deleted, table queried directly with the admin key afterward — row confirmed gone.
+- Full rotation lifecycle exercised live: stored a key under the old primary → rotated (new primary + old in `_PREVIOUS`) → confirmed the stored key still decrypts via `MultiFernet` fallback → ran the rotation script (`--dry-run` then for real) → confirmed 0 rows still need rotation → removed the old key from config entirely → confirmed the stored key *still* decrypts, proving it's genuinely under the new primary alone now.
+- Storage preference round-trips correctly; an invalid (non-boolean) value `422`s.
