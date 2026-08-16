@@ -42,7 +42,16 @@ _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
     'the type has no actor at all (`report_resolved`) — the notification '
     'itself is kept, not retroactively removed. A notification whose target '
     '(log/comment/report) has since been deleted is removed along with it, '
-    'not left as a dead link.',
+    'not left as a dead link.\n\n'
+    "`actor_username`/`actor_avatar_path` are resolved server-side (there's "
+    "no by-id user lookup endpoint for a client to do this itself) — both "
+    'null under the same conditions as `actor_id`. `movie`/`comment_preview`/'
+    '`report_status` are a content preview matched to whichever id is set: '
+    "the log's title, the comment's current text verbatim (also null if "
+    "it's since been soft-deleted, same shape GET /comments already uses), "
+    "or the filed report's current status. Enough to render a full "
+    'notification directly from this response — no follow-up call needed '
+    'per item.',
     response_description="The caller's notifications.",
     responses=responses['list_notifications'],
     operation_id='ListNotifications',
@@ -63,7 +72,12 @@ async def list_notifications(
 @router.post(
     '/{notification_id}/read',
     tags=['Notifications'],
-    description='Mark one of the caller\'s own notifications as read.',
+    description="Mark one of the caller's own notifications as read. Returns "
+    'the base notification row, not the enriched shape GET / returns — '
+    '`actor_username`/`actor_avatar_path`/`movie`/`comment_preview`/'
+    "`report_status` all come back null here regardless of the real values, "
+    "since the client already has the enriched version it just acted on and "
+    "doesn't need it echoed back.",
     response_description='The updated notification.',
     responses=responses['mark_read'],
     operation_id='MarkNotificationRead',

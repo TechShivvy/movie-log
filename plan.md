@@ -82,3 +82,21 @@ Re-verified directly against the RLS migrations rather than from memory: `is_log
 - Liking a log/comment produces exactly one `log_like`/`comment_like` notification to its owner, none to the liker; liking your own log/comment produces none.
 - An admin resolving a report produces exactly one `report_resolved` notification to the original reporter, with `actor_id: null`.
 - Deleting the log/comment/report a notification points at removes that notification too (FK cascade), rather than leaving a dead deep-link.
+
+## Phase 6 — Notification center readiness: actor identity + content preview (follow-up)
+
+Prompted by a direct question after Phase 5 shipped: "do we have the API to build a real notification center — and is mark-read vs. dismiss decided?" Mark-read (grey out) vs. dismiss (delete) was answered as a recommendation, not a build: grey-out matches how Instagram/Twitter/GitHub/Reddit all treat engagement notifications (likes/comments/follows) — low-stakes, scan-and-move-on, an accidental swipe-delete is a worse failure mode than a slightly longer list — so no `DELETE /notifications/{id}` was added; `read`/`read-all` (already built) covers the real need.
+
+The API gap that *did* need fixing: `GET /notifications` returned a bare `actor_id` uuid with no way to resolve it — no `GET /users/by-id/{id}` endpoint exists (only by username) — and no content preview at all, so a client could not actually render "Alex commented on your log" from the response it had, only from extra per-item round-trips.
+
+**Commit:** `feat(notifications): enrich notifications with actor identity and content preview`
+
+- New `notifications_view`, same pattern as `movie_log_comments_view` (repeats the base table's own RLS filter explicitly, since views run under the view owner's rights) — joins in `actor_username`/`actor_avatar_path` (from `user_settings`, both null once the actor's account is deleted), `movie` (the log's title), `comment_preview` (the comment's current text verbatim — null once soft-deleted, matching `GET /comments`'s own `text: null` shape, not an empty string), and `report_status`.
+- `GET /notifications` now reads through the view; `POST /{id}/read` and `POST /read-all` stay on the base table (a multi-join view isn't cleanly updatable) — their response omits the enriched fields, documented explicitly so a client doesn't expect them there.
+- Reading the joined `movie_logs`/`movie_log_comments`/`reports` rows under view-owner rights is safe here specifically because every row a caller's own `notifications_view` query can return is already scoped to *their own* notification — previewing "my own log", "my own comment", or "my own filed report" back to its owner is never a cross-user leak the way an arbitrary join would be.
+
+### Verification
+
+- `actor_username`/`actor_avatar_path` resolve once the actor has a username set, null before; `movie`/`comment_preview` populate correctly per notification type.
+- Soft-deleting the comment behind an already-existing `new_comment` notification updates its `comment_preview` to `null` on the next read (live join, not a stored snapshot).
+- `POST /{id}/read` returns the base row with all five enriched fields `null`, confirmed against the documented behavior.

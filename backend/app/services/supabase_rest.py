@@ -936,6 +936,10 @@ async def list_feed(user_token: str, *, limit: int, offset: int) -> list[dict]:
 async def list_notifications(
     user_token: str, *, unread_only: bool, limit: int, offset: int
 ) -> list[dict]:
+    # Reads through notifications_view (actor username/avatar + a content
+    # preview joined in), not the bare notifications table — the writes
+    # below stay on the base table since the view isn't updatable
+    # (multiple joins).
     params: dict[str, Any] = {
         'select': '*',
         'order': 'created_at.desc',
@@ -945,7 +949,7 @@ async def list_notifications(
     if unread_only:
         params['read'] = 'eq.false'
     response = await _request(
-        'GET', '/notifications', user_token, 'list_notifications', params=params
+        'GET', '/notifications_view', user_token, 'list_notifications', params=params
     )
     return response.json()
 
