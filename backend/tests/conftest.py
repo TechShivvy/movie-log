@@ -186,3 +186,34 @@ def personal_test_key(name: str) -> Optional[str]:
         return value
     env_path = Path(__file__).resolve().parent.parent / '.env'
     return dotenv_values(env_path).get(name)
+
+
+@pytest.fixture
+def patch_settings() -> Callable:
+    """Temporarily overrides fields on the real `settings` object and
+    restores every one of them afterward, even on failure.
+
+    Settings is `frozen=True` (config/settings.py) — regular
+    `monkeypatch.setattr(settings, ...)` raises `pydantic_core.ValidationError:
+    Instance is frozen` (confirmed live), since both setting and
+    monkeypatch's own restore go through pydantic's `__setattr__`
+    override. This bypasses that via `object.__setattr__`, the same
+    technique settings.py's own LOCAL-only auto-generated-encryption-key
+    validator and this file's `admin_user` fixture already use for the
+    same reason.
+
+    Usage: `patch_settings(llm_key_encryption_key=None)`.
+    """
+
+    originals: dict[str, object] = {}
+
+    def _patch(**kwargs) -> None:
+        for name, value in kwargs.items():
+            if name not in originals:  # only remember the *first* original value
+                originals[name] = getattr(settings, name)
+            object.__setattr__(settings, name, value)
+
+    yield _patch
+
+    for name, value in originals.items():
+        object.__setattr__(settings, name, value)
