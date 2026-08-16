@@ -67,6 +67,33 @@ async def test_storage_preference_defaults_false_and_round_trips(client, make_us
 
 @pytest.mark.llm
 @pytest.mark.asyncio
+async def test_opting_out_of_server_storage_deletes_already_stored_keys(client, make_user):
+    """An explicit "stop storing this" has to mean the already-stored copy
+    goes too, not just that future storage stops — otherwise a user who
+    opts out is left with a stale key sitting in the DB, contradicting
+    what they just asked for."""
+
+    key = personal_test_key('GEMINI_API_KEY_1')
+    if not key:
+        pytest.skip('GEMINI_API_KEY_1 not configured in backend/.env')
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    stored = await client.put('/api/v1/public/me/llm-keys/gemini', headers=headers, json={'api_key': key})
+    assert stored.status_code == 200
+
+    opt_out = await client.patch(
+        '/api/v1/public/me/llm-key-storage-preference', headers=headers, json={'store_on_server': False},
+    )
+    assert opt_out.status_code == 200
+    assert opt_out.json()['llm_keys_storage_opt_in'] is False
+
+    listed = await client.get('/api/v1/public/me/llm-keys', headers=headers)
+    assert listed.json() == []  # the stored gemini key is actually gone, not just the flag flipped
+
+
+@pytest.mark.llm
+@pytest.mark.asyncio
 async def test_store_list_delete_a_real_key_masked_throughout(client, make_user):
     key = personal_test_key('GEMINI_API_KEY_1')
     if not key:

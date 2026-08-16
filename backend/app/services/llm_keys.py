@@ -124,6 +124,33 @@ async def delete_llm_key(user_id: str, provider: str) -> bool:
     return bool(response.json())
 
 
+async def delete_all_llm_keys(user_id: str) -> int:
+    """Deletes every stored key for this user, across all providers — used
+    when the caller switches their storage preference to local-only
+    (PATCH /me/llm-key-storage-preference {store_on_server: false}).
+    "I don't want you storing this" should mean the already-stored copy
+    goes too, not just that future storage stops; leaving old keys
+    sitting in the DB after an explicit opt-out would contradict what the
+    user just asked for. Returns the number of rows actually deleted (0
+    is a normal, non-error outcome — nothing was stored server-side to
+    begin with)."""
+
+    key = _require_server_key()
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        response = await client.delete(
+            _rest_url('/user_llm_keys'),
+            headers={**_headers(key), 'Prefer': 'return=representation'},
+            params={'user_id': f'eq.{user_id}'},
+        )
+    if response.status_code >= 400:
+        LOGGER.error('llm_keys: delete_all failed status={} body={}', response.status_code, response.text[:300])
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail='Failed to delete stored API keys.',
+        )
+    return len(response.json())
+
+
 async def get_decrypted_llm_key(user_id: str, provider: str) -> Optional[str]:
     """Backend-only — the one place a stored key is ever turned back into
     plaintext, immediately before using it to call the provider. Never

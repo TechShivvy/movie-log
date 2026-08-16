@@ -258,13 +258,14 @@ async def set_llm_preference(
     tags=['Public'],
     description='Whether the caller wants their own provider API keys stored '
     'server-side (encrypted — PUT /me/llm-keys/{provider}) at all, or kept '
-    'local-only on their own device. Both already work regardless of this '
-    "setting — it's purely a *remembered* signal for the frontend to decide "
-    'whether to default to "save this key" UI or treat every key as session-'
-    "only, so the user isn't re-prompted every time. Defaults to `false` "
-    '(privacy-first). Setting this `true` does not store anything by itself — '
-    "storing a key is still its own separate PUT call, and this preference "
-    "never blocks PUT/GET/DELETE /me/llm-keys/{provider} either way.",
+    'local-only on their own device. Setting this `true` does not store '
+    "anything by itself — storing a key is still its own separate PUT call, "
+    'and this preference never blocks PUT/GET/DELETE /me/llm-keys/{provider} '
+    'either way, so a local-only user can still explicitly PUT a key if they '
+    'want to. Setting this `false`, however, deletes every key currently '
+    "stored server-side for this user, across all providers — an explicit "
+    '"stop storing this" has to mean the already-stored copy goes too, not '
+    'just that future storage stops. Defaults to `false` (privacy-first).',
     response_description="The caller's updated settings row.",
     responses=responses['set_llm_key_storage_preference'],
     operation_id='SetLlmKeyStoragePreference',
@@ -275,9 +276,12 @@ async def set_llm_key_storage_preference(
     payload: LlmKeyStorageOptInUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
-    return await supabase_rest.update_llm_key_storage_opt_in(
+    updated = await supabase_rest.update_llm_key_storage_opt_in(
         current_user.access_token, current_user.user_id, payload.store_on_server
     )
+    if not payload.store_on_server:
+        await llm_keys.delete_all_llm_keys(current_user.user_id)
+    return updated
 
 
 @router.get(
