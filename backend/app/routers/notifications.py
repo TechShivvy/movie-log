@@ -29,8 +29,20 @@ _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
     '`follow_request` (someone followers_only/private wants to follow you), '
     '`follow_accepted` (a pending request of yours was accepted), '
     '`new_follower` (someone followed you instantly, i.e. your account is '
-    'public). `actor_id` is null if that user has since deleted their '
-    'account — the notification itself is kept, not retroactively removed.',
+    'public), `new_comment` (someone commented on your log), `comment_reply` '
+    '(someone replied to one of your comments — the log owner is *not* '
+    "separately notified for a reply, only for the top-level comment), "
+    '`log_like`/`comment_like` (someone liked your log/comment), or '
+    '`report_resolved` (a report you filed was reviewed or dismissed — '
+    '`actor_id` is always null for this type, an admin action is never '
+    "attributed to a specific admin here). `movie_log_id`/`comment_id`/"
+    '`report_id` carry the relevant deep-link id depending on `type` — at '
+    'most one is set, all three are null for the follow-related types. '
+    "`actor_id` is null if that user has since deleted their account, or if "
+    'the type has no actor at all (`report_resolved`) — the notification '
+    'itself is kept, not retroactively removed. A notification whose target '
+    '(log/comment/report) has since been deleted is removed along with it, '
+    'not left as a dead link.',
     response_description="The caller's notifications.",
     responses=responses['list_notifications'],
     operation_id='ListNotifications',

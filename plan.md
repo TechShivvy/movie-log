@@ -59,3 +59,26 @@ Every log and comment already has a stable, resolvable id — that already *is* 
 - **Phase 2**: a comment and a reply to it round-trip correctly; a reply-to-a-reply is rejected; deleting a commented-on-by-others comment leaves the reply intact with the parent showing cleared text; commenting on a `private` log 404s; a blocked pair can't comment on each other.
 - **Phase 3**: liking/unliking moves `like_count` correctly with no `N+1` query per list; liking twice doesn't double-count (primary key conflict, handled cleanly); liking a `private` log 404s.
 - **Phase 4**: delete an account that authored comments (some top-level, some replies) on someone else's log — confirm the comments survive with `user_id: null`, their `like_count` unaffected, but their own likes-given are gone.
+
+## Phase 5 — Notifications for comments/likes/report outcomes (follow-up)
+
+Prompted by a direct question after Phase 1-4 shipped: comment/reply visibility was confirmed already correct (gated purely by the log's own `visibility`, independent of either party's `account_visibility` — no change needed, see the "Comment visibility" note below), but nothing notified anyone about a comment, a reply, or a like — the `notifications` table's `type` check only ever had the three follow-related values, and no triggers existed for any of the new Phase 1-4 tables. This phase closes that gap the same way follows already do it: DB triggers only, existing `notifications_select_own`/`_update_own` RLS unchanged (no new grants needed, table-level not column-level), Realtime **not** extended beyond the existing `notifications` publication — comment threads refresh on re-fetch, not live-push; likes are high-volume/low-value to push live and are deliberately excluded from Realtime entirely.
+
+**Commit:** `feat(notifications): comments, likes, and report-outcome notifications`
+
+- `notifications` gains three new nullable target columns — `movie_log_id`, `comment_id`, `report_id` (real FKs, `on delete cascade` each, so a notification never outlives the thing it points at) — rather than one generic polymorphic `(entity_type, entity_id)` pair, so the frontend gets real deep-link ids without a lookup, and Postgres enforces they're not dangling.
+- `type` check extended with four values: `new_comment` (someone commented on your log), `comment_reply` (someone replied to your comment), `log_like`, `comment_like`. A fifth, `report_resolved`, is unrelated to comments/likes but was flagged as the one other real "nothing pings the user today" gap while auditing this — a report's own `status` transitioning `open` → `reviewed`/`dismissed` never notified the reporter.
+- Four new triggers, same `security definer` shape as `notify_on_follow_change`: `notify_on_comment_insert` (top-level → log owner via `new_comment`; reply → parent comment's author via `comment_reply`), `notify_on_log_like`, `notify_on_comment_like`, `notify_on_report_resolved` (fires on the existing admin-triage `UPDATE`, `WHEN (OLD.status = 'open' AND NEW.status IN ('reviewed','dismissed'))`, `actor_id` left null — an admin action isn't attributed to a specific admin identity in the notification). Every trigger skips self-notification (acting on your own log/comment doesn't notify yourself) and skips a null recipient (content whose author already anonymized-deleted).
+- Comment reportability (comments currently have no report path at all — `reports.target_type` doesn't include `comment`) is a related but separate gap, explicitly deferred to its own follow-up rather than bundled in here.
+
+### Comment visibility — confirmed correct, no change
+
+Re-verified directly against the RLS migrations rather than from memory: `is_log_commentable`/the comments views gate purely on the **log's own** `visibility in ('public', 'anonymous')` state — never on the commenter's `account_visibility`, and never on the log author's `account_visibility` either (matching the existing, pre-this-epic precedent theatre/screen/movie reviews already set for `public` logs). If the post is visible, its comments are visible, full stop — already the Reddit-like behavior asked for, nothing to fix.
+
+### Verification
+
+- A comment on someone else's log produces exactly one `new_comment` notification to the log's owner, none to the commenter; commenting on your own log produces none.
+- A reply produces exactly one `comment_reply` notification to the parent comment's author (not the log owner, unless they're the same person), none to the replier.
+- Liking a log/comment produces exactly one `log_like`/`comment_like` notification to its owner, none to the liker; liking your own log/comment produces none.
+- An admin resolving a report produces exactly one `report_resolved` notification to the original reporter, with `actor_id: null`.
+- Deleting the log/comment/report a notification points at removes that notification too (FK cascade), rather than leaving a dead deep-link.
