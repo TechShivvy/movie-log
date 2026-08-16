@@ -15,6 +15,7 @@ from schemas.public_profile import (
     AccountPrivacyUpdate,
     LlmKey,
     LlmKeyInput,
+    LlmKeyStorageOptInUpdate,
     LlmPreferenceUpdate,
     ProfileUpdate,
     PublicProfile,
@@ -249,6 +250,33 @@ async def set_llm_preference(
 ) -> Any:
     return await supabase_rest.update_llm_preference(
         current_user.access_token, current_user.user_id, payload.provider, payload.model
+    )
+
+
+@router.patch(
+    '/me/llm-key-storage-preference',
+    tags=['Public'],
+    description='Whether the caller wants their own provider API keys stored '
+    'server-side (encrypted — PUT /me/llm-keys/{provider}) at all, or kept '
+    'local-only on their own device. Both already work regardless of this '
+    "setting — it's purely a *remembered* signal for the frontend to decide "
+    'whether to default to "save this key" UI or treat every key as session-'
+    "only, so the user isn't re-prompted every time. Defaults to `false` "
+    '(privacy-first). Setting this `true` does not store anything by itself — '
+    "storing a key is still its own separate PUT call, and this preference "
+    "never blocks PUT/GET/DELETE /me/llm-keys/{provider} either way.",
+    response_description="The caller's updated settings row.",
+    responses=responses['set_llm_key_storage_preference'],
+    operation_id='SetLlmKeyStoragePreference',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_llm_key_storage_preference(
+    request: Request,
+    payload: LlmKeyStorageOptInUpdate,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.update_llm_key_storage_opt_in(
+        current_user.access_token, current_user.user_id, payload.store_on_server
     )
 
 

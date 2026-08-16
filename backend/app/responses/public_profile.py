@@ -430,6 +430,40 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'set_llm_key_storage_preference': {
+        200: {
+            'description': "The caller's updated settings row.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'user_id': _PROFILE_EXAMPLE['user_id'],
+                        'llm_keys_storage_opt_in': True,
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'store_on_server was not a boolean.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'bool_parsing',
+                                'loc': ['body', 'store_on_server'],
+                                'msg': 'Input should be a valid boolean',
+                                'input': 'yes please',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'list_llm_keys': {
         200: {
             'description': "The caller's stored keys, masked.",

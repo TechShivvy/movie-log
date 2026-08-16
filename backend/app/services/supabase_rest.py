@@ -703,6 +703,20 @@ async def update_llm_preference(
     return rows[0] if rows else {}
 
 
+async def update_llm_key_storage_opt_in(
+    user_token: str, user_id: str, store_on_server: bool
+) -> dict:
+    row = {'user_id': user_id, 'llm_keys_storage_opt_in': store_on_server}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_llm_key_storage_opt_in',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    return rows[0] if rows else {}
+
+
 # ── Reports ──────────────────────────────────────────────────────────────
 # Existence/visibility checks below all use the anon key deliberately, even
 # though they're called from an authenticated route — they're answering

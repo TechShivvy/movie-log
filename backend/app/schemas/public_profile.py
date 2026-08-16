@@ -128,6 +128,21 @@ class LlmKey(BaseModel):
     )
 
 
+class LlmKeyStorageOptInUpdate(BaseModel):
+    """Whether the caller wants their provider API keys stored server-
+    side (encrypted, PUT /me/llm-keys/{provider}) at all, or kept local-
+    only on their own device — both already work mechanically regardless
+    of this setting; it's purely a *remembered* signal for the frontend
+    to decide whether to default to "save this key" UI or treat every
+    key as session-only, so the user isn't re-prompted every session.
+    Defaults to false (privacy-first) — setting this true doesn't store
+    anything by itself, it's still a separate PUT call per key."""
+
+    store_on_server: bool
+
+    model_config = ConfigDict(json_schema_extra={'example': {'store_on_server': True}})
+
+
 class LlmPreferenceUpdate(BaseModel):
     """Stored fallback for POST /movie-metadata/extract's `provider`/
     `model` fields — unlike RevisitPrefillUpdate below, this one *is*
