@@ -1,7 +1,8 @@
 import React from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import type { MovieLog } from "../../types";
+import { styles } from "./PosterCard.styles";
 
 interface PosterCardProps {
   log: MovieLog;
@@ -20,7 +21,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
   const { theme } = useTheme();
   const height = Math.round(width * 1.5); // 2:3 ratio
 
-  // Hue-based gradient from movie title
+  // Hue-based gradient from movie title characters
   const hue = Array.from(log.movie_title).reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
 
   return (
@@ -39,16 +40,18 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
           resizeMode="cover"
         />
       ) : (
-        <View
-          style={[
-            styles.placeholder,
-            { width, height, backgroundColor: theme.surface },
-          ]}
-        >
+        <View style={[styles.placeholder, { width, height, backgroundColor: theme.surface }]}>
           <View style={[styles.gradientFill, { backgroundColor: `hsl(${hue},40%,20%)` }]} />
           <Text style={[styles.titleText, { color: theme.text }]} numberOfLines={3}>
             {log.movie_title}
           </Text>
+        </View>
+      )}
+
+      {/* FDFS badge */}
+      {log.is_fdfs && (
+        <View style={[styles.fdfsBadge, { backgroundColor: `${theme.accent}dd` }]}>
+          <Text style={styles.fdfsText}>FDFS</Text>
         </View>
       )}
 
@@ -70,29 +73,3 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { borderRadius: 8, overflow: "hidden", position: "relative" },
-  poster: { borderRadius: 8 },
-  placeholder: { borderRadius: 8, overflow: "hidden", alignItems: "center", justifyContent: "flex-end", padding: 8 },
-  gradientFill: { ...StyleSheet.absoluteFillObject },
-  titleText: { fontSize: 11, fontWeight: "600", textAlign: "center", zIndex: 1 },
-  badge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgeText: { fontSize: 10, fontWeight: "700" },
-  formatChip: {
-    position: "absolute",
-    bottom: 6,
-    left: 6,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  formatText: { color: "#fff", fontSize: 9, fontWeight: "700" },
-});

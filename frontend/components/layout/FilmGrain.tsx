@@ -1,5 +1,6 @@
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, View } from "react-native";
+import { styles } from "./FilmGrain.styles";
 
 /**
  * Film grain overlay — fixed/absolute, pointer-events none.
@@ -28,10 +29,3 @@ export function FilmGrain() {
   return <View style={styles.native} pointerEvents="none" />;
 }
 
-const styles = StyleSheet.create({
-  native: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    backgroundColor: "rgba(0,0,0,0.03)",
-  },
-});

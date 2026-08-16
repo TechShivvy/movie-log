@@ -1,6 +1,7 @@
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Pressable, Text, View, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { styles } from "./SegmentedControl.styles";
 
 interface Option { label: string; value: string }
 
@@ -37,22 +38,3 @@ export function SegmentedControl({ options, value, onChange, style }: SegmentedC
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 2,
-    gap: 2,
-  },
-  option: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "transparent",
-    alignItems: "center",
-    ...(Platform.OS === "web" ? { cursor: "pointer" } as any : {}),
-  },
-  label: { fontSize: 13, fontWeight: "600" },
-});

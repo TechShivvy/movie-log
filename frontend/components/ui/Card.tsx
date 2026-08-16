@@ -1,6 +1,7 @@
 import React from "react";
-import { Platform, StyleSheet, View, ViewStyle } from "react-native";
+import { Platform, View, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { styles } from "./Card.styles";
 
 interface CardProps {
   children: React.ReactNode;
@@ -36,10 +37,3 @@ export function Card({ children, style, glass = false }: CardProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-  },
-});

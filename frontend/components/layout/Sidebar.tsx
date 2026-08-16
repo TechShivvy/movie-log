@@ -1,20 +1,27 @@
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
+import { Badge } from "../ui/Badge";
+import { styles } from "./Sidebar.styles";
 
 const NAV = [
-  { label: "Library", icon: "🎬", href: "/(app)" },
-  { label: "Feed", icon: "📡", href: "/(app)/feed" },
-  { label: "Search", icon: "🔍", href: "/(app)/search" },
-  { label: "Profile", icon: "👤", href: "/(app)/profile" },
-  { label: "Stats", icon: "📊", href: "/(app)/stats" },
+  { label: "Library",       icon: "🎬", href: "/(app)" },
+  { label: "Feed",          icon: "📡", href: "/(app)/feed" },
+  { label: "Search",        icon: "🔍", href: "/(app)/search" },
+  { label: "Profile",       icon: "👤", href: "/(app)/profile" },
+  { label: "Stats",         icon: "📊", href: "/(app)/stats" },
   { label: "Notifications", icon: "🔔", href: "/(app)/notifications" },
-  { label: "Settings", icon: "⚙️", href: "/(app)/settings" },
+  { label: "Settings",      icon: "⚙️",  href: "/(app)/settings" },
 ];
 
-export function Sidebar({ children }: { children: React.ReactNode }) {
+interface SidebarProps {
+  children: React.ReactNode;
+  unreadNotifications?: number;
+}
+
+export function Sidebar({ children, unreadNotifications = 0 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { theme } = useTheme();
   const { signOut } = useAuth();
@@ -22,6 +29,11 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const width = collapsed ? 68 : 236;
+
+  const isActive = (href: string) =>
+    href === "/(app)"
+      ? pathname === "/" || pathname === "/(app)" || pathname === "/index"
+      : pathname.startsWith(href.replace("/(app)", ""));
 
   return (
     <View style={styles.container}>
@@ -49,7 +61,8 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         {/* Nav items */}
         <View style={styles.nav}>
           {NAV.map((item) => {
-            const active = pathname === item.href || (item.href !== "/(app)" && pathname.startsWith(item.href));
+            const active = isActive(item.href);
+            const badge = item.href === "/(app)/notifications" ? unreadNotifications : 0;
             return (
               <Pressable
                 key={item.href}
@@ -68,6 +81,11 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                     {item.label}
                   </Text>
                 )}
+                {!collapsed && badge > 0 && (
+                  <View style={styles.badgeWrap}>
+                    <Badge count={badge} />
+                  </View>
+                )}
               </Pressable>
             );
           })}
@@ -83,7 +101,9 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
 
         {/* Sign out */}
         <Pressable onPress={signOut} style={styles.signOut}>
-          <Text style={{ color: `${theme.text}55`, fontSize: 12 }}>{collapsed ? "↩" : "Sign out"}</Text>
+          <Text style={{ color: `${theme.text}55`, fontSize: 12 }}>
+            {collapsed ? "↩" : "Sign out"}
+          </Text>
         </Pressable>
       </View>
 
@@ -92,39 +112,3 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, flexDirection: "row" },
-  sidebar: {
-    borderRightWidth: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    gap: 4,
-    ...(Platform.OS === "web" ? { transition: "width 0.2s" } as any : {}),
-  },
-  logoRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, marginBottom: 16 },
-  logoText: { fontSize: 18, fontWeight: "800" },
-  collapseBtn: { padding: 4 },
-  nav: { flex: 1, gap: 2 },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    ...(Platform.OS === "web" ? { cursor: "pointer" } as any : {}),
-  },
-  navIcon: { fontSize: 18 },
-  navLabel: { fontSize: 14, fontWeight: "500" },
-  fab: {
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-    marginTop: 8,
-    marginHorizontal: 4,
-    ...(Platform.OS === "web" ? { cursor: "pointer" } as any : {}),
-  },
-  fabText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  signOut: { alignItems: "center", paddingVertical: 8, marginTop: 4 },
-});

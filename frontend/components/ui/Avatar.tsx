@@ -1,6 +1,7 @@
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Text, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { styles } from "./Avatar.styles";
 
 interface AvatarProps {
   name?: string;
@@ -37,8 +38,3 @@ export function Avatar({ name, uri, size = 40 }: AvatarProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  image: { resizeMode: "cover" },
-  placeholder: { alignItems: "center", justifyContent: "center" },
-  initials: { fontWeight: "700" },
-});

@@ -1,6 +1,7 @@
 import React from "react";
-import { StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Text, View, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { styles } from "./Tag.styles";
 
 type TagVariant = "accent" | "outline" | "neutral";
 
@@ -24,16 +25,3 @@ export function Tag({ label, variant = "neutral", style }: TagProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignSelf: "flex-start",
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-});

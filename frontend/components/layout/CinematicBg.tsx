@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Platform, StyleSheet, View } from "react-native";
+import { Animated, Platform, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { styles } from "./CinematicBg.styles";
 
 /**
  * Animated cinematic radial-gradient backdrop.
@@ -47,9 +48,3 @@ function NativeCinematicBg() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-  },
-});
