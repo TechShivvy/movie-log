@@ -1,0 +1,38 @@
+/* CineLog global web styles */
+
+@keyframes cinematicBgDrift {
+  0%   { background-position: 30% 40%, 70% 60%; }
+  50%  { background-position: 60% 30%, 40% 70%; }
+  100% { background-position: 30% 40%, 70% 60%; }
+}
+
+:root {
+  /* Default tokens (overridden by ThemeContext JS injection) */
+  --color-bg: #0b1326;
+  --color-surface: #0f1b33;
+  --color-text: #e8eaf0;
+  --color-accent: #e50914;
+  --color-accent-dim: rgba(229,9,20,0.15);
+  --color-divider: rgba(232,234,240,0.15);
+  --color-neutral: rgba(232,234,240,0.13);
+  --color-surface-high: rgba(232,234,240,0.06);
+  --font-heading: Sora, system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-divider); border-radius: 3px; }
