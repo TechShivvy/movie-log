@@ -1,9 +1,11 @@
-"""routers/notifications.py — all 5 event types (follow-related from
-Iteration 4, comment/like/report_resolved from Iteration 10),
-enrichment fields (Iteration 11), self-notification skip, and the
+"""routers/notifications.py — all 7 event types (follow-related from
+Iteration 4, comment/like/report_resolved from Iteration 10, auto_insert_
+complete/batch_extraction_complete from the batch-extraction/auto-insert
+epic), enrichment fields (Iteration 11), self-notification skip, and the
 cascade-delete-with-what-it-points-at behavior.
 """
 
+import base64
 import uuid
 
 import pytest
@@ -112,3 +114,70 @@ async def test_mark_read_omits_the_enriched_fields(client, make_user):
     assert marked.json()['read'] is True
     assert marked.json().get('movie') is None
     assert marked.json().get('comment_preview') is None
+
+
+@pytest.mark.asyncio
+async def test_auto_insert_creates_a_notification_with_null_actor(client, make_user):
+    """actor_id null — same 'system/self' shape as report_resolved: the
+    recipient is the one who took the action, there's no separate human
+    actor to attribute this to."""
+
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    tiny_png = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
+        'YAAAAASUVORK5CYII='
+    )
+    from services.auto_insert import auto_insert_log
+    from schemas.movie_metadata import MovieMetadata
+
+    status, log_id = await auto_insert_log(
+        user_id=user_id, user_token=token,
+        metadata=MovieMetadata(movie='Auto Insert Notif Test'),
+        content=tiny_png, content_type='image/png',
+        extraction_provider='openrouter', extraction_model='qwen/qwen2.5-vl-72b-instruct:free',
+    )
+    assert status == 'inserted'
+
+    notifications = await client.get('/api/v1/notifications', headers=headers)
+    by_type = {n['type']: n for n in notifications.json()}
+    assert 'auto_insert_complete' in by_type
+    assert by_type['auto_insert_complete']['actor_id'] is None
+    assert by_type['auto_insert_complete']['movie_log_id'] == log_id
+
+
+@pytest.mark.asyncio
+async def test_batch_sourced_auto_insert_does_not_double_notify(client, make_user):
+    """A batch item's auto-insert must not *also* fire the per-log
+    auto_insert_complete notification — only the one batch_extraction_
+    complete, once the batch finishes. Otherwise a 20-item auto-inserting
+    batch would produce 21 notifications for one user action."""
+
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    tiny_png = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42'
+        'YAAAAASUVORK5CYII='
+    )
+
+    created = await client.post(
+        '/api/v1/movie-metadata/extract-batch', headers=headers,
+        files=[('ticket_images', ('t.png', tiny_png, 'image/png'))],
+        data={'auto_insert': 'true'},
+    )
+    assert created.status_code == 202
+    batch_id = created.json()['id']
+
+    import asyncio
+    for _ in range(60):
+        status_resp = await client.get(f'/api/v1/movie-metadata/extract-batch/{batch_id}', headers=headers)
+        if status_resp.json()['status'] != 'processing':
+            break
+        await asyncio.sleep(1.0)
+    else:
+        pytest.fail('batch did not finish in time')
+
+    notifications = await client.get('/api/v1/notifications', headers=headers)
+    types = [n['type'] for n in notifications.json()]
+    assert types.count('batch_extraction_complete') == 1
+    assert 'auto_insert_complete' not in types

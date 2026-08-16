@@ -253,6 +253,45 @@ class Settings(BaseSettings):
             description='Allowed shared-key free models',
         ),
     ]
+    max_batch_size: Annotated[
+        int,
+        Field(
+            default=20,
+            description='Max ticket images accepted per POST /movie-metadata/extract-batch '
+            'call — an operational/product cap (tunable without a code deploy), not a '
+            "provider limit. Comfortably fits typical mobile multi-select behavior; a "
+            'caller with more just submits a second batch.',
+            gt=0,
+            le=200,
+        ),
+    ]
+    batch_create_rate_limit_per_minute: Annotated[
+        int,
+        Field(
+            default=3,
+            description='Per-minute limit on *creating* a batch (services/rate_limit.py) — '
+            'deliberately tighter than rate_limit_per_minute (the single /extract limit): '
+            'one batch call can enqueue up to max_batch_size background LLM calls, so the '
+            'creation action itself needs its own, separately-reasoned cap even though it '
+            "is structurally one request.",
+            gt=0,
+            le=60,
+        ),
+    ]
+    batch_stale_after_minutes: Annotated[
+        int,
+        Field(
+            default=10,
+            description='If a batch is still `processing` and no item has updated in this '
+            'many minutes, GET /movie-metadata/extract-batch/{id} flips it to `failed` '
+            '(error_code=STALLED) instead of leaving the caller polling forever. Covers '
+            'the case where the worker process that was running it died/restarted '
+            '(deploy, crash) mid-batch — this bounds the damage to a client-visible '
+            'failure, it does not recover the lost work.',
+            gt=0,
+            le=180,
+        ),
+    ]
 
     class Config:
         extra = 'ignore'

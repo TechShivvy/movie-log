@@ -174,6 +174,21 @@ class RevisitPrefillUpdate(BaseModel):
     model_config = ConfigDict(json_schema_extra={'example': {'prefill_repeat_visit': True}})
 
 
+class AutoInsertPreferenceUpdate(BaseModel):
+    """Stored default for POST /movie-metadata/extract and /extract-from-link's
+    `auto_insert` param — unlike prefill_repeat_visit above, this one *is*
+    read server-side: an extract call that omits `auto_insert` uses
+    whatever's stored here (false by default) before falling back to the
+    same false default. An explicit `auto_insert` on that call always
+    overrides it. Meant primarily for bot integrations (Discord/Telegram)
+    with no UI to review/edit an extraction before saving, though any
+    client can set it."""
+
+    auto_insert_extractions: bool
+
+    model_config = ConfigDict(json_schema_extra={'example': {'auto_insert_extractions': True}})
+
+
 class PublicProfile(BaseModel):
     user_id: str
     username: Optional[str] = None

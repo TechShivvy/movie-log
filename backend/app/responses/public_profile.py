@@ -395,6 +395,40 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'set_auto_insert_preference': {
+        200: {
+            'description': "The caller's updated settings row.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'user_id': _PROFILE_EXAMPLE['user_id'],
+                        'auto_insert_extractions': True,
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'auto_insert_extractions was not a boolean.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'VALIDATION_ERROR',
+                        'message': 'Request validation failed',
+                        'detail': [
+                            {
+                                'type': 'bool_parsing',
+                                'loc': ['body', 'auto_insert_extractions'],
+                                'msg': 'Input should be a valid boolean',
+                                'input': 'yes please',
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'set_llm_preference': {
         200: {
             'description': "The caller's updated settings row.",

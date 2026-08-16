@@ -98,6 +98,34 @@ async def _delete_storage_objects(bucket: str, paths: list[str]) -> None:
         raise APIError(502, 'UPSTREAM_ERROR', 'Failed to delete storage objects.')
 
 
+async def upload_storage_object(bucket: str, path: str, content: bytes, content_type: str) -> None:
+    """The backend's first-ever Storage *write* — every existing storage
+    call in this module is list/delete (account-deletion cleanup); the
+    frontend has always uploaded directly to Storage with the user's own
+    token, the backend never touched it. Needed now for auto-insert
+    (services/auto_insert.py): a log created straight from an extraction,
+    with no client-side upload step in between, still needs a real
+    ticket_image_path. Same service-role-bypasses-Storage-RLS reasoning
+    as the existing list/delete calls above — no bucket-policy change
+    needed, `service_role` bypasses Storage RLS entirely."""
+
+    url = f"{settings.supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{path}"
+    headers = {**_admin_headers(), 'Content-Type': content_type}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            response = await client.post(url, headers=headers, content=content)
+    except httpx.HTTPError as exc:
+        LOGGER.error('Admin upload_storage_object transport error: {}', exc)
+        raise APIError(502, 'UPSTREAM_ERROR', 'Failed to upload the ticket image.') from exc
+
+    if response.status_code >= 400:
+        LOGGER.error(
+            'Admin upload_storage_object failed: status={} body={}',
+            response.status_code, response.text[:500],
+        )
+        raise APIError(502, 'UPSTREAM_ERROR', 'Failed to upload the ticket image.')
+
+
 async def delete_user_storage(user_id: str) -> None:
     """Best-effort cleanup of everything this user owns in the avatar-images
     and ticket-images buckets — objects live under a `{user_id}/` prefix in

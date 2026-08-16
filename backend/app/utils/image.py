@@ -68,6 +68,37 @@ async def validate_content_length(
         )
 
 
+def detect_image_mime(chunk: bytes) -> str:
+    """Sniffs the real content type from raw bytes via libmagic — the
+    single source of truth both validate_image_file (the single-upload
+    dependency below) and the batch endpoint's per-item validation
+    (routers/movie_metadata_batch.py) call into, so the two paths can
+    never drift on what counts as an acceptable image. Returns the
+    detected mime type; raises nothing itself — callers decide how to
+    react (validate_image_file turns a bad type into a 415 for the whole
+    request; the batch loop turns it into one failed item, not a
+    whole-batch rejection)."""
+
+    return mime.from_buffer(chunk)
+
+
+def hash_bytes(content: bytes) -> str:
+    """Same content-addressed cache key as hash_upload, for a caller that
+    already has the raw bytes in hand (e.g. the batch endpoint, which
+    reads every image once up front rather than re-reading each
+    UploadFile from a background task after the request has ended)."""
+
+    return hashlib.sha256(content).hexdigest()
+
+
+def bytes_to_data_uri(content: bytes, content_type: str) -> str:
+    """Same shape as image_to_data_uri, for a caller that already has the
+    raw bytes in hand — see hash_bytes."""
+
+    encoded = base64.b64encode(content).decode('utf-8')
+    return f'data:{content_type};base64,{encoded}'
+
+
 async def validate_image_file(
     ticket_image: Annotated[
         UploadFile,
@@ -91,7 +122,7 @@ async def validate_image_file(
     """
 
     chunk = await ticket_image.read(1024)
-    detected = mime.from_buffer(chunk)
+    detected = detect_image_mime(chunk)
     await ticket_image.seek(0)
     if detected not in ALLOWED_IMAGE_MIME_TYPES:
         raise HTTPException(

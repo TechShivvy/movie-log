@@ -13,6 +13,7 @@ from rate_limit import limiter
 from responses.public_profile import responses
 from schemas.public_profile import (
     AccountPrivacyUpdate,
+    AutoInsertPreferenceUpdate,
     LlmKey,
     LlmKeyInput,
     LlmKeyStorageOptInUpdate,
@@ -223,6 +224,30 @@ async def set_revisit_prefill(
 ) -> Any:
     return await supabase_rest.update_revisit_prefill(
         current_user.access_token, current_user.user_id, payload.prefill_repeat_visit
+    )
+
+
+@router.patch(
+    '/me/auto-insert-preference',
+    tags=['Public'],
+    description='Stored default for POST /movie-metadata/extract and /extract-from-link\'s '
+    '`auto_insert` param. Off (default): extraction always returns metadata for review, '
+    'nothing is saved automatically. On: an extract call that omits `auto_insert` skips '
+    'review and inserts straight into movie_logs — an explicit `auto_insert` on that call '
+    "still overrides this either way. Meant primarily for bot integrations (Discord/"
+    "Telegram) with no UI to review/edit an extraction before saving.",
+    response_description="The caller's updated settings row.",
+    responses=responses['set_auto_insert_preference'],
+    operation_id='SetAutoInsertPreference',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_auto_insert_preference(
+    request: Request,
+    payload: AutoInsertPreferenceUpdate,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.update_auto_insert_preference(
+        current_user.access_token, current_user.user_id, payload.auto_insert_extractions
     )
 
 

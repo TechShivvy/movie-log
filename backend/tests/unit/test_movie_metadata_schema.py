@@ -23,6 +23,8 @@ def test_movie_metadata_has_no_routing_fields():
     assert 'used_model' not in fields
     assert 'requested_model' not in fields
     assert 'fallback_occurred' not in fields
+    assert 'auto_insert_status' not in fields
+    assert 'movie_log_id' not in fields
 
 
 def test_movie_metadata_result_is_a_superset_with_routing_fields_added():
@@ -31,6 +33,7 @@ def test_movie_metadata_result_is_a_superset_with_routing_fields_added():
     assert base_fields.issubset(result_fields)
     assert result_fields - base_fields == {
         'used_provider', 'used_model', 'requested_model', 'fallback_occurred',
+        'auto_insert_status', 'movie_log_id',
     }
 
 

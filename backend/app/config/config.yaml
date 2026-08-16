@@ -17,6 +17,9 @@ free_models:
   - openrouter/free
   - nvidia/nemotron-3.5-content-safety:free
   - nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+max_batch_size: 20
+batch_create_rate_limit_per_minute: 3
+batch_stale_after_minutes: 10
 google_places_api_key: null
 tmdb_api_key: null
 loguru_format: '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <m>[</m>{thread}<m>]</m> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>'

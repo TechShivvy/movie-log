@@ -21,7 +21,15 @@ from pydantic import ValidationError
 from responses.movie_metadata import responses
 from schemas.movie_metadata import MovieMetadata, MovieMetadataResult, TicketLinkRequest
 from starlette.formparsers import MultiPartParser
-from services import extraction_cache, free_models, gemini_free_models, llm_keys, supabase_rest, ticket_link_extractor
+from services import (
+    auto_insert as auto_insert_service,
+    extraction_cache,
+    free_models,
+    gemini_free_models,
+    llm_keys,
+    supabase_rest,
+    ticket_link_extractor,
+)
 from services.quota import ensure_within_daily_quota
 from utils import image
 from utils.openai_utils import openai_error_to_http
@@ -227,6 +235,41 @@ async def resolve_llm_api_key(
     return require_llm_api_key(provider, header_api_key)
 
 
+async def apply_auto_insert(
+    result: dict,
+    *,
+    auto_insert: Optional[bool],
+    current_user: AuthenticatedUser,
+    content: Optional[bytes],
+    content_type: Optional[str],
+) -> dict:
+    """Resolves and, if applicable, performs auto-insert on top of an
+    already-computed extraction result dict — called after both the
+    cache-hit and cache-miss branches converge on a shared `result`, and
+    always run fresh regardless of which branch produced it (see
+    MovieMetadataResult.auto_insert_status's own docstring: a cached
+    blob's auto_insert_status/movie_log_id are always None, since caching
+    happens before this ever runs — so a cache hit still creates a new
+    log if auto_insert resolves true, it never echoes a stale one)."""
+
+    effective = await auto_insert_service.resolve_auto_insert(
+        auto_insert, current_user.access_token, current_user.user_id
+    )
+    if not effective:
+        return result
+    metadata = MovieMetadata(**{k: result.get(k) for k in MovieMetadata.model_fields})
+    status_, log_id = await auto_insert_service.auto_insert_log(
+        user_id=current_user.user_id,
+        user_token=current_user.access_token,
+        metadata=metadata,
+        content=content,
+        content_type=content_type,
+        extraction_provider=result['used_provider'],
+        extraction_model=result['used_model'],
+    )
+    return {**result, 'auto_insert_status': status_, 'movie_log_id': log_id}
+
+
 @router.post(
     path='/extract',
     tags=['Extract Movie Metadata'],
@@ -275,7 +318,19 @@ async def resolve_llm_api_key(
         "endpoint's latency/reliability to a third-party call it doesn't need. "
         'Once `movie` is populated (from this response or typed by hand), call '
         'POST /movies/search with it — same debounced search-as-you-type call '
-        'either way, autofilled or manual.'
+        'either way, autofilled or manual.\n\n'
+        '**`auto_insert`** (default: unset — falls back to the caller\'s stored '
+        '`PATCH /public/me/auto-insert-preference` value, `false` if never set): when '
+        'true, skips the usual client-side review step and inserts the extraction '
+        'straight into `movie_logs` — meant for bot integrations (Discord/Telegram) '
+        'with no UI to review/edit first, though any client can pass it. An explicit '
+        'value here always wins over the stored default. The response\'s '
+        '`auto_insert_status` (`inserted`/`skipped_no_title`/`failed`) and '
+        '`movie_log_id` report the outcome — a failed auto-insert never fails the '
+        'extraction call itself, you still get your metadata either way. Runs fresh '
+        'on every call, including a cache hit — re-uploading the same ticket with '
+        '`auto_insert: true` creates a new log each time, not a stale echo of '
+        'whatever happened the first time.'
     ),
     response_description='Movie Metadata',
     response_model=MovieMetadataResult,
@@ -291,6 +346,7 @@ async def extract_movie_metadata(
     provider: Annotated[Optional[Provider], Form()] = None,
     model: str | None = Form(default=None),
     auto_fallback: Annotated[bool, Form()] = False,
+    auto_insert: Annotated[Optional[bool], Form()] = None,
     header_api_key: str | None = Depends(get_header_api_key),
 ) -> MovieMetadataResult:
     request.state.user_id = current_user.user_id
@@ -306,6 +362,11 @@ async def extract_movie_metadata(
         )
 
     LOGGER.debug(f'{ticket_image._in_memory = }')
+
+    # Read the raw bytes exactly once, up front — reused for hashing, the
+    # data URI, and (if auto_insert resolves true) the Storage upload,
+    # instead of re-reading/seeking the same UploadFile multiple times.
+    content = await ticket_image.read()
 
     # Provider/model resolution is pure/side-effect-free (request value >
     # stored preference > static default — see resolve_provider_and_model),
@@ -330,72 +391,71 @@ async def extract_movie_metadata(
     # touched — never after. Model name alone isn't a safe cache key
     # across providers (unlikely collision today, but not guaranteed), so
     # provider is folded in.
-    image_hash = await image.hash_upload(ticket_image)
+    image_hash = image.hash_bytes(content)
     cached = await extraction_cache.get_cached_extraction(image_hash, f'{effective_provider}:{model_name}')
     if cached is not None:
         LOGGER.info(
             'extract rid={} provider={} model={} cache=hit',
             getattr(request.state, 'request_id', '-'), effective_provider, model_name,
         )
-        return cached
+        result = cached
+    else:
+        llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
+        image_data_uri = image.bytes_to_data_uri(content, ticket_image.content_type)
 
-    llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
+        try:
+            ticket: MovieMetadata
+            used_model: str
+            ticket, used_model = await extract_movie_metadata_from_image(
+                image_data_uri=image_data_uri,
+                api_key=llm_api_key,
+                system_prompt=movie_metadata.SYSTEM_PROMPT,
+                user_prompt=movie_metadata.USER_PROMPT,
+                response_model=MovieMetadata,
+                model_name=model_name,
+                provider=effective_provider,
+                auto_fallback=auto_fallback,
+            )
+            LOGGER.info(
+                'extract rid={} provider={} model={} used_model={} cache=miss',
+                getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
+            )
+            final = MovieMetadataResult(
+                **ticket.model_dump(),
+                used_provider=effective_provider,
+                used_model=used_model,
+                requested_model=model_name,
+                fallback_occurred=used_model != model_name,
+            )
+            result = final.model_dump()
+            # Cached under the originally *requested* model, not used_model —
+            # a repeat request for the same (now-missing) model should still
+            # get the fast cache-hit path (and correctly re-report
+            # fallback_occurred) rather than needing to re-discover the
+            # fallback every time.
+            await extraction_cache.store_extraction(image_hash, f'{effective_provider}:{model_name}', result)
+        except ValidationError as e:
+            LOGGER.error(f'Validation error parsing movie metadata: {e}')
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail='Failed to parse movie metadata from response',
+            )
+        except OpenAIError as e:
+            raise openai_error_to_http(e)
+        except RuntimeError as e:
+            LOGGER.error(f'Model response parsing failed: {e}')
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Model returned an invalid/non-JSON response. Try a specific free model such as qwen/qwen2.5-vl-72b-instruct:free.',
+            )
+        except Exception as e:
+            LOGGER.error(f'Unexpected error during metadata extraction: {e}')
+            raise e
 
-    try:
-        image_data_uri = await image.image_to_data_uri(ticket_image)
-    except Exception as e:
-        LOGGER.error(f'Failed to read uploaded file: {e}')
-        raise HTTPException(status_code=400, detail='Invalid image file')
-
-    try:
-        ticket: MovieMetadata
-        used_model: str
-        ticket, used_model = await extract_movie_metadata_from_image(
-            image_data_uri=image_data_uri,
-            api_key=llm_api_key,
-            system_prompt=movie_metadata.SYSTEM_PROMPT,
-            user_prompt=movie_metadata.USER_PROMPT,
-            response_model=MovieMetadata,
-            model_name=model_name,
-            provider=effective_provider,
-            auto_fallback=auto_fallback,
-        )
-        LOGGER.info(
-            'extract rid={} provider={} model={} used_model={} cache=miss',
-            getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
-        )
-        final = MovieMetadataResult(
-            **ticket.model_dump(),
-            used_provider=effective_provider,
-            used_model=used_model,
-            requested_model=model_name,
-            fallback_occurred=used_model != model_name,
-        )
-        result = final.model_dump()
-        # Cached under the originally *requested* model, not used_model —
-        # a repeat request for the same (now-missing) model should still
-        # get the fast cache-hit path (and correctly re-report
-        # fallback_occurred) rather than needing to re-discover the
-        # fallback every time.
-        await extraction_cache.store_extraction(image_hash, f'{effective_provider}:{model_name}', result)
-        return result
-    except ValidationError as e:
-        LOGGER.error(f'Validation error parsing movie metadata: {e}')
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Failed to parse movie metadata from response',
-        )
-    except OpenAIError as e:
-        raise openai_error_to_http(e)
-    except RuntimeError as e:
-        LOGGER.error(f'Model response parsing failed: {e}')
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail='Model returned an invalid/non-JSON response. Try a specific free model such as qwen/qwen2.5-vl-72b-instruct:free.',
-        )
-    except Exception as e:
-        LOGGER.error(f'Unexpected error during metadata extraction: {e}')
-        raise e
+    return await apply_auto_insert(
+        result, auto_insert=auto_insert, current_user=current_user,
+        content=content, content_type=ticket_image.content_type,
+    )
 
 
 @router.post(
@@ -416,7 +476,10 @@ async def extract_movie_metadata(
         'provider/model, not an image, so re-submitting the same link with the same '
         'provider/model is a free cache hit. Same catalog-matching note as `/extract` '
         'too: `movie` is a free-typed guess, call POST /movies/search with it once '
-        'populated, rather than expecting a TMDB match bundled here.'
+        'populated, rather than expecting a TMDB match bundled here. Same `auto_insert` '
+        'behavior as `/extract` too, with one difference: there\'s no image here (the '
+        'extraction comes from scraped page text), so an auto-inserted log from this '
+        'endpoint has no `ticket_image_path` — same as any other manually-typed log.'
     ),
     response_description='Movie Metadata',
     response_model=MovieMetadataResult,
@@ -431,6 +494,7 @@ async def extract_movie_metadata_from_link(
     provider: Optional[Provider] = None,
     model: str | None = None,
     auto_fallback: bool = False,
+    auto_insert: Optional[bool] = None,
     header_api_key: str | None = Depends(get_header_api_key),
 ) -> MovieMetadataResult:
     request.state.user_id = current_user.user_id
@@ -467,54 +531,58 @@ async def extract_movie_metadata_from_link(
             'extract-from-link rid={} provider={} model={} cache=hit',
             getattr(request.state, 'request_id', '-'), effective_provider, model_name,
         )
-        return cached
+        result = cached
+    else:
+        llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
 
-    llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
+        try:
+            ticket: MovieMetadata
+            used_model: str
+            ticket, used_model = await extract_movie_metadata_from_text(
+                page_text=page_text,
+                api_key=llm_api_key,
+                system_prompt=movie_metadata.SYSTEM_PROMPT_TEXT,
+                user_prompt=movie_metadata.USER_PROMPT_TEXT,
+                response_model=MovieMetadata,
+                model_name=model_name,
+                provider=effective_provider,
+                auto_fallback=auto_fallback,
+            )
+            LOGGER.info(
+                'extract-from-link rid={} provider={} model={} used_model={} cache=miss',
+                getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
+            )
+            final = MovieMetadataResult(
+                **ticket.model_dump(),
+                used_provider=effective_provider,
+                used_model=used_model,
+                requested_model=model_name,
+                fallback_occurred=used_model != model_name,
+            )
+            result = final.model_dump()
+            await extraction_cache.store_extraction(content_hash, f'{effective_provider}:{model_name}', result)
+        except ValidationError as e:
+            LOGGER.error(f'Validation error parsing movie metadata: {e}')
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail='Failed to parse movie metadata from response',
+            )
+        except OpenAIError as e:
+            raise openai_error_to_http(e)
+        except RuntimeError as e:
+            LOGGER.error(f'Model response parsing failed: {e}')
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail='Model returned an invalid/non-JSON response.',
+            )
+        except Exception as e:
+            LOGGER.error(f'Unexpected error during link metadata extraction: {e}')
+            raise e
 
-    try:
-        ticket: MovieMetadata
-        used_model: str
-        ticket, used_model = await extract_movie_metadata_from_text(
-            page_text=page_text,
-            api_key=llm_api_key,
-            system_prompt=movie_metadata.SYSTEM_PROMPT_TEXT,
-            user_prompt=movie_metadata.USER_PROMPT_TEXT,
-            response_model=MovieMetadata,
-            model_name=model_name,
-            provider=effective_provider,
-            auto_fallback=auto_fallback,
-        )
-        LOGGER.info(
-            'extract-from-link rid={} provider={} model={} used_model={} cache=miss',
-            getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
-        )
-        final = MovieMetadataResult(
-            **ticket.model_dump(),
-            used_provider=effective_provider,
-            used_model=used_model,
-            requested_model=model_name,
-            fallback_occurred=used_model != model_name,
-        )
-        result = final.model_dump()
-        await extraction_cache.store_extraction(content_hash, f'{effective_provider}:{model_name}', result)
-        return result
-    except ValidationError as e:
-        LOGGER.error(f'Validation error parsing movie metadata: {e}')
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Failed to parse movie metadata from response',
-        )
-    except OpenAIError as e:
-        raise openai_error_to_http(e)
-    except RuntimeError as e:
-        LOGGER.error(f'Model response parsing failed: {e}')
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail='Model returned an invalid/non-JSON response.',
-        )
-    except Exception as e:
-        LOGGER.error(f'Unexpected error during link metadata extraction: {e}')
-        raise e
+    return await apply_auto_insert(
+        result, auto_insert=auto_insert, current_user=current_user,
+        content=None, content_type=None,
+    )
 
 
 @router.get(

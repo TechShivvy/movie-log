@@ -223,6 +223,18 @@ class _UserFactory:
             except httpx.HTTPError:
                 pass  # Best-effort — see the broad except on the user-delete call below.
             try:
+                # Same class of gap the movie_logs delete above closes,
+                # for Storage specifically: auto-insert (services/
+                # auto_insert.py) is the first thing that's ever made the
+                # backend write to Storage — nothing needed this cleanup
+                # before it existed. Without it, every test exercising
+                # auto-insert leaks a real object into the linked
+                # project's ticket-images bucket on every run.
+                from services import supabase_admin
+                await supabase_admin.delete_user_storage(user_id)
+            except Exception:
+                pass  # Best-effort, same reasoning as the rest of this loop.
+            try:
                 await _paced_auth_delete(
                     self._http, f'{self._base_url}/auth/v1/admin/users/{user_id}', headers=headers,
                 )

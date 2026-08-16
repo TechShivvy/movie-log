@@ -689,6 +689,20 @@ async def update_revisit_prefill(user_token: str, user_id: str, prefill_repeat_v
     return rows[0] if rows else {}
 
 
+async def update_auto_insert_preference(
+    user_token: str, user_id: str, auto_insert_extractions: bool
+) -> dict:
+    row = {'user_id': user_id, 'auto_insert_extractions': auto_insert_extractions}
+    response = await _request(
+        'POST', '/user_settings', user_token, 'update_auto_insert_preference',
+        json=row,
+        prefer='resolution=merge-duplicates,return=representation',
+        params={'on_conflict': 'user_id'},
+    )
+    rows = response.json()
+    return rows[0] if rows else {}
+
+
 async def update_llm_preference(
     user_token: str, user_id: str, provider: str, model: str
 ) -> dict:
@@ -1245,3 +1259,40 @@ async def get_comment_like_count(user_token: str, comment_id: str) -> Optional[i
     )
     rows = response.json()
     return rows[0]['like_count'] if rows else None
+
+async def get_extraction_batch(user_token: str, user_id: str, batch_id: str) -> Optional[dict[str, Any]]:
+    """RLS-scoped read (extraction_batches_select_own) — writes to this
+    table are service-role-only (services/extraction_batches.py), this
+    is the one place a caller reads their own batch's status back."""
+
+    params = {'select': '*', 'id': f'eq.{batch_id}', 'user_id': f'eq.{user_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/extraction_batches', user_token, 'get_extraction_batch', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def list_extraction_batches(
+    user_token: str, user_id: str, *, limit: int, offset: int
+) -> list[dict[str, Any]]:
+    params = {
+        'select': '*', 'user_id': f'eq.{user_id}',
+        'order': 'created_at.desc', 'limit': str(limit), 'offset': str(offset),
+    }
+    response = await _request(
+        'GET', '/extraction_batches', user_token, 'list_extraction_batches', params=params
+    )
+    return response.json()
+
+
+async def list_extraction_batch_items(user_token: str, batch_id: str) -> list[dict[str, Any]]:
+    # No user_id filter needed here — extraction_batch_items_select_own
+    # (RLS) already scopes this to batches the caller owns via a join
+    # back to extraction_batches, same as get_extraction_batch above
+    # gates the batch row itself.
+    params = {'select': '*', 'batch_id': f'eq.{batch_id}', 'order': 'position.asc'}
+    response = await _request(
+        'GET', '/extraction_batch_items', user_token, 'list_extraction_batch_items', params=params
+    )
+    return response.json()

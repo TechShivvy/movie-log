@@ -70,3 +70,24 @@ async def test_profile_update_round_trips_display_name_bio_and_links(client, mak
     assert body['display_name'] == 'Test Display Name'
     assert body['bio'] == 'A short bio.'
     assert body['profile_links'][0]['url'] == 'https://letterboxd.com/testuser'
+
+
+@pytest.mark.asyncio
+async def test_auto_insert_preference_defaults_false_and_round_trips(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    default_row = await client.patch(
+        '/api/v1/public/me/username', headers=headers, json={'username': f'autoinserttest{uuid.uuid4().hex[:10]}'},
+    )
+    assert default_row.json().get('auto_insert_extractions') is False  # default, before ever touching it
+
+    updated = await client.patch(
+        '/api/v1/public/me/auto-insert-preference', headers=headers, json={'auto_insert_extractions': True},
+    )
+    assert updated.status_code == 200
+    assert updated.json()['auto_insert_extractions'] is True
+
+    bad = await client.patch(
+        '/api/v1/public/me/auto-insert-preference', headers=headers, json={'auto_insert_extractions': 'not a bool'},
+    )
+    assert bad.status_code == 422

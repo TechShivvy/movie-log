@@ -74,6 +74,40 @@ async def test_stored_preference_used_when_request_omits_provider_and_model(clie
 
 
 @pytest.mark.asyncio
+async def test_fresh_user_settings_row_never_freezes_a_stale_default_model(client, make_user):
+    """Real bug caught live: user_settings.preferred_model used to have a
+    hardcoded DB default ('qwen/qwen2.5-vl-72b-instruct:free', since the
+    very first migration) — any endpoint creating a user's settings row
+    (not just PATCH /me/llm-preference; every profile endpoint upserts
+    the same row) would silently freeze that value in as their
+    "preference" even though they never chose it. That model has since
+    fallen off OpenRouter's live free-tier list, so a plain extract call
+    400'd with "Selected shared model must be a free model" for anyone
+    whose settings row happened to exist. Fixed by dropping the column
+    default entirely (migration 20260817000004) — preferred_model is now
+    null until someone actually sets it, so this always re-resolves
+    against whatever's genuinely free right now. Regression: create a
+    settings row via an *unrelated* endpoint first (this is what exposed
+    the bug — llm-preference was never touched), then confirm a plain
+    extract still works via the real shared/free path."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    settings_row = await client.patch(
+        '/api/v1/public/me/revisit-prefill', headers=headers, json={'prefill_repeat_visit': True},
+    )
+    assert settings_row.status_code == 200
+    assert settings_row.json().get('preferred_model') is None
+
+    response = await client.post(
+        '/api/v1/movie-metadata/extract', headers=headers,
+        files={'ticket_image': ('t.png', _TINY_PNG, 'image/png')},
+    )
+    assert response.status_code == 200
+    assert response.json()['used_provider'] == 'openrouter'
+
+
+@pytest.mark.asyncio
 async def test_explicit_provider_override_ignores_a_mismatched_stored_model(client, make_user):
     """The exact regression: an explicit provider=openrouter override
     with no explicit model, while a *gemini* preference is stored, must

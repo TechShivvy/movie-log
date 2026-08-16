@@ -17,7 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru_setup import LOGGER
 from middlewares import middleware
-from routers import auth, comments, dev_oauth, follows, movie_logs, movie_metadata, movies, notifications, reports, root, venues, public_profile
+from routers import auth, comments, dev_oauth, follows, movie_logs, movie_metadata, movie_metadata_batch, movies, notifications, reports, root, venues, public_profile
 from services import ticket_link_extractor
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -191,6 +191,7 @@ def create_app() -> FastAPI:
         # registered in PROD (where /docs is disabled anyway).
         app.include_router(dev_oauth.router, prefix=f'{api_prefix}/auth')
     app.include_router(movie_metadata.router, prefix=f'{api_prefix}/movie-metadata')
+    app.include_router(movie_metadata_batch.router, prefix=f'{api_prefix}/movie-metadata')
     app.include_router(movie_logs.router, prefix=f'{api_prefix}/movie-logs')
     app.include_router(venues.router, prefix=f'{api_prefix}/venues')
     app.include_router(movies.router, prefix=f'{api_prefix}/movies')

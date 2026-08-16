@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from zoneinfo import ZoneInfo, available_timezones
 
 from pydantic import (
@@ -244,6 +244,22 @@ class MovieMetadataResult(MovieMetadata):
         "requested model wasn't usable (not found), so `used_model` differs from "
         '`requested_model`. Always false when `auto_fallback` was off — a request '
         'never silently changes models unless explicitly opted in.',
+    )
+    # Set fresh on every call, never persisted into the content-addressed
+    # cache (extraction_cache.py caches the pure extraction, not the
+    # auto-insert outcome) — a cache *hit* still resolves and attempts
+    # auto-insert exactly like a fresh extraction would, so re-uploading
+    # the same ticket with auto_insert=true creates a new log each time,
+    # not a stale echo of whatever happened the first time it was cached.
+    auto_insert_status: Optional[Literal['inserted', 'skipped_no_title', 'failed']] = Field(
+        default=None, description='Set only when auto_insert resolved true for this call '
+        '(an explicit `auto_insert` param, or the caller\'s stored profile default) — '
+        'null means auto-insert was never attempted. `skipped_no_title`: extraction '
+        'produced no movie title, nothing to insert. `failed`: the upload or insert '
+        'failed — non-fatal to the extraction itself, this field is the only signal.',
+    )
+    movie_log_id: Optional[str] = Field(
+        default=None, description='Set iff `auto_insert_status == "inserted"`.',
     )
 
     model_config = ConfigDict(extra='forbid', frozen=True)
