@@ -1,130 +1,156 @@
-# Plan: OpenAI + Gemini LLM providers, alongside OpenRouter
+    # Plan: pytest test suite, covering everything built and verified so far
 
 ## Context
 
-Today `llm/openrouter_client.py` only speaks to OpenRouter. Ask: add OpenAI and Gemini as real alternative providers, let the user pick and switch between all three with per-provider credentials, keep OpenRouter as the only one with a backend-funded shared/free path (OpenAI and Gemini are always bring-your-own-key), and build this so a future move to something like LiteLLM — or adding a 4th/5th provider — isn't a rewrite.
+Every feature in this PR (and several before it) has been verified live — real throwaway Supabase users, real HTTP calls, real cleanup — but never captured as repeatable, automated tests. Ask: go through the PR body, every follow-up comment, every commit message, every migration/schema/docstring, and build a pytest suite that covers it, then keep writing tests for every future change.
 
-**Key finding that shapes the whole design**: Gemini exposes an OpenAI-compatible endpoint (`https://generativelanguage.googleapis.com/v1beta/openai/`). Live-verified: same latency profile as Gemini's native `generateContent` (noise-dominated, no systematic gap), full structured-output parity (`response_format: json_schema strict` via compat == `responseSchema` via native, both tested with identical results), and — notably — Google's own native `generateContent` error output right now is steering callers toward a *new* "Interactions API," meaning native isn't even the more stable target. So all three providers (OpenRouter, OpenAI, Gemini) are drivable through one `AsyncOpenAI` client, varying only `base_url`/`api_key` — no per-provider SDK, no per-provider message-building, no per-provider error-mapping. This is also the shape a future LiteLLM swap would present anyway, so it's not throwaway work.
+**This plan is the product of actually re-reading the source material**, not recall: the full current PR body (~1,200 lines, all 15 iterations), all 21 follow-up comments (~760 lines), the full `dev..feat/backend-hardening` commit log (84 commits), and the migrations/routers/schemas directory listings (48 migrations, 12 routers, 12 schema files, 10 service modules). The checklist below is organized by what that research actually surfaced, not a generic template.
 
-Also live-confirmed: Gemini's `-latest` aliases (`gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-pro-latest`) self-heal against model renames server-side (today `gemini-flash-latest` resolves to `gemini-3.7-flash` under the hood) — the right default/fallback target. Free tier is real but tight: 5 requests/minute confirmed live on `gemini-flash-latest`. A pinned dated model name (`gemini-2.5-flash`) is already deprecated ("no longer available to new users") — real, current evidence for why auto-healing matters here specifically, unlike OpenRouter where a bad model name just fails cleanly today.
+**No existing test infrastructure at all** — confirmed by search: no `tests/` directory, no `pytest` in `pyproject.toml`, nothing. Building from zero.
 
-## Phase 1 — Provider abstraction
+## Testing strategy: why integration tests against the real Supabase project, not mocks
 
-**Commit:** `feat(llm): generalize the OpenRouter client into a provider-agnostic one`
+This app is a thin FastAPI proxy over Supabase PostgREST — the actual business logic mostly lives in RLS policies, triggers, views, and RPCs, not in Python. Rereading the PR confirms just how true this is — nearly every real bug documented across 15 iterations was found by **live testing against the real database**, never by reasoning about Python code in isolation (see the full bug inventory below). A fully-mocked test suite would give false confidence about exactly the part of this system most likely to actually break.
 
-- Rename `llm/openrouter_client.py` → `llm/llm_client.py`. `_call_model`, `_build_image_messages`, `_build_text_messages`, the retry loop are already provider-agnostic (just take a client) — unchanged.
-- New `PROVIDERS` registry (provider id → base_url, display name, `supports_shared_key`): `openrouter` (`https://openrouter.ai/api/v1`, shared key allowed), `openai` (default SDK base_url, no shared key), `gemini` (`https://generativelanguage.googleapis.com/v1beta/openai/`, no shared key).
-- `extract_movie_metadata_from_image`/`_from_text` gain a `provider: str = 'openrouter'` param, threaded into a new `_client_for(provider, api_key) -> AsyncOpenAI`.
-- `check_api_key(provider, api_key)`: OpenRouter keeps its existing free `GET /api/v1/key` metadata lookup unchanged; OpenAI/Gemini use `client.models.list()` (a metadata call, no tokens spent) and catch `AuthenticationError` → `valid: False`.
-- `check_model(provider, model_name, api_key=None)`: OpenRouter keeps its existing free public-catalog lookup (rich metadata: modality, context length, pricing); OpenAI/Gemini need a key (`client.models.retrieve()`), return minimal `{'exists': bool}` only — neither exposes OpenRouter-grade catalog metadata generically, documented as a real limitation, not hidden.
-- Generalize `utils/openai_utils.py`'s error messages — "Unable to connect to OpenAI"/"Request to OpenAI timed out" currently hardcode OpenAI by name despite already firing for OpenRouter calls today (a latent, pre-existing minor inaccuracy) — reword provider-agnostically now that it's explicit across three providers.
+So: **integration tests against the real linked Supabase project** are the primary value driver, using the same throwaway-user methodology already established (Admin API user creation, real tokens, real cleanup) — wrapped in pytest fixtures instead of ad-hoc bash. **Unit tests** cover pure Python logic that doesn't need a database at all (Pydantic validators, the provider/model/key resolution chain, crypto encrypt/decrypt/rotation, error-code mapping) — cheap, fast, deterministic.
 
-## Phase 2 — Wire OpenAI + Gemini into the extract endpoints
+The app runs **in-process** via `httpx.AsyncClient(transport=ASGITransport(app=app))` — no separate uvicorn process. Lifespan (3 headless Chromium processes for link extraction) is **not** triggered by default — too slow/heavy and irrelevant to nearly every test; link-extraction-specific tests are explicitly out of scope this pass (would need real ticket-booking URLs to scrape, not something a suite should depend on).
 
-**Commit:** `feat(movie-metadata): add provider selection, OpenAI and Gemini as alternatives to OpenRouter`
+**Rate limiting disabled for the whole run** (`RATE_LIMIT_ENABLED=false`). **The backend's own paid `OPENROUTER_API_KEY` is never used to call anything, ever, in any test** — only the personal test keys (`OPENROUTER_API_KEY_1`, `OPENAI_API_KEY_1`, `GEMINI_API_KEY_1`, referenced by env var name only) for provider tests, and those are marked `@pytest.mark.llm`, skipped by default (opt-in via `-m llm`) — burning Gemini's 5 RPM free tier or real OpenAI cost on every run isn't acceptable.
 
-- `POST /extract`, `POST /extract-from-link`, `GET /test-key` all gain `provider: Literal['openrouter','openai','gemini'] = 'openrouter'`.
-- Header renamed `X-OpenRouter-API-Key` → generic `X-LLM-API-Key` (used for whichever `provider` is active). No live frontend depends on the old name yet, so this is a clean rename, not a deprecation shim — called out explicitly in the PR as an API contract change.
-- `provider != 'openrouter'` unconditionally requires `X-LLM-API-Key` (400 `LLM_API_KEY_REQUIRED` if missing) — no shared key, no quota check, no free-model validation for these two, ever. `provider == 'openrouter'` keeps exactly today's behavior (shared key + quota + free-model check when no header key given; any model when a key is given).
-- Sensible, non-validated suggested defaults when `model` is omitted: `gemini-flash-latest` for Gemini (self-healing alias), `gpt-4o-mini` for OpenAI (current, cheap, vision-capable — confirmed live in the account's model list). Neither is checked against a "free" list the way OpenRouter's default is — OpenAI has no meaningful free tier, and Gemini's free-tier eligibility isn't machine-readable (see Phase 4).
-- Extraction cache key extended to include `provider` (not just `model`) — a same-named model across providers shouldn't collide (unlikely today, but the cache key should reflect reality, not assume it).
+## The complete bug/behavior inventory this research surfaced (every regression test below is named after one of these)
 
-## Phase 3 — Stored provider+model preference
+**Iteration 1 (security + core):**
+- Blank env var (`""`) must resolve to `None`, not be treated as configured.
+- `ProductionSettings` must refuse to boot with `DEV_BYPASS_AUTH=true`.
+- Rate limiting: `Limiter(default_limits=...)` is a no-op in slowapi 0.1.9 — every route needs its own `@limiter.limit(...)`.
+- Body-size cap: a 12MB JSON body → `413`, multipart `/extract` exempt.
+- Open redirect: `/dev/google/authorize` and `/callback` both independently validate `redirect_uri` against `localhost`/`127.0.0.1`.
+- `visibility` tri-state (`private`/`anonymous`/`public`) — `anonymous` means `user_id`/`username` both `null` on the public projection.
+- Venue sub-ratings count toward theatre/screen aggregates regardless of log visibility; only qualitative fields are visibility-gated.
+- `theatres.source` (`google_places`/`user_submitted`); `place_id` server-resolved, overrides client input; `UNIQUE(place_id)` never conflicts on `NULL`.
+- Reports: a `private` log 404s exactly like a nonexistent one (can't probe existence).
 
-**Commit:** `feat(public-profile): let users store a preferred LLM provider/model`
+**Iteration 2 (social):**
+- `private` account: zero content access even for an *accepted* follower — genuinely stronger than `followers_only`.
+- Switching `private` → `followers_only` unlocks content immediately for already-accepted followers, **no new follow action**.
+- Follow: instant-accept on `public`, pending-then-accept on `followers_only`/`private`; self-follow rejected; blocked pair rejected.
+- Block: severs an existing accepted follow (both directions), rejects future follow attempts (both directions), `GET /users/{username}` 404s for either party, excluded from `GET /users/search` both directions.
+- `get_current_user_optional`: `None` on missing token, `401` on present-but-invalid (never silently downgrades to anonymous).
+- `feed_entries` view must repeat the RLS filter itself (view-owner-rights gotcha) — caller's own logs excluded, a followed private/followers_only-without-access account's logs excluded.
+- **Bug**: `list_followers` was silently dropping an accepted follower who never set a username (missing `LEFT JOIN`) — fixed, regression-test this specifically.
 
-- `user_settings.preferred_provider text not null default 'openrouter' check (in ('openrouter','openai','gemini'))` — `preferred_model` already exists, untouched.
-- New `PATCH /public/me/llm-preference` — `{provider, model}`, same dedicated-small-endpoint pattern as `/me/revisit-prefill`.
-- Purely a stored *client* preference, not a server-side implicit lookup — same reasoning `prefill_repeat_visit` already established: no extra DB read on the hot `/extract` path. The client reads it once (profile fetch) and resends `provider`/`model` explicitly on each `/extract` call; omitting both still falls back to the existing static default (OpenRouter + free model), unchanged for anyone who never opts in.
+**Iteration 3 (account deletion):**
+- `DELETE /auth/me` with no body → `422`; `{"confirm": false}` → `422`; `{"confirm": true}` → `204`.
+- Gone entirely: `user_settings`, `follows` (both directions), `blocks`, `venue_notes`, filed `reports`, `private`-visibility logs.
+- Survived, anonymized (`user_id`/`created_by`/`reviewed_by` → `null`, `ON DELETE SET NULL` not cascade): `public`/`anonymous` logs + their venue ratings, `theatres.created_by`, `screens.created_by`, `reports.reviewed_by`.
+- Theatre/screen rating stats identical before/after deletion (values never re-derived, just the attribution nulls).
+- **Bug**: `theatres.created_by`/`screens.created_by`/`reports.reviewed_by` had no `ON DELETE` action at all (implicit `RESTRICT`) — would have hard-failed any deletion by a theatre/screen creator or report reviewer — fixed to `SET NULL`.
 
-## Phase 4 — Gemini auto-healing (revised: no snapshot workflow needed)
+**Iteration 4 (admin/notifications/movies/export):**
+- `ADMIN_USER_IDS` empty → every admin route `403`s everyone; configured → non-admin still `403`s, admin succeeds.
+- Notifications: public-account follow → `new_follower`; private/followers_only → `follow_request`; accepting → `follow_accepted` to the original follower; marking someone else's notification `404`s.
+- `TMDB_API_KEY`/`GOOGLE_PLACES_API_KEY` unset → `500 CONFIG_ERROR`, not a crash; a log with no `movie_id` still works (regression).
+- `POST /movies` with a known `tmdb_id` returns the existing row, never re-fetches TMDB.
+- **Bug**: `visit_venue_ratings.movie_log_id` is that table's own PK, so PostgREST embeds it as to-one (single object or `null`), not a list — import code must not assume a list.
+- Export/import round-trip fidelity (profile + rated log + unrated log + venue note, delete, reimport, re-export, byte-for-byte match); empty import `400`s; a venue note with neither/both of `theatre_id`/`screen_id` `422`s.
 
-**Commit:** `feat(llm): auto-heal a stale Gemini model via its self-healing -latest alias`
+**Iterations 5-8 (movie pages, CRUD audit, search/favorites/punctuality, aggregates):**
+- `visit_venue_ratings` had no `DELETE` grant at all — fixed; deleting a rating recomputes theatre stats to zero/null, leaves the log untouched.
+- `edited_at` set on a real content `PATCH`, **not** moved by a `PATCH` resending an identical value, **not** moved by the account-deletion `user_id` nul-ing (a non-content system write).
+- `movie_rating_stats` was inconsistently excluding `private` logs (unlike venue stats' own "counts regardless of visibility" precedent) — fixed to match.
+- Search: `matched_fields` correctly names which of 6 fields matched a fuzzy query; `theatre_id`/`favorites_only`/`sort`/`order` all combine correctly; cross-user isolation.
+- Favorites: unique index `(user_id, favorite_position)` **is** the 4-slot cap; moving into an already-taken slot atomically vacates the old occupant (not a `409`); a `private` log can be favorited but never appears in the public profile's `favorites`.
+- **Bug (NULL-in-CHECK)**: `check (delta is null or (status in (...) and delta between 0 and 300))` silently passes an invalid row because `null in (...)` evaluates to `NULL`, not `FALSE` — fixed with explicit `CASE ... else false`. **This exact bug pattern recurs** — also caught proactively in the comments `text_or_deleted` constraint.
+- Punctuality stats count a `cancelled` screening as a 4th outcome, regardless of log visibility.
+- `time_of_day` is a pure computed function of `watched_time`, never stored.
+- `is_fdfs: true` forces `is_first_day: true` in the same call, on both create **and** partial update — a model validator's in-place assignment IS tracked by `exclude_unset=True`.
+- Venue lifecycle `status`: non-admin `403`s; a `closed` theatre still appears in search/match (status never hides).
 
-Originally planned as an OpenRouter-style snapshot-workflow port for Gemini too. Revised after a direct challenge mid-build (**"wont -latest work? even if it's needed, [infra like this] should be a separate branch off main, not bundled into this one"**) — both points landed:
+**Iterations 9-11 (comments/likes/notifications):**
+- **Bug (RLS)**: comment visibility/insert policies checked `movie_logs` directly (caller's own narrower RLS), not the broader public-visibility rule — a genuine stranger was wrongly rejected on a real public log — fixed with `is_log_commentable`/`commentable_log_is_blocked` security-definer helpers.
+- One level of replies only — a reply-to-a-reply is rejected by trigger.
+- Soft-delete leaves replies intact, parent shows cleared (`null`) text.
+- **Bug**: `get_movie_log` (caller's-own-rows scope) was used to read back a like count after liking *someone else's* log — fixed with `get_like_count` through the public view.
+- **Bug**: a duplicate comment-like collapsed to the same `400`/`404` as a genuinely-missing comment — fixed by pre-checking existence, distinguishing `None` from a real `0`.
+- **Bug**: `liked_by_caller` was always `false`/`null` on 5 of 6 read paths (profile logs/favorites, theatre/screen/movie reviews) — an identity-blind request helper never carried a viewer token — fixed across all 5.
+- Account deletion: a deleted user's comments survive with `user_id: null`; their given/received likes on those comments are unaffected on the receiving side, their own likes-given cascade-delete.
+- Notification enrichment (`actor_username`, `movie`, `comment_preview`) — `comment_preview` goes `null` (not `""`) once the comment is soft-deleted, live-joined not snapshotted.
 
-- **No snapshot needed at all.** The thing that actually matters — self-healing against Gemini's model churn — is already provided by Google itself: `-latest` aliases (`gemini-flash-latest`, `gemini-flash-lite-latest`, `gemini-pro-latest`) resolve server-side to whatever the current model is (live-confirmed: `gemini-flash-latest` → `gemini-3.7-flash` today), no client-side tracking required. A periodically-refreshed external list would just be re-tracking something Google already tracks. `services/gemini_free_models.py` is a small hardcoded module (two known-stable aliases, no network call, no cache) — not a smaller copy of `free_models.py`, a genuinely different shape because the underlying problem is different.
-- **Also correctly caught: OpenRouter's own snapshot infra (`fetch_free_models.py`, its workflow) doesn't even exist on this branch** — it shipped via its own dedicated branch (`chore/free-models-pipeline`) straight to `main` after `feat/backend-hardening` diverged from `dev`. The runtime consumer (`free_models.py`) only needs the already-live published URL, not the publishing script itself, so this was never actually a gap — reverted an attempt to port those files onto this branch mid-build.
-- **Per-request healing (narrow, not "all the time"), unchanged from the original plan**: in the Gemini path only, catch `openai.NotFoundError` specifically (confirmed live as the exact exception a deprecated/nonexistent Gemini model raises) — not any other error class — and retry **once** against `gemini_free_models.default_free_model()`, logged clearly (not silent). Never triggers for OpenRouter/OpenAI, never retries more than once, never overrides a model that actually exists.
-- Unlike OpenRouter's shared-key path, this was never an enforcement gate to begin with — Gemini has no shared key at all, so a "free models" list here is advisory (a sensible default), not a security boundary the way `free_models.is_free_model` is for OpenRouter's spend.
+**Iterations 12-15 (LLM providers, encrypted keys):**
+- Gemini via its OpenAI-compatible endpoint — one `AsyncOpenAI` client for all 3 providers, varying only `base_url`.
+- `provider != openrouter` unconditionally requires `X-LLM-API-Key` (`400`), no quota, no free-model check, ever.
+- **Bug (ordering)**: an early draft resolved the API key (and touched quota) *before* the cache-hit check — fixed: model-name resolution (pure) before the cache check, key/quota resolution (side-effecting) strictly after — a cache hit must never cost quota.
+- **Bug**: `check_api_key` only caught `401 AuthenticationError`; Gemini rejects a garbage key with `400 BadRequestError` — fixed to catch both (+ `PermissionDeniedError`).
+- **Bug**: the `DELETE /me/llm-keys/{provider}` route's `-> Any` + `status_code=204` crashed the app at *startup* (FastAPI's own assertion) — fixed to `-> None`.
+- **Bug**: an explicit `provider=openrouter` override with no explicit `model`, while a *different* provider's preference was stored, fell through to the *stored* provider's model name — fixed: stored model only used when the effective provider matches the stored `preferred_provider`.
+- **Bug (schema leak)**: `fallback_occurred`/`requested_model`/`used_model` were first fields on `MovieMetadata` itself — the LLM saw them in its own structured-output schema and hallucinated a value (`"ticket"`) — fixed with a separate `MovieMetadataResult` class the LLM never sees.
+- **Bug**: `openai.NotFoundError` was never mapped in `OPENAI_ERROR_MAP` at all — fell through to a generic `502` — fixed to a proper `404`.
+- **Bug (cache versioning)**: `PROMPT_VERSION` only hashed prompt *content*, not response *schema* — a stale cache entry from before a required-field change crashed with `ResponseValidationError` — fixed by folding `MovieMetadataResult.model_json_schema()` into the version hash.
+- `LLM_KEY_ENCRYPTION_KEY`: `LOCAL` auto-generates ephemeral if unset; `DEV`/`PROD` refuse to boot if unset.
+- `user_llm_keys` has **zero** PostgREST grants — service-role-mediated only; masked (`key_prefix` only) on every read.
+- `MultiFernet` rotation: encrypt always primary, decrypt tries primary then each `LLM_KEY_ENCRYPTION_KEY_PREVIOUS` key in order.
+- Account deletion cascades to `user_llm_keys` (`ON DELETE CASCADE`).
+- `extraction_provider`/`extraction_model` must be set together (DB `CHECK`); `extraction_edited` is `null`, not `false`, on a fully-manual log.
 
-## Not in scope for this plan
+## Foundational infrastructure — from the original `feat/add-all` port, predates every iteration above
 
-- LiteLLM itself, or any other provider beyond these three — explicitly deferred, this plan's whole design is chosen so that swap/extension isn't a rewrite later.
-- Rich model catalog metadata (modality, context length, live pricing) for OpenAI/Gemini via `check_model` — OpenRouter-only feature, no equivalent public/queryable source exists for the other two.
-- Any GitHub Actions workflow/snapshot infra in this PR — infra that publishes independently of the backend app's own runtime belongs in its own branch/PR straight to `main`, same precedent `chore/free-models-pipeline` already set; not bundled here even for Gemini.
-- **Routing `provider=gemini` through the OpenRouter shared key** — checked live: OpenRouter does host real `google/gemini-*` models, but every one of them is currently paid, no `:free` variant exists. Doing this would mean every Gemini-selecting free-tier user silently spends real backend money, unbounded by the quota logic (which assumes "shared key path = a free model"). The BYO-Google-key design stays for exactly this reason — it's not a worse "seamless" experience being settled for, it's the only currently-safe way to give Gemini quality without a real spend risk. A user who just wants *some* free model with zero setup already gets that today via the default `provider=openrouter` with no `model` specified — that's the actual "seamless new user" path, it just won't specifically be Gemini's own models until OpenRouter offers a free one.
+Checked directly (`git show 6e4a6e5 --stat` — the actual port commit — then read the current, evolved state of each file it introduced), not just Iteration 1's summary prose of it. This is the layer every single endpoint depends on, and deserves its own dedicated coverage independent of any specific feature:
 
-## Phase 5 — Encrypted server-side API key storage (revises Phase 2's "per-request only" decision)
+- **`utils/errors.py`** — the uniform error shape every response follows: `{"code", "message", "detail"?}`. `_STATUS_CODE_MAP` gives the default `code` for a bare `HTTPException` per status (`400`→`BAD_REQUEST`, `401`→`UNAUTHORIZED`, `403`→`FORBIDDEN`, `404`→`NOT_FOUND`, `408`→`REQUEST_TIMEOUT`, `409`→`CONFLICT`, `413`→`PAYLOAD_TOO_LARGE`, `415`→`UNSUPPORTED_MEDIA_TYPE`, `429`→`RATE_LIMITED`, `500`→`INTERNAL_ERROR`, `502`→`UPSTREAM_ERROR`). `RequestValidationError` → `422 VALIDATION_ERROR` with a sanitized `detail` (non-JSON-serializable Pydantic `ctx` values stringified). `RateLimitExceeded` → `429 RATE_LIMIT_MINUTE` (distinct code from the daily quota's `QUOTA_DAILY_EXCEEDED`) with a `Retry-After` header. Any unhandled exception → `500 INTERNAL_ERROR`, logged full server-side, **never** leaks internals to the response body.
+- **`services/supabase_rest.py`'s `_raise_for_upstream`** — every PostgREST call funnels through this: `401`→`UNAUTHORIZED`, `403`→`FORBIDDEN`, `404`→`NOT_FOUND` pass through with their real status; **any other 4xx collapses to a flat `400 BAD_REQUEST`** (this is exactly why, e.g., the follow-request router pre-checks self-follow/already-following/blocked explicitly rather than trying to interpret PostgREST's real error — a `400` reaching the handler could be any of several causes); any `5xx` → `502 UPSTREAM_ERROR`. A transport-level failure (connection refused, timeout) also → `502 UPSTREAM_ERROR`.
+- **`auth/supabase_auth.py`** — `get_current_user`: no token → `401` "Missing bearer token."; malformed/expired/wrong-issuer token → `401` "Invalid or expired access token."; token missing `sub` → `401` "Token is missing subject claim."; `sub` not a valid UUID → `401` "Token subject claim is not a valid UUID."; `DEV_BYPASS_AUTH` + `ENV` in `(LOCAL, DEV)` + no token → fixed dev user (`00000000-...-000000000001`). `get_current_admin`: authenticated-but-not-in-`ADMIN_USER_IDS` → `403`. `get_current_user_optional`: no token → `None` (not an error); a present-but-invalid token still `401`s (never silently downgrades to anonymous) — this exact distinction is what several later features (block-aware search/profile, viewer-aware `liked_by_caller`) depend on.
+- **`services/quota.py`** — `ensure_within_daily_quota` calls the `increment_daily_usage` RPC with the service-role key; misconfigured Supabase quota settings → `500 INTERNAL_ERROR` with a specific message (not a generic failure); quota RPC itself failing → `500`; an unparseable RPC response → `500`; the limit being reached → `429 QUOTA_DAILY_EXCEEDED`.
+- **The original `GET /movie-logs/export`/`POST /movie-logs/import`** (bare logs only) — still exists, unchanged, distinct from Iteration 4's "everything" `GET/POST /me/export`/`/me/import` (profile + logs + venue ratings + notes). Both need coverage, not just the newer one.
 
-Prompted directly: since the same account will eventually be used from web, a mobile app, and bot surfaces (Telegram/Discord), re-entering an OpenAI/Gemini key on every surface is bad UX — store it once, reuse everywhere. Correcting terminology from how this was first described: **encryption, not hashing** — a one-way hash can verify a value matches but can never be turned back into the original key, and the backend genuinely needs the real key back out to call the provider on the user's behalf. This needs reversible, server-side-only encryption.
+## Architecture
 
-**Commit:** `feat(llm): encrypted server-side storage for a user's own provider API keys`
+```
+backend/
+  tests/
+    conftest.py              # app client fixture, test-user factory+cleanup, env checks, markers
+    README.md                # testing philosophy, how to run, house rule for future changes
+    unit/
+      test_movie_logs_schema.py       # punctuality pairs, FDFS coupling, extraction-provenance pairing
+      test_movie_metadata_schema.py   # MovieMetadata vs MovieMetadataResult separation (hallucination bug)
+      test_public_profile_schema.py   # LlmPreferenceUpdate, LlmKeyInput, storage opt-in
+      test_crypto.py                  # encrypt/decrypt/MultiFernet rotation, fails-closed
+      test_llm_client.py              # PROVIDERS registry, _fallback_model_for, healing gate
+      test_openai_utils.py            # OPENAI_ERROR_MAP completeness (the NotFoundError gap)
+    integration/
+      test_auth.py                    # signin, /auth/me, full deletion cascade table above, export/import
+      test_movie_logs.py              # CRUD, archive + venue-stats trigger, favorites, search, punctuality,
+                                       #   edited_at precision, extraction provenance
+      test_venues.py                  # theatres/screens, ratings (+ delete), notes, stats, lifecycle status
+      test_movies.py                  # catalog create/dedupe, stats, reviews, CONFIG_ERROR without a key
+      test_public_profile.py          # username/privacy/profile, 3-tier visibility incl. the silent-unlock case
+      test_follows_blocks.py          # lifecycle, the list_followers LEFT JOIN regression, block's 4 effects
+      test_feed.py                    # visibility, self-exclusion, the view-must-repeat-RLS regression
+      test_comments.py                # CRUD, one-level replies, the visibility-RLS regression specifically
+      test_likes.py                   # the get_movie_log-scope bug, the double-like-404 bug, no-op duplicates
+      test_notifications.py           # all 5 types, enrichment, self-notification skip, cascade-delete
+      test_reports.py                 # create + admin triage, non-admin 403, private-log-404-not-probe
+      test_llm_provider_resolution.py # request > stored preference > default, the provider-override bug
+      test_llm_keys.py                # store/list/delete masking, live-validate-before-store, storage pref,
+                                       #   rotation lifecycle, account-deletion cascade
+      test_llm_auto_fallback.py       # opt-in gate, always-populated fields, cache-versioning regression,
+                                       #   the schema-leak regression (marked @pytest.mark.llm)
+```
 
-- New `user_llm_keys` table (`user_id`, `provider`, `encrypted_key`, `key_prefix`, timestamps; PK `(user_id, provider)` — one stored key per provider per user). RLS enabled with **zero policies** — not even the owner's own token can read/write this table directly through PostgREST; every access goes through the backend's service-role key, same pattern already established for `quota.py`/`extraction_cache.py`. This sidesteps ever needing column-level grants to hide `encrypted_key` from the owner's own SELECT — there's no direct SELECT path to it at all.
-- `utils/crypto.py`: `encrypt`/`decrypt` via `cryptography`'s `Fernet` (authenticated symmetric encryption), keyed by a new `LLM_KEY_ENCRYPTION_KEY` backend setting. Fails closed if unset — storing/reading a key 500s with a clear message rather than ever silently falling back to plaintext.
-- `PUT /public/me/llm-keys/{provider}`, `GET /public/me/llm-keys` (masked: `provider`, `key_prefix` — first ~8 chars — and timestamps only, never the real key or ciphertext), `DELETE /public/me/llm-keys/{provider}`. `PUT` validates the key live via the existing `check_api_key` before storing — rejects a garbage key up front rather than storing something that'll only fail later.
+## Fixtures (`conftest.py`)
 
-## Phase 6 — Server-side fallback chain: request value → stored preference → static default
+- `client`: `httpx.AsyncClient` wrapping the real app via `ASGITransport`, no lifespan.
+- `make_user`: async factory — creates a throwaway Supabase user via the Admin API, returns `(user_id, token)`; auto-cleanup even on failure.
+- `admin_user`: like `make_user`, temporarily adds the id to `ADMIN_USER_IDS` for the test, restores after.
+- `@pytest.mark.llm` (real provider calls, opt-in via `-m llm`), `@pytest.mark.slow` (multi-step flows like rotation).
+- A session-scoped check that required env vars are present, skipping with a clear message rather than failing cryptically.
 
-Revises Phase 3's "purely a client preference, never read server-side" decision, now that there's a stored key to pair it with — the whole point of storing a key is that a client shouldn't have to keep resending it.
+## Honest scope boundary
 
-**Commit:** `feat(movie-metadata): resolve provider/model/key through request → stored preference → default`
-
-- `provider`/`model` on `/extract`/`/extract-from-link` become optional with no hardcoded default (`None` means "not specified this call," distinguishable from an explicit value) — resolution order: explicit request value, then the caller's stored `preferred_provider`/`preferred_model` (`user_settings`), then the existing static default (a free OpenRouter model / `gemini-flash-latest` / `gpt-4o-mini`).
-- `X-LLM-API-Key` header resolution order: explicit header, then a stored key for that provider (Phase 5, decrypted server-side), then — `openrouter` only — the shared backend key (still gated by quota/free-model check); `openai`/`gemini` still 400 `LLM_API_KEY_REQUIRED` if nothing at any of those three levels is available.
-
-## Phase 7 — Opt-in auto-fallback to the next-best model
-
-Generalizes Phase 4's Gemini-only, always-on "heal a 404'd model" behavior into an explicit, opt-in, all-three-providers mechanism — a deliberate behavior change for Gemini (no longer silently retries by default; requires `auto_fallback: true` now, same as the other two).
-
-**Commit:** `feat(movie-metadata): opt-in auto-fallback to the next available model`
-
-- New `auto_fallback: bool = False` on `/extract`/`/extract-from-link`. Off (default): a `NotFoundError` on the requested model fails normally, same as OpenRouter/OpenAI already do today. On: one retry against that provider's default/suggested model (the same target `resolve_model_name` already falls back to when `model` is omitted), for any of the three providers, not just Gemini.
-- Response signals when a fallback actually happened — `fallback_occurred: bool`, `requested_model`/`used_model` (both `None` unless a fallback fired) added to `MovieMetadata` — so the frontend can show a toast ("used gemini-flash-latest instead of gemini-2.5-flash") rather than the swap being invisible.
+Venues/movies/reports/notifications get real happy-path + the specific documented edge cases above, not exhaustive branch coverage — flagged as a scaffold to extend, not silently glossed over. Link extraction (`/extract-from-link`'s scrape itself) is out of scope — needs real ticket URLs, not something a suite should depend on. Going forward, `backend/tests/README.md` establishes writing a test for every change that needs one as a house rule.
 
 ## Verification
 
-- **Phase 1**: `check_api_key`/`check_model` work correctly for all three providers against real keys (a genuinely valid key → `valid: true`; an obviously-wrong key → `valid: false`, no crash).
-- **Phase 2**: a real extraction succeeds end-to-end through OpenAI and through Gemini (real ticket-shaped prompt, not just "reply OK") using the throwaway keys already in `.env` (`OPENAI_API_KEY_1`, `GEMINI_API_KEY_1`, referenced by name only); omitting `X-LLM-API-Key` on a non-OpenRouter provider 400s cleanly; OpenRouter's existing shared-key/quota behavior is unchanged (regression check).
-- **Phase 3**: `PATCH /public/me/llm-preference` round-trips correctly; an invalid `provider` value 422s.
-- **Phase 4**: calling Gemini with a known-deprecated model name (`gemini-2.5-flash`, confirmed dead live above) auto-heals to `gemini-flash-latest` instead of hard-failing, logged, and the healed call succeeds with correct extracted data.
-- **Phase 5**: storing a key returns only `provider`/`key_prefix`/timestamps, never the real value; a garbage key is rejected at store time (live-checked first); a stored key is genuinely usable to call the provider later (round-trip through encrypt → decrypt → real API call succeeds); no `LLM_KEY_ENCRYPTION_KEY` configured fails closed, not open.
-- **Phase 6**: an extract call with no `provider`/`model`/header key, but a stored preference + stored key, succeeds using the stored values; an explicit request value still overrides the stored one when both are present.
-- **Phase 7**: `auto_fallback: false` (default) on a 404'd model fails exactly like before (regression check on Phase 4's own behavior change); `auto_fallback: true` succeeds and the response correctly reports `fallback_occurred`/`requested_model`/`used_model`.
-
-## Phase 8 — Follow-up: security audit, LOCAL-only key auto-generation, always-populated fallback fields, extraction provenance
-
-Four direct follow-up questions after Phase 7 shipped.
-
-**Security audit** (read-only, no code needed): checked whether any user-info-returning endpoint could leak a stored key. `AccountExport`/admin endpoints never touch `user_llm_keys` at all (separate table, zero PostgREST grants). Checked request-header logging specifically — confirmed httpx redacts `Authorization` from its own `repr()`/`str()`, so even `utils/openai_utils.py`'s `LOGGER.debug(f'Exception details: {exc.__dict__}')` (which includes the failed request object) can't leak a key; httpx's own request/response debug logging is never enabled anywhere in this app either. Clean.
-
-**LOCAL-only auto-generated encryption key** — `LLM_KEY_ENCRYPTION_KEY` now behaves differently per `ENV`, matching the existing `DEV_BYPASS_AUTH` precedent (LOCAL-only convenience toggles must be impossible to leave on outside LOCAL): base `Settings` (LOCAL) auto-generates an ephemeral Fernet key at startup if unset, so a fresh clone works without a manual key-generation step; `DevelopmentSettings`/`ProductionSettings` instead fail to start if it's unset — an ephemeral key in a real deployment would silently break every already-stored user's key on the next restart, an unacceptable failure mode outside pure local dev.
-
-**Always-populated fallback fields, not just on fallback** — `used_provider`/`used_model`/`requested_model` on `MovieMetadataResult` are now required (never null), populated on every extraction regardless of `auto_fallback`, not gated behind `fallback_occurred` — knowing which model actually produced a result is useful on its own (a small "Extracted with Gemini" attribution), not just when something went differently than requested.
-
-**A cache-versioning bug this same change surfaced live**: a stale cache entry from before the fields went required (missing them entirely) got served as-is into a `ResponseValidationError` once code was deployed. `extraction_cache.py`'s `PROMPT_VERSION` hash only tracked prompt *content* drift, not response *schema* drift — fixed by folding `MovieMetadataResult.model_json_schema()` into that same hash, so any future shape change (not just a prompt edit) also auto-invalidates stale entries.
-
-**Extraction provenance on `movie_logs`** — three new columns, client-asserted (same trust model as `is_fdfs`/`arrival_status`): `extraction_provider`/`extraction_model` (must be set together, DB `CHECK` enforced; null means fully manual entry) and `extraction_edited` (whether the caller changed a field after extraction, before saving — null, not false, on a fully-manual log). Surfaced on `public_movie_log_entries`/`feed_entries` too, not just the owner's own `GET /movie-logs` — meant as visible small-text attribution, not private metadata. `search_movie_logs` RPC deliberately not extended in this pass (would need the `DROP FUNCTION`-first dance for a return-shape change) — the owner's own list already carries these fields.
-
-### Verification
-
-- Storing an obviously-wrong key still 422s (unaffected by the ENV changes); a `LOCAL` run with `LLM_KEY_ENCRYPTION_KEY` unset auto-generates one (confirmed via a real restart with the setting removed), and a stored key round-trips through encrypt→decrypt→real provider call successfully under that ephemeral key.
-- Every extraction response (fallback or not) now carries populated `used_provider`/`used_model`/`requested_model`; the stale-cache `ResponseValidationError` reproduced live, then confirmed fixed by the schema-aware cache version.
-- Creating a log with `extraction_provider`/`extraction_model` set round-trips correctly; `extraction_provider` without `extraction_model` `422`s; the fields correctly appear on the public profile view once the log is made public.
-
-## Phase 9 — Follow-up: account-deletion cascade check, key rotation, local-vs-server storage choice
-
-Three more direct questions after Phase 8 shipped.
-
-**Account deletion cascade — verified, not a gap.** `user_llm_keys.user_id references auth.users(id) on delete cascade` was already correct from Phase 5. Confirmed live rather than just re-reading the migration: stored a real key, ran `DELETE /auth/me`, queried the table directly with the admin key — the row was gone. `delete_account`'s own docstring updated to say so explicitly (a FK cascade, not application code, so it can't be silently skipped by a code change later).
-
-**Key rotation — the real gap the original design flagged but didn't solve.** `utils/crypto.py` now uses `cryptography`'s `MultiFernet` instead of a single `Fernet`: encryption always uses the *primary* key (`LLM_KEY_ENCRYPTION_KEY`), decryption tries the primary then each key in a new `LLM_KEY_ENCRYPTION_KEY_PREVIOUS` (comma-separated) in order. New `backend/scripts/rotate_llm_key_encryption.py` re-encrypts every stored row under the current primary — checks each row against the primary alone first (skips re-writing rows already current), decrypts via the full `MultiFernet` chain otherwise, re-encrypts, writes back. `--dry-run` reports counts without writing. The actual rotation procedure: generate a new key, set it as primary, move the old one into `_PREVIOUS`, restart, run the script, confirm 0 rows still need it, then drop the old key from `_PREVIOUS` entirely and restart again.
-
-**Local-vs-server key storage — both already worked, the missing piece was a remembered choice.** `PUT /me/llm-keys/{provider}` (store) and never calling it while always sending `X-LLM-API-Key` (local-only) were both already fully functional — nothing to build there. What was missing: a way for the *frontend* to remember which the user prefers, so it isn't re-prompting every session. New `user_settings.llm_keys_storage_opt_in` (default `false`, privacy-first) + `PATCH /public/me/llm-key-storage-preference` — purely a remembered UI signal, doesn't gate the actual store/read/delete endpoints (an explicit `PUT` is already itself explicit consent for that one key).
-
-### Verification
-
-- A real key stored, account deleted, table queried directly with the admin key afterward — row confirmed gone.
-- Full rotation lifecycle exercised live: stored a key under the old primary → rotated (new primary + old in `_PREVIOUS`) → confirmed the stored key still decrypts via `MultiFernet` fallback → ran the rotation script (`--dry-run` then for real) → confirmed 0 rows still need rotation → removed the old key from config entirely → confirmed the stored key *still* decrypts, proving it's genuinely under the new primary alone now.
-- Storage preference round-trips correctly; an invalid (non-boolean) value `422`s.
+- `uv run pytest` (default marks) passes cleanly against the real linked project, fully cleans up its own data.
+- `uv run pytest -m llm` separately exercises real-provider paths.
+- Each bug-regression test's assertion is precise enough to catch the specific documented failure mode, not just "endpoint returns 200" — spot-checked by temporarily reverting a fix and confirming the test actually fails.
