@@ -5,6 +5,7 @@ description = "movie logger - extract movie and theatre details from movie ticke
 readme = "README.md"
 requires-python = ">=3.11.4"
 dependencies = [
+    "cryptography>=49.0.0",
     "fastapi==0.141.1",
     "gunicorn==23.0.0",
     "httpx>=0.28.1",

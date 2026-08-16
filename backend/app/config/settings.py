@@ -141,6 +141,16 @@ class Settings(BaseSettings):
         'still works without it, just falls back to free-typed data with '
         "source='user_submitted' instead of a Places-backed lookup.",
     )
+    llm_key_encryption_key: Optional[SecretStr] = Field(
+        default=None,
+        exclude=True,
+        description='Fernet key (cryptography.fernet.Fernet.generate_key()) encrypting '
+        "users' own stored OpenAI/Gemini/OpenRouter API keys at rest "
+        '(services/llm_keys.py, utils/crypto.py). Optional at the settings level, but '
+        'storing/reading a key fails closed (500) if unset — never silently falls back '
+        'to plaintext. Rotating this key invalidates every already-stored key (they\'d '
+        'fail to decrypt) — there is no key-versioning/re-encryption path yet.',
+    )
     tmdb_api_key: Optional[SecretStr] = Field(
         default=None,
         exclude=True,
@@ -292,6 +302,7 @@ class Settings(BaseSettings):
         'supabase_secret_key',
         'supabase_publishable_key',
         'supabase_url',
+        'llm_key_encryption_key',
         mode='before',
     )
     @classmethod

@@ -7,18 +7,23 @@ from typing import Any, List, Optional
 from auth.supabase_auth import AuthenticatedUser, get_current_user, get_current_user_optional
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request, status
+from llm.llm_client import check_api_key
+from openai import OpenAIError
 from rate_limit import limiter
 from responses.public_profile import responses
 from schemas.public_profile import (
     AccountPrivacyUpdate,
+    LlmKey,
+    LlmKeyInput,
     LlmPreferenceUpdate,
     ProfileUpdate,
     PublicProfile,
     RevisitPrefillUpdate,
     UsernameUpdate,
 )
-from services import supabase_rest
+from services import llm_keys, supabase_rest
 from utils.errors import APIError
+from utils.openai_utils import openai_error_to_http
 
 router = APIRouter()
 
@@ -226,11 +231,12 @@ async def set_revisit_prefill(
     description="The caller's preferred LLM provider/model for "
     'POST /movie-metadata/extract and /extract-from-link — `provider` is one of '
     '`openrouter` (default, has a backend-funded shared/free path), `openai`, or '
-    '`gemini` (both bring-your-own-key only). Purely a stored preference, like '
-    '`/me/revisit-prefill`: the backend never reads this to change extraction '
-    "behavior on its own — fetch it once, then resend `provider`/`model` "
-    'explicitly on each extract call; an own API key still has to be sent there '
-    'too for `openai`/`gemini`, this endpoint never stores one.',
+    '`gemini` (both bring-your-own-key only). **Actually used as a fallback '
+    "server-side**, not just an echoed-back client hint: an extract call that "
+    "omits `provider`/`model` uses whatever's stored here before falling back "
+    'to a static default — an explicit value on that call still overrides it. '
+    'This endpoint never stores an API key itself — see '
+    'PUT /me/llm-keys/{provider} for that (separate, encrypted).',
     response_description="The caller's updated settings row.",
     responses=responses['set_llm_preference'],
     operation_id='SetLlmPreference',
@@ -244,3 +250,91 @@ async def set_llm_preference(
     return await supabase_rest.update_llm_preference(
         current_user.access_token, current_user.user_id, payload.provider, payload.model
     )
+
+
+@router.get(
+    '/me/llm-keys',
+    response_model=List[LlmKey],
+    tags=['Public'],
+    description="The caller's own stored provider API keys — masked "
+    '(`key_prefix` only, e.g. `sk-proj-`, never the real value or ciphertext). '
+    'One entry per provider that has a key stored; providers with none stored '
+    "simply don't appear. See PUT /me/llm-keys/{provider} to store one, "
+    'POST /movie-metadata/extract for how a stored key gets used '
+    '(request header still overrides it, see that endpoint).',
+    response_description="The caller's stored keys, masked.",
+    responses=responses['list_llm_keys'],
+    operation_id='ListLlmKeys',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_llm_keys_route(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await llm_keys.list_llm_keys(current_user.user_id)
+
+
+@router.put(
+    '/me/llm-keys/{provider}',
+    response_model=LlmKey,
+    tags=['Public'],
+    description="Store (or replace) the caller's own API key for one provider, "
+    'encrypted at rest — never stored in plaintext, never echoed back after this '
+    'call (the response is masked, same shape as GET). The key is validated live '
+    'against the provider first (a free metadata call, no tokens spent — same '
+    'check GET /movie-metadata/test-key uses) and rejected with `422` if invalid, '
+    'so a garbage key is never stored only to fail on a real extract call later. '
+    'Storing a key here means every surface using this account (web, app, a bot) '
+    'can use it without re-entering it each time — POST /movie-metadata/extract '
+    "still lets a request's own `X-LLM-API-Key` header override it for one call.",
+    response_description='The stored key, masked.',
+    responses=responses['put_llm_key'],
+    operation_id='PutLlmKey',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def put_llm_key(
+    request: Request,
+    provider: str,
+    payload: LlmKeyInput,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    if provider not in ('openrouter', 'openai', 'gemini'):
+        raise APIError(
+            status.HTTP_404_NOT_FOUND, 'NOT_FOUND',
+            'Unknown provider — must be one of openrouter, openai, gemini.',
+        )
+    try:
+        check_result = await check_api_key(provider, payload.api_key)
+    except OpenAIError as exc:
+        # A genuinely unexpected error (connection failure, 5xx) from the
+        # live validation call — distinct from a cleanly-rejected key
+        # (handled inside check_api_key itself, see its own docstring).
+        raise openai_error_to_http(exc)
+    if not check_result.get('valid'):
+        raise APIError(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, 'INVALID_API_KEY',
+            f'{provider} rejected this key — not stored.',
+        )
+    return await llm_keys.store_llm_key(current_user.user_id, provider, payload.api_key)
+
+
+@router.delete(
+    '/me/llm-keys/{provider}',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Public'],
+    description="Remove the caller's stored key for one provider. Not having one "
+    'stored in the first place is a 404, not a no-op 204 — same "tell the caller '
+    'clearly" reasoning as elsewhere in this API for a delete-what-does-not-exist.',
+    response_description='No content — the key is gone.',
+    responses=responses['delete_llm_key'],
+    operation_id='DeleteLlmKey',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_llm_key(
+    request: Request,
+    provider: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await llm_keys.delete_llm_key(current_user.user_id, provider)
+    if not deleted:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'No stored key for this provider.')

@@ -97,15 +97,45 @@ class ProfileUpdate(BaseModel):
         return validate_storage_path(v)
 
 
+class LlmKeyInput(BaseModel):
+    """Stores the caller's own API key for one provider, encrypted at
+    rest — see utils/crypto.py, services/llm_keys.py. Validated live
+    against the provider before being stored (rejects a garbage key up
+    front rather than storing something that only fails on the next real
+    extract call). Never echoed back — GET /public/me/llm-keys returns
+    only a masked prefix, never this value again."""
+
+    api_key: str = Field(..., min_length=1, max_length=500)
+
+    model_config = ConfigDict(json_schema_extra={'example': {'api_key': 'sk-...'}})
+
+
+class LlmKey(BaseModel):
+    provider: Literal['openrouter', 'openai', 'gemini']
+    key_prefix: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'provider': 'gemini',
+                'key_prefix': 'AIzaSyBx',
+                'created_at': '2026-08-16T06:00:00+00:00',
+                'updated_at': '2026-08-16T06:00:00+00:00',
+            }
+        }
+    )
+
+
 class LlmPreferenceUpdate(BaseModel):
-    """Stored client preference for POST /movie-metadata/extract's
-    `provider`/`model` fields — purely informational, the backend never
-    reads this to change extraction behavior on its own (same reasoning
-    RevisitPrefillUpdate below already established: no extra DB read on
-    a hot path). The client fetches this once (GET /public/me or
-    wherever settings are read) and resends provider/model explicitly on
-    each extract call; leaving both at their defaults here changes
-    nothing about how /extract behaves without an own key sent too."""
+    """Stored fallback for POST /movie-metadata/extract's `provider`/
+    `model` fields — unlike RevisitPrefillUpdate below, this one *is*
+    read server-side: an extract call that omits `provider`/`model` uses
+    whichever is stored here before falling back to a static default. An
+    explicit value on that call still overrides it. Storing a preference
+    here doesn't store an API key — see PUT /me/llm-keys/{provider}
+    (separate, encrypted) for that."""
 
     provider: Literal['openrouter', 'openai', 'gemini']
     model: str = Field(..., min_length=1, max_length=200)

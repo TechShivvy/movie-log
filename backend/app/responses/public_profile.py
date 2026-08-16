@@ -430,4 +430,77 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'list_llm_keys': {
+        200: {
+            'description': "The caller's stored keys, masked.",
+            'content': {
+                'application/json': {
+                    'example': [
+                        {
+                            'provider': 'gemini',
+                            'key_prefix': 'AIzaSyBx',
+                            'created_at': '2026-08-16T06:00:00+00:00',
+                            'updated_at': '2026-08-16T06:00:00+00:00',
+                        }
+                    ]
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'put_llm_key': {
+        200: {
+            'description': 'The stored key, masked.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'provider': 'gemini',
+                        'key_prefix': 'AIzaSyBx',
+                        'created_at': '2026-08-16T06:00:00+00:00',
+                        'updated_at': '2026-08-16T06:00:00+00:00',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'provider path segment is not one of openrouter/openai/gemini.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'NOT_FOUND',
+                        'message': 'Unknown provider — must be one of openrouter, openai, gemini.',
+                    }
+                }
+            },
+        },
+        422: {
+            'description': 'The provider rejected this key — not stored. Same shape as a '
+            'body-validation error, but the cause is the live upstream check, not the '
+            'request format itself.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'INVALID_API_KEY',
+                        'message': 'gemini rejected this key — not stored.',
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'delete_llm_key': {
+        204: {'description': 'The stored key is gone.'},
+        404: {
+            'description': 'No stored key for this provider.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No stored key for this provider.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
 }
