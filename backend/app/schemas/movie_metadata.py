@@ -209,3 +209,35 @@ class MovieMetadata(BaseModel):
         if not isinstance(v, (int, float)) or v < 0:
             return None
         return v
+
+
+class MovieMetadataResult(MovieMetadata):
+    """The actual API response shape for POST /movie-metadata/extract and
+    /extract-from-link — MovieMetadata itself plus backend-filled
+    routing metadata. Deliberately a *separate* class from MovieMetadata
+    rather than fields added directly onto it: MovieMetadata is also the
+    `response_model` handed to the LLM as its structured-output target
+    (llm/llm_client.py's _call_model) — a real bug caught live during
+    testing was the model itself trying to fill in a plausible-looking
+    guess for a field literally named `requested_model`/`used_model`
+    once those existed on that shared schema, since it has no way to
+    know it's meant to be routing metadata, not ticket content. Keeping
+    them here means the LLM never sees these fields at all."""
+
+    fallback_occurred: bool = Field(
+        False, description='True if `auto_fallback: true` was set and the originally '
+        "requested model wasn't usable (not found), so a different model actually "
+        'served this extraction. Always false when `auto_fallback` was off — a '
+        'request never silently changes models unless explicitly opted in.',
+    )
+    requested_model: Optional[str] = Field(
+        None, description='The model that was actually requested — only set when '
+        '`fallback_occurred` is true, null otherwise.',
+    )
+    used_model: Optional[str] = Field(
+        None, description='The model that actually produced this result — only set '
+        'when `fallback_occurred` is true (differs from `requested_model` in that '
+        'case), null otherwise.',
+    )
+
+    model_config = ConfigDict(extra='forbid', frozen=True)

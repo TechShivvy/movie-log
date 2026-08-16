@@ -1,5 +1,5 @@
 import hashlib
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Optional
 
 import httpx
 from config import settings
@@ -19,9 +19,9 @@ from loguru_setup import LOGGER
 from openai import OpenAIError
 from pydantic import ValidationError
 from responses.movie_metadata import responses
-from schemas.movie_metadata import MovieMetadata, TicketLinkRequest
+from schemas.movie_metadata import MovieMetadata, MovieMetadataResult, TicketLinkRequest
 from starlette.formparsers import MultiPartParser
-from services import extraction_cache, free_models, gemini_free_models, ticket_link_extractor
+from services import extraction_cache, free_models, gemini_free_models, llm_keys, supabase_rest, ticket_link_extractor
 from services.quota import ensure_within_daily_quota
 from utils import image
 from utils.openai_utils import openai_error_to_http
@@ -88,9 +88,51 @@ def require_llm_api_key(provider: Provider, header_api_key: str | None) -> str:
     return header_api_key
 
 
-async def resolve_model_name(
-    provider: Provider, model: str | None, *, requires_image: bool = True
-) -> str:
+async def default_model_for(provider: Provider, *, requires_image: bool = True) -> str:
+    """The per-provider suggested/free default — used both when `model`
+    is omitted entirely and (see llm/llm_client.py) as the auto_fallback
+    retry target when a requested model 404s as not-found."""
+
+    if provider == 'openrouter':
+        return await free_models.default_free_model(requires_image=requires_image)
+    if provider == 'gemini':
+        return await gemini_free_models.default_free_model()
+    return _OPENAI_DEFAULT_MODEL
+
+
+async def resolve_provider_and_model(
+    provider: Optional[Provider],
+    model: Optional[str],
+    current_user: AuthenticatedUser,
+    *,
+    requires_image: bool = True,
+) -> tuple[Provider, str]:
+    """provider/model resolution order: the explicit request value, then
+    the caller's stored preference (user_settings.preferred_provider/
+    preferred_model — see PATCH /public/me/llm-preference), then the
+    static per-provider default. Only reads user_settings when actually
+    needed (either is omitted) — a request that fully specifies both
+    pays no extra DB read. A user who's never touched any settings
+    endpoint has no user_settings row at all, so this falls through to
+    exactly the pre-existing static-default behavior for them, unchanged.
+
+    The stored `preferred_model` is only ever used when the *effective*
+    provider matches the stored `preferred_provider` — the two are set
+    together (LlmPreferenceUpdate requires both in one call), so a
+    stored model is meaningless paired with a different provider. Caught
+    live: an explicit provider=openrouter override with no explicit
+    model, while a gemini preference was stored, was falling through to
+    the *Gemini* model name and sending it to OpenRouter — fixed by this
+    match check rather than blindly using whatever preferred_model holds."""
+
+    stored: dict = {}
+    if provider is None or not model:
+        stored = await supabase_rest.get_own_settings(
+            current_user.access_token, current_user.user_id
+        )
+
+    effective_provider: Provider = provider or stored.get('preferred_provider') or 'openrouter'
+
     if model:
         selected = model.strip()
         if not selected:
@@ -98,13 +140,14 @@ async def resolve_model_name(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Model must not be empty.',
             )
-        return selected
+        return effective_provider, selected
 
-    if provider == 'openrouter':
-        return await free_models.default_free_model(requires_image=requires_image)
-    if provider == 'gemini':
-        return await gemini_free_models.default_free_model()
-    return _OPENAI_DEFAULT_MODEL
+    stored_model = stored.get('preferred_model')
+    stored_provider = stored.get('preferred_provider')
+    if stored_model and stored_provider == effective_provider:
+        return effective_provider, stored_model
+
+    return effective_provider, await default_model_for(effective_provider, requires_image=requires_image)
 
 
 async def validate_shared_model(model_name: str) -> None:
@@ -129,18 +172,27 @@ async def resolve_llm_api_key(
 ) -> str:
     """Resolves the api_key to actually call the provider with — the one
     piece of branching logic shared by /extract and /extract-from-link.
-    Deliberately separate from resolve_model_name (pure, no side effects)
-    so callers can do model-name resolution + a cache-hit check *before*
-    ever reaching this — quota must never be touched on what turns out to
-    be a cache hit. OpenRouter keeps exactly today's behavior (shared key
-    + quota + free-model check when no header key is given, any model
-    when one is); OpenAI/Gemini always require the header key, never
-    touch quota or any free-model check — there's no shared key for
-    either to protect."""
+    Deliberately separate from resolve_provider_and_model (pure, no side
+    effects) so callers can do provider/model resolution + a cache-hit
+    check *before* ever reaching this — quota must never be touched on
+    what turns out to be a cache hit.
+
+    Resolution order: the request's own X-LLM-API-Key header, then the
+    caller's own stored key for this provider (PUT /public/me/llm-keys/
+    {provider} — decrypted here, server-side only), then — OpenRouter
+    only — the shared backend key, gated by quota + the free-model check
+    same as always. OpenAI/Gemini still 400 if nothing at any of those
+    three levels is available — there's no shared key for either to fall
+    back to."""
+
+    if header_api_key:
+        return header_api_key
+
+    stored_key = await llm_keys.get_decrypted_llm_key(current_user.user_id, provider)
+    if stored_key:
+        return stored_key
 
     if provider == 'openrouter':
-        if header_api_key:
-            return header_api_key
         await validate_shared_model(model_name)
         await ensure_within_daily_quota(current_user.user_id)
         return resolve_shared_api_key()
@@ -159,37 +211,36 @@ async def resolve_llm_api_key(
         'a user — needed for every endpoint in this API, not just this one. Either '
         'click "Authorize" to sign in with Google (LOCAL/DEV only), or paste a '
         'Supabase access token directly.\n\n'
-        '2. **Your own LLM provider key** (required unless `provider=openrouter`, '
-        'optional otherwise, `APIKeyHeader` / `X-LLM-API-Key`): `provider` picks which '
-        'of `openrouter` (default), `openai`, or `gemini` handles this call. Only '
-        '`openrouter` has a backend-funded shared/free path — leave the header blank '
-        'with `provider=openrouter` to use it, limited to `DAILY_FREE_LIMIT` '
-        'extractions per user per day (`QUOTA_DAILY_EXCEEDED` once you hit it). '
-        '`openai`/`gemini` have no shared key at all: the header is **mandatory** for '
-        'those two (`400` if missing), and there is no daily cap since nothing shared '
-        "is being spent — you're always billed on your own key/quota.\n\n"
+        '2. **Your own LLM provider key** (required unless `provider` resolves to '
+        '`openrouter`, optional otherwise, `APIKeyHeader` / `X-LLM-API-Key`). Only '
+        '`openrouter` has a backend-funded shared/free path.\n\n'
+        '**`provider`/`model` resolution order** — the same three-level fallback for '
+        'both: (1) whatever you send this call, (2) your stored preference '
+        '(`PATCH /public/me/llm-preference`), (3) a static default (a free OpenRouter '
+        'model, `gemini-flash-latest`, or `gpt-4o-mini`). Same idea for the credential: '
+        '(1) `X-LLM-API-Key` this call, (2) a key you stored via '
+        '`PUT /public/me/llm-keys/{provider}`, (3) — `openrouter` only — the shared '
+        'backend key, limited to `DAILY_FREE_LIMIT` extractions/day '
+        '(`QUOTA_DAILY_EXCEEDED` once hit). `openai`/`gemini` still `400` if nothing at '
+        "any of those three levels is available — there's no shared key for either.\n\n"
         '   - OpenRouter: [https://openrouter.ai/settings/keys](https://openrouter.ai/settings/keys)\n'
         '   - OpenAI: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)\n'
         '   - Gemini: [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) — '
         'has a real free tier (rate-limited, e.g. 5 requests/minute on `gemini-flash-latest` at '
         'the time of writing), unlike OpenAI which has none worth relying on.\n\n'
-        'With your own key, `model` can be any model your key has access to on that '
-        'provider; without one (`openrouter` only), it must be on the current free-model '
-        'list. If omitted entirely, a sensible default is used per provider — a free '
-        'OpenRouter model, `gemini-flash-latest` (Gemini\'s self-healing latest-flash '
-        'alias), or `gpt-4o-mini` for OpenAI (not validated as "free" — OpenAI has no '
-        'meaningful free tier).\n\n'
-        '   Gemini specifically self-heals a stale/deprecated `model`: if the model you '
-        'asked for 404s as not-found, one automatic retry is made against a current '
-        'free-tier model before giving up — logged, not silent, and only for a genuine '
-        '"not found," never for any other error. OpenRouter/OpenAI models that don\'t '
-        'exist just fail normally.\n\n'
+        '**`auto_fallback`** (default `false`): if the resolved `model` 404s as not-found, '
+        'off means fail normally; on retries once against that provider\'s default/'
+        'suggested model instead. When a fallback actually happens, the response carries '
+        '`fallback_occurred: true` plus `requested_model`/`used_model` so you can toast '
+        'the swap rather than have it be invisible — show something like "used '
+        '{used_model} instead of {requested_model}."\n\n'
         '**Caching**: results are cached by the exact image content (not filename) plus '
-        '`provider` and `model` — re-uploading the same ticket image with the same '
-        'provider/model returns the cached result instantly, skips the LLM call '
+        'the resolved `provider`/`model` (not `used_model` — a repeat request for the '
+        'same since-removed model correctly re-reports the fallback from cache rather '
+        'than re-discovering it) — re-uploading the same ticket image with the same '
+        'resolved provider/model returns the cached result instantly, skips the LLM call '
         'entirely, and does **not** count against your daily quota (nothing was '
-        'actually run). A different `provider` or `model` is a cache miss and runs '
-        'normally.\n\n'
+        'actually run).\n\n'
         '**Catalog matching**: the returned `movie` is a free-typed guess, not a '
         'TMDB match — deliberately not resolved here, since that would tie this '
         "endpoint's latency/reliability to a third-party call it doesn't need. "
@@ -198,7 +249,7 @@ async def resolve_llm_api_key(
         'either way, autofilled or manual.'
     ),
     response_description='Movie Metadata',
-    response_model=MovieMetadata,
+    response_model=MovieMetadataResult,
     responses=responses['/extract'],
     operation_id='ExtractTicketImage',
 )
@@ -208,10 +259,11 @@ async def extract_movie_metadata(
     ticket_image: UploadFile = Depends(image.validate_image_file),
     _cl: None = Depends(image.validate_content_length),
     current_user: AuthenticatedUser = Depends(get_current_user),
-    provider: Annotated[Provider, Form()] = 'openrouter',
+    provider: Annotated[Optional[Provider], Form()] = None,
     model: str | None = Form(default=None),
+    auto_fallback: Annotated[bool, Form()] = False,
     header_api_key: str | None = Depends(get_header_api_key),
-) -> MovieMetadata:
+) -> MovieMetadataResult:
     request.state.user_id = current_user.user_id
 
     if ticket_image.content_type not in {
@@ -226,11 +278,11 @@ async def extract_movie_metadata(
 
     LOGGER.debug(f'{ticket_image._in_memory = }')
 
-    # Model-name resolution is pure/side-effect-free (falls back to a
-    # per-provider default when omitted — see resolve_model_name), so it
-    # always happens before the cache check below, regardless of whether
-    # the caller named a model explicitly.
-    model_name = await resolve_model_name(provider, model)
+    # Provider/model resolution is pure/side-effect-free (request value >
+    # stored preference > static default — see resolve_provider_and_model),
+    # so it always happens before the cache check below, regardless of
+    # whether the caller specified either explicitly.
+    effective_provider, model_name = await resolve_provider_and_model(provider, model, current_user)
 
     # Content-addressed cache: the same image bytes + same provider/model
     # always produce the same extraction, so a repeat upload (a user re-
@@ -242,15 +294,15 @@ async def extract_movie_metadata(
     # across providers (unlikely collision today, but not guaranteed), so
     # provider is folded in.
     image_hash = await image.hash_upload(ticket_image)
-    cached = await extraction_cache.get_cached_extraction(image_hash, f'{provider}:{model_name}')
+    cached = await extraction_cache.get_cached_extraction(image_hash, f'{effective_provider}:{model_name}')
     if cached is not None:
         LOGGER.info(
             'extract rid={} provider={} model={} cache=hit',
-            getattr(request.state, 'request_id', '-'), provider, model_name,
+            getattr(request.state, 'request_id', '-'), effective_provider, model_name,
         )
         return cached
 
-    llm_api_key = await resolve_llm_api_key(provider, model_name, header_api_key, current_user)
+    llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
 
     try:
         image_data_uri = await image.image_to_data_uri(ticket_image)
@@ -259,21 +311,36 @@ async def extract_movie_metadata(
         raise HTTPException(status_code=400, detail='Invalid image file')
 
     try:
-        ticket: MovieMetadata = await extract_movie_metadata_from_image(
+        ticket: MovieMetadata
+        used_model: str
+        ticket, used_model = await extract_movie_metadata_from_image(
             image_data_uri=image_data_uri,
             api_key=llm_api_key,
             system_prompt=movie_metadata.SYSTEM_PROMPT,
             user_prompt=movie_metadata.USER_PROMPT,
             response_model=MovieMetadata,
             model_name=model_name,
-            provider=provider,
+            provider=effective_provider,
+            auto_fallback=auto_fallback,
         )
         LOGGER.info(
-            'extract rid={} provider={} model={} cache=miss',
-            getattr(request.state, 'request_id', '-'), provider, model_name,
+            'extract rid={} provider={} model={} used_model={} cache=miss',
+            getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
         )
-        result = ticket.model_dump()
-        await extraction_cache.store_extraction(image_hash, f'{provider}:{model_name}', result)
+        fell_back = used_model != model_name
+        final = MovieMetadataResult(
+            **ticket.model_dump(),
+            fallback_occurred=fell_back,
+            requested_model=model_name if fell_back else None,
+            used_model=used_model if fell_back else None,
+        )
+        result = final.model_dump()
+        # Cached under the originally *requested* model, not used_model —
+        # a repeat request for the same (now-missing) model should still
+        # get the fast cache-hit path (and correctly re-report
+        # fallback_occurred) rather than needing to re-discover the
+        # fallback every time.
+        await extraction_cache.store_extraction(image_hash, f'{effective_provider}:{model_name}', result)
         return result
     except ValidationError as e:
         LOGGER.error(f'Validation error parsing movie metadata: {e}')
@@ -315,7 +382,7 @@ async def extract_movie_metadata(
         'populated, rather than expecting a TMDB match bundled here.'
     ),
     response_description='Movie Metadata',
-    response_model=MovieMetadata,
+    response_model=MovieMetadataResult,
     responses=responses['extract-from-link'],
     operation_id='ExtractFromTicketLink',
 )
@@ -324,10 +391,11 @@ async def extract_movie_metadata_from_link(
     request: Request,
     body: TicketLinkRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
-    provider: Provider = 'openrouter',
+    provider: Optional[Provider] = None,
     model: str | None = None,
+    auto_fallback: bool = False,
     header_api_key: str | None = Depends(get_header_api_key),
-) -> MovieMetadata:
+) -> MovieMetadataResult:
     request.state.user_id = current_user.user_id
 
     # Raises APIError(400, UNSUPPORTED_LINK) or APIError(422,
@@ -340,7 +408,9 @@ async def extract_movie_metadata_from_link(
     # requires_image=False: this is scraped page text, not a photo — no
     # reason to restrict the default to the image-capable subset of free
     # models the way /extract needs to (see free_models.default_free_model).
-    model_name = await resolve_model_name(provider, model, requires_image=False)
+    effective_provider, model_name = await resolve_provider_and_model(
+        provider, model, current_user, requires_image=False
+    )
 
     # Same content-addressed cache extract_movie_metadata() uses, keyed
     # by a hash of the scraped text plus provider/model instead of image
@@ -350,32 +420,42 @@ async def extract_movie_metadata_from_link(
     # quota gets touched), never after — a cache hit must never cost
     # anything real.
     content_hash = hashlib.sha256(page_text.encode('utf-8')).hexdigest()
-    cached = await extraction_cache.get_cached_extraction(content_hash, f'{provider}:{model_name}')
+    cached = await extraction_cache.get_cached_extraction(content_hash, f'{effective_provider}:{model_name}')
     if cached is not None:
         LOGGER.info(
             'extract-from-link rid={} provider={} model={} cache=hit',
-            getattr(request.state, 'request_id', '-'), provider, model_name,
+            getattr(request.state, 'request_id', '-'), effective_provider, model_name,
         )
         return cached
 
-    llm_api_key = await resolve_llm_api_key(provider, model_name, header_api_key, current_user)
+    llm_api_key = await resolve_llm_api_key(effective_provider, model_name, header_api_key, current_user)
 
     try:
-        ticket: MovieMetadata = await extract_movie_metadata_from_text(
+        ticket: MovieMetadata
+        used_model: str
+        ticket, used_model = await extract_movie_metadata_from_text(
             page_text=page_text,
             api_key=llm_api_key,
             system_prompt=movie_metadata.SYSTEM_PROMPT_TEXT,
             user_prompt=movie_metadata.USER_PROMPT_TEXT,
             response_model=MovieMetadata,
             model_name=model_name,
-            provider=provider,
+            provider=effective_provider,
+            auto_fallback=auto_fallback,
         )
         LOGGER.info(
-            'extract-from-link rid={} provider={} model={} cache=miss',
-            getattr(request.state, 'request_id', '-'), provider, model_name,
+            'extract-from-link rid={} provider={} model={} used_model={} cache=miss',
+            getattr(request.state, 'request_id', '-'), effective_provider, model_name, used_model,
         )
-        result = ticket.model_dump()
-        await extraction_cache.store_extraction(content_hash, f'{provider}:{model_name}', result)
+        fell_back = used_model != model_name
+        final = MovieMetadataResult(
+            **ticket.model_dump(),
+            fallback_occurred=fell_back,
+            requested_model=model_name if fell_back else None,
+            used_model=used_model if fell_back else None,
+        )
+        result = final.model_dump()
+        await extraction_cache.store_extraction(content_hash, f'{effective_provider}:{model_name}', result)
         return result
     except ValidationError as e:
         LOGGER.error(f'Validation error parsing movie metadata: {e}')

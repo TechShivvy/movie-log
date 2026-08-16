@@ -12,6 +12,7 @@ from openai import (
     BadRequestError,
     NotFoundError,
     OpenAIError,
+    PermissionDeniedError,
 )
 from pydantic import ValidationError
 from utils import openai_utils, retry
@@ -117,7 +118,14 @@ async def check_api_key(provider: str, api_key: str) -> dict[str, Any]:
     try:
         await client.models.list()
         return {'valid': True}
-    except AuthenticationError:
+    except (AuthenticationError, BadRequestError, PermissionDeniedError):
+        # A malformed/garbage key doesn't uniformly come back as 401
+        # across providers — found live: Gemini rejects an obviously
+        # invalid key with 400 INVALID_ARGUMENT ("Please pass a valid
+        # API key"), not 401. Treating BadRequestError/PermissionDeniedError
+        # as "invalid key" too, alongside AuthenticationError, covers
+        # that without swallowing genuinely unexpected errors (5xx,
+        # connection failures) — those still propagate to the caller.
         return {'valid': False}
 
 
@@ -247,18 +255,24 @@ async def _call_model(
     return response_model.model_validate_json(content_text)
 
 
-async def _heal_gemini_model_if_needed(model_name: str) -> str:
-    """Gemini specifically churns model names (renames/deprecations) more
-    than OpenRouter/OpenAI do in practice — live-confirmed mid-build:
-    gemini-2.5-flash is already "no longer available to new users". This
-    resolves what to retry with if the *first* call 404s as
-    not-found — never called speculatively, never applied to any other
-    provider, see the NotFoundError catch in the two extract functions
-    below for where this actually gets invoked."""
+_OPENAI_FALLBACK_MODEL = 'gpt-4o-mini'
 
-    from services import gemini_free_models
 
-    return await gemini_free_models.default_free_model()
+async def _fallback_model_for(provider: str, *, requires_image: bool = True) -> str:
+    """The 'next best available model' auto_fallback retries against —
+    the same per-provider suggested/free default routers/movie_metadata.py
+    already falls back to when `model` is omitted entirely (see that
+    module's default_model_for), duplicated here rather than imported
+    from a router to keep the dependency direction services -> llm, not
+    llm -> router."""
+
+    from services import free_models, gemini_free_models
+
+    if provider == 'openrouter':
+        return await free_models.default_free_model(requires_image=requires_image)
+    if provider == 'gemini':
+        return await gemini_free_models.default_free_model()
+    return _OPENAI_FALLBACK_MODEL
 
 
 @timed(label='extract_movie_metadata_from_image')
@@ -270,6 +284,7 @@ async def extract_movie_metadata_from_image(
     response_model,
     model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
     provider: str = 'openrouter',
+    auto_fallback: bool = False,
 ):
     """Extract movie metadata from an image via the given provider.
 
@@ -281,41 +296,52 @@ async def extract_movie_metadata_from_image(
         response_model (_type_): The expected response model
         model_name (str, optional): The name of the model to use.
         provider (str, optional): 'openrouter' (default), 'openai', or 'gemini'.
+        auto_fallback (bool, optional): opt-in — if the requested model
+            404s as not-found, retry once against that provider's
+            default/suggested model instead of failing. Off by default:
+            a request never silently changes models unless explicitly
+            opted in. Applies to all three providers alike (previously
+            Gemini alone always did this unconditionally — that
+            always-on special case is gone, this flag is what triggers
+            it now, for any provider).
 
     Raises:
         openai_error_to_http: If the OpenAI API returns an error
         http_exc: If there is an HTTP error
 
     Returns:
-        response_model: The extracted movie metadata as a Pydantic model instance (response_model)
+        tuple[response_model, str]: the extracted movie metadata (a
+        response_model instance) and the model name that actually
+        produced it — differs from the `model_name` argument only when
+        auto_fallback fired.
     """
 
     client = _client_for(provider, api_key)
-    healed_once = False
+    fell_back_once = False
 
     for attempt in range(1, settings.max_attempts + 1):
         LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts}) provider={provider}')
 
         try:
-            return await _call_model(
+            result = await _call_model(
                 client,
                 _build_image_messages(system_prompt, user_prompt, image_data_uri),
                 response_model,
                 model_name,
             )
+            return result, model_name
 
         except NotFoundError as exc:
-            # Gemini-only, one retry, only for a genuine "model not
-            # found" — never for OpenRouter/OpenAI, never more than once,
-            # never for any other error shape. See
-            # _heal_gemini_model_if_needed's docstring.
-            if provider == 'gemini' and not healed_once:
-                healed_once = True
+            # Opt-in, one retry, only for a genuine "model not found" —
+            # never more than once, never for any other error shape. See
+            # this function's own auto_fallback docstring.
+            if auto_fallback and not fell_back_once:
+                fell_back_once = True
                 old_model = model_name
-                model_name = await _heal_gemini_model_if_needed(model_name)
+                model_name = await _fallback_model_for(provider)
                 LOGGER.warning(
-                    'Gemini model {} not found, healing to {} and retrying once',
-                    old_model, model_name,
+                    '{} model {} not found, falling back to {} and retrying once',
+                    provider, old_model, model_name,
                 )
                 continue
             raise openai_utils.openai_error_to_http(exc)
@@ -379,18 +405,22 @@ async def extract_movie_metadata_from_text(
     response_model,
     model_name: str = 'qwen/qwen2.5-vl-72b-instruct:free',
     provider: str = 'openrouter',
+    auto_fallback: bool = False,
 ):
     """Extract movie metadata from scraped ticket-page text (see
     services/ticket_link_extractor.py) via the given provider — the text
     equivalent of extract_movie_metadata_from_image, same retry structure,
-    same response_model/parsing path via _call_model, differing only in
-    how the message is built (_build_text_messages, no image_url) and how
-    a context-length error is handled (truncate text, not shrink image).
+    same response_model/parsing path via _call_model, same opt-in
+    auto_fallback behavior (see that function's docstring), differing
+    only in how the message is built (_build_text_messages, no image_url)
+    and how a context-length error is handled (truncate text, not shrink
+    image).
 
     Unlike the image path, this doesn't require an image-capable model —
     plain text input works with any model on any of the three providers,
     free or not, so callers aren't restricted to the image-capable subset
-    of the free model list the way /extract is (OpenRouter path only).
+    of the free model list the way /extract is (OpenRouter path only) —
+    also true of the auto_fallback retry target here (requires_image=False).
 
     Args:
         page_text (str): The extracted visible text of the ticket page
@@ -400,33 +430,37 @@ async def extract_movie_metadata_from_text(
         response_model (_type_): The expected response model
         model_name (str, optional): The name of the model to use
         provider (str, optional): 'openrouter' (default), 'openai', or 'gemini'.
+        auto_fallback (bool, optional): see extract_movie_metadata_from_image.
 
     Returns:
-        response_model: The extracted movie metadata as a Pydantic model instance (response_model)
+        tuple[response_model, str]: the extracted movie metadata and the
+        model name that actually produced it — see
+        extract_movie_metadata_from_image.
     """
 
     client = _client_for(provider, api_key)
-    healed_once = False
+    fell_back_once = False
 
     for attempt in range(1, settings.max_attempts + 1):
         LOGGER.info(f'Calling model (attempt {attempt}/{settings.max_attempts}) provider={provider}')
 
         try:
-            return await _call_model(
+            result = await _call_model(
                 client,
                 _build_text_messages(system_prompt, user_prompt, page_text),
                 response_model,
                 model_name,
             )
+            return result, model_name
 
         except NotFoundError as exc:
-            if provider == 'gemini' and not healed_once:
-                healed_once = True
+            if auto_fallback and not fell_back_once:
+                fell_back_once = True
                 old_model = model_name
-                model_name = await _heal_gemini_model_if_needed(model_name)
+                model_name = await _fallback_model_for(provider, requires_image=False)
                 LOGGER.warning(
-                    'Gemini model {} not found, healing to {} and retrying once',
-                    old_model, model_name,
+                    '{} model {} not found, falling back to {} and retrying once',
+                    provider, old_model, model_name,
                 )
                 continue
             raise openai_utils.openai_error_to_http(exc)

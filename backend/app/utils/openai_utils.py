@@ -6,6 +6,7 @@ from openai import (
     AuthenticationError,
     BadRequestError,
     InternalServerError,
+    NotFoundError,
     OpenAIError,
     PermissionDeniedError,
     RateLimitError,
@@ -36,6 +37,17 @@ OPENAI_ERROR_MAP = {
     BadRequestError: (
         status.HTTP_400_BAD_REQUEST,
         'Bad request. Please check input format.',
+    ),
+    # Was never mapped here at all before — fell through to a generic
+    # 502 "Unexpected error from upstream service." Harmless while
+    # Gemini's model-not-found healing was unconditional (this path was
+    # rarely reached), but now that auto_fallback is opt-in (default
+    # off), a caller who doesn't opt in and requests a stale/nonexistent
+    # model hits this directly and deserves an accurate 404, not a vague
+    # 502 that implies a transient upstream problem.
+    NotFoundError: (
+        status.HTTP_404_NOT_FOUND,
+        'Model not found — it may not exist, or your key may not have access to it.',
     ),
 }
 
