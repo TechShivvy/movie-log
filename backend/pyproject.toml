@@ -36,6 +36,12 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# `-m "not llm"`: excludes @pytest.mark.llm tests by default (see below) —
+# without this, `uv run pytest` with no -m flag runs *everything*,
+# markers alone only make `-m llm`/`-m "not llm"` available, they don't
+# change the default selection. Pass `-m llm` (which overrides addopts)
+# to run only the llm-marked tests, or `-m ""` to run literally everything.
+addopts = "-m \"not llm\""
 # `llm`: makes a real call to a provider (OpenRouter/OpenAI/Gemini) with a
 # personal test key — opt-in via `-m llm`, never run by default. Burning
 # through Gemini's 5 RPM free tier or real OpenAI cost on every default

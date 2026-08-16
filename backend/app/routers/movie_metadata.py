@@ -88,6 +88,33 @@ def require_llm_api_key(provider: Provider, header_api_key: str | None) -> str:
     return header_api_key
 
 
+async def ensure_provider_authorized(
+    provider: Provider, header_api_key: str | None, current_user: AuthenticatedUser,
+) -> None:
+    """Cheap, side-effect-free (no quota touched) authorization gate, run
+    *before* the content-addressed cache check in both /extract and
+    /extract-from-link. Raises the same 400 require_llm_api_key would.
+
+    Real bug this guards against (caught by test_llm_provider_resolution.py
+    against the real cache, not a mock): OpenAI/Gemini have no shared key
+    — resolve_llm_api_key() is what enforces that — but the cache check
+    runs *before* resolve_llm_api_key (deliberately, so a genuine cache
+    hit never touches quota). Without this gate, a user with no key at
+    all for a BYO-only provider could get a 200 instead of the expected
+    400 whenever *any* other user had ever produced a cached result for
+    the same image/text + provider + model — effectively riding on a
+    stranger's key. OpenRouter is unaffected: it always has the shared
+    key as a fallback, so there's nothing to gate here for it — the
+    quota check stays exactly where it was, inside resolve_llm_api_key,
+    skipped on a real cache hit as intended."""
+
+    if provider == 'openrouter' or header_api_key:
+        return
+    if await llm_keys.get_decrypted_llm_key(current_user.user_id, provider):
+        return
+    require_llm_api_key(provider, header_api_key)
+
+
 async def default_model_for(provider: Provider, *, requires_image: bool = True) -> str:
     """The per-provider suggested/free default — used both when `model`
     is omitted entirely and (see llm/llm_client.py) as the auto_fallback
@@ -286,6 +313,14 @@ async def extract_movie_metadata(
     # whether the caller specified either explicitly.
     effective_provider, model_name = await resolve_provider_and_model(provider, model, current_user)
 
+    # Authorization (not quota) gate: a user with no usable key at all for
+    # a BYO-only provider must never see a 200 just because someone else
+    # already produced a cached result for these exact bytes — see
+    # ensure_provider_authorized's docstring for the real bug this fixes.
+    # Side-effect-free (no quota touched), so it's safe to run before the
+    # cache check below.
+    await ensure_provider_authorized(effective_provider, header_api_key, current_user)
+
     # Content-addressed cache: the same image bytes + same provider/model
     # always produce the same extraction, so a repeat upload (a user re-
     # uploading their own ticket, or two people sharing/photographing the
@@ -413,6 +448,10 @@ async def extract_movie_metadata_from_link(
     effective_provider, model_name = await resolve_provider_and_model(
         provider, model, current_user, requires_image=False
     )
+
+    # Same authorization gate /extract uses, same reason — see
+    # ensure_provider_authorized's docstring.
+    await ensure_provider_authorized(effective_provider, header_api_key, current_user)
 
     # Same content-addressed cache extract_movie_metadata() uses, keyed
     # by a hash of the scraped text plus provider/model instead of image

@@ -19,6 +19,7 @@ import os
 
 os.environ.setdefault('RATE_LIMIT_ENABLED', 'false')
 
+import asyncio
 import sys
 import uuid
 from pathlib import Path
@@ -86,6 +87,67 @@ async def client() -> AsyncIterator[httpx.AsyncClient]:
         yield c
 
 
+_AUTH_PACING_LOCK = asyncio.Lock()
+_AUTH_PACING_MIN_INTERVAL = 0.35  # seconds between any two GoTrue auth calls, process-wide
+_auth_last_call_at = [0.0]
+
+
+async def _paced_auth_post(
+    http: httpx.AsyncClient, url: str, *, headers: dict, json: dict, max_attempts: int = 6,
+) -> httpx.Response:
+    """POSTs to a Supabase GoTrue auth endpoint (admin user-create or
+    password-grant login), paced against every other such call this test
+    process makes (a shared min-interval gate, not per-call), plus
+    retry/backoff on 429 as a fallback.
+
+    Confirmed live: running the full suite creates 100+ throwaway users
+    back to back (see _UserFactory below), and GoTrue's per-project rate
+    limit genuinely can't absorb that as one uncontrolled burst — it
+    starts 429ing partway through. Pacing keeps us under the limit in the
+    first place; the retry loop is only a safety net for whatever
+    slips through (e.g. concurrent xdist workers, if ever used). This
+    isn't a bug in the app under test, just real infrastructure a
+    real-world client hitting the same endpoint would also have to
+    respect."""
+
+    delay = 1.0
+    resp: Optional[httpx.Response] = None
+    for attempt in range(max_attempts):
+        async with _AUTH_PACING_LOCK:
+            await _wait_out_auth_pacing()
+            resp = await http.post(url, headers=headers, json=json)
+            _auth_last_call_at[0] = asyncio.get_event_loop().time()
+        if resp.status_code != 429:
+            return resp
+        if attempt == max_attempts - 1:
+            return resp
+        retry_after = resp.headers.get('retry-after')
+        wait = float(retry_after) if retry_after else delay
+        await asyncio.sleep(wait)
+        delay = min(delay * 2, 30.0)
+    return resp
+
+
+async def _wait_out_auth_pacing() -> None:
+    """Must be called with _AUTH_PACING_LOCK already held."""
+
+    now = asyncio.get_event_loop().time()
+    wait = _auth_last_call_at[0] + _AUTH_PACING_MIN_INTERVAL - now
+    if wait > 0:
+        await asyncio.sleep(wait)
+
+
+async def _paced_auth_delete(http: httpx.AsyncClient, url: str, *, headers: dict) -> httpx.Response:
+    """Same pacing gate as _paced_auth_post, for the admin user-delete
+    calls cleanup() makes — they hit the same GoTrue admin bucket."""
+
+    async with _AUTH_PACING_LOCK:
+        await _wait_out_auth_pacing()
+        resp = await http.delete(url, headers=headers)
+        _auth_last_call_at[0] = asyncio.get_event_loop().time()
+    return resp
+
+
 class _UserFactory:
     """Creates throwaway Supabase users via the Admin API (sidesteps the
     project's email rate limit — same reasoning as every manual
@@ -109,8 +171,8 @@ class _UserFactory:
             'Authorization': f'Bearer {self._admin_key}',
             'Content-Type': 'application/json',
         }
-        create = await self._http.post(
-            f'{self._base_url}/auth/v1/admin/users',
+        create = await _paced_auth_post(
+            self._http, f'{self._base_url}/auth/v1/admin/users',
             headers=headers,
             json={'email': email, 'password': password, 'email_confirm': True},
         )
@@ -118,8 +180,8 @@ class _UserFactory:
         user_id = create.json()['id']
         self.created_user_ids.append(user_id)
 
-        token_resp = await self._http.post(
-            f'{self._base_url}/auth/v1/token?grant_type=password',
+        token_resp = await _paced_auth_post(
+            self._http, f'{self._base_url}/auth/v1/token?grant_type=password',
             headers={'apikey': self._admin_key, 'Content-Type': 'application/json'},
             json={'email': email, 'password': password},
         )
@@ -130,8 +192,8 @@ class _UserFactory:
         headers = {'apikey': self._admin_key, 'Authorization': f'Bearer {self._admin_key}'}
         for user_id in self.created_user_ids:
             try:
-                await self._http.delete(
-                    f'{self._base_url}/auth/v1/admin/users/{user_id}', headers=headers,
+                await _paced_auth_delete(
+                    self._http, f'{self._base_url}/auth/v1/admin/users/{user_id}', headers=headers,
                 )
             except httpx.HTTPError:
                 pass  # Best-effort — a leftover throwaway test user is inert clutter, not a correctness problem.
