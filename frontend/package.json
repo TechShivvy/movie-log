@@ -22,15 +22,18 @@
     "expo-web-browser": "~14.0.0",
     "phosphor-react-native": "^2.3.1",
     "react": "19.2.3",
+    "react-dom": "^19.2.3",
     "react-native": "0.86.2",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.18.0",
     "react-native-safe-area-context": "^5.0.0",
     "react-native-screens": "~4.4.0",
     "react-native-svg": "~15.0.0",
+    "react-native-web": "^0.21.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3"
   },

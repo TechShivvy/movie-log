@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
     justifyContent: "flex-end",
     padding: 8,
   },
-  gradientFill: { ...StyleSheet.absoluteFillObject },
+  gradientFill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   titleText: { fontSize: 11, fontWeight: "600", textAlign: "center", zIndex: 1 },
   badge: {
     position: "absolute",
