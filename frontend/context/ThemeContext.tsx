@@ -7,6 +7,7 @@ import { FONT_OPTIONS, DEFAULT_FONT, type FontOption } from "../constants/fonts"
 interface ThemeContextValue {
   theme: Theme;
   fontOption: FontOption;
+  fontConfig: ReturnType<typeof getFontConfig>;
   setTheme: (key: string) => void;
   setFontOption: (key: FontOption) => void;
 }
@@ -14,6 +15,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue>({
   theme: DEFAULT_THEME,
   fontOption: DEFAULT_FONT,
+  fontConfig: getFontConfig(DEFAULT_FONT),
   setTheme: () => {},
   setFontOption: () => {},
 });
@@ -81,8 +83,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     injectWebCSSVars(theme, getFontConfig(fontOption));
   }, [theme, fontOption]);
 
+  const fontConfig = getFontConfig(fontOption);
+
   return (
-    <ThemeContext.Provider value={{ theme, fontOption, setTheme, setFontOption }}>
+    <ThemeContext.Provider value={{ theme, fontOption, fontConfig, setTheme, setFontOption }}>
       {children}
     </ThemeContext.Provider>
   );
