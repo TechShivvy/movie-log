@@ -64,14 +64,17 @@ function injectWebCSSVars(theme: Theme, fontCfg: FontConfig) {
   };
   root.setProperty("--shadow-sm", `0 0 0 1px ${textRgba(0.14)}`);
   root.setProperty("--shadow-md", `0 0 0 1px ${textRgba(0.12)}, 0 6px 18px rgba(0,0,0,.5)`);
-  root.setProperty("--shadow-lg", `0 0 0 1px ${textRgba(0.10)}, 0 16px 40px rgba(0,0,0,.65)`);
+  // support.js themeVars(): shadow-lg is text 20%, not 10%
+  root.setProperty("--shadow-lg", `0 0 0 1px ${textRgba(0.20)}, 0 16px 40px rgba(0,0,0,.6)`);
 
   // ── Typography tokens ──────────────────────────────────────────────────
-  root.setProperty("--font-heading", fontCfg.heading);
-  root.setProperty("--font-body",    fontCfg.body);
+  // webHeading/webBody are real CSS family names + fallbacks
+  // ("Plus Jakarta Sans", not "PlusJakartaSans" — the latter matches nothing
+  // and silently drops every glyph to system-ui).
+  root.setProperty("--font-heading", fontCfg.webHeading);
+  root.setProperty("--font-body",    fontCfg.webBody);
   root.setProperty("--font-mono",    "'JetBrains Mono', ui-monospace, monospace");
-  // Cinematic font (Sora) uses heavier heading weight; Inter/System stay at 500
-  root.setProperty("--font-heading-weight", fontCfg.key === "cinematic" ? "600" : "500");
+  root.setProperty("--font-heading-weight", fontCfg.headingWeight);
 }
 
 // ── Provider ───────────────────────────────────────────────────────────────────

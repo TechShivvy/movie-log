@@ -39,12 +39,29 @@ WebBrowser.maybeCompleteAuthSession();
  * must include ALL of:
  *   • http://localhost:8081/auth/callback   (web dev)
  *   • https://<prod-domain>/auth/callback   (web prod)
- *   • cinelog://auth/callback               (standalone iOS/Android)
- *   • exp://[host]:[port]/--/auth/callback   (Expo Go — add wildcard in Supabase dashboard)
+ *   • cinelog://auth/callback               (dev build / standalone iOS+Android)
+ *   • exp://**                              (Expo Go — see wildcard note below)
  *
- * The "Site URL" should also be set to your production domain, NOT localhost,
- * otherwise Supabase uses it as the fallback redirect which sends mobile users
- * to localhost:3000 instead of back to the app.
+ * WILDCARD RULES (https://supabase.com/docs/guides/auth/redirect-urls):
+ *   Separator characters are BOTH "." and "/".
+ *     *  matches any run of NON-separator characters — it stops at "." and "/"
+ *     ** matches any run of characters, crossing separators
+ *   Expo Go's redirect is exp://192.168.1.42:8081/--/auth/callback, whose host
+ *   contains dots AND whose path has multiple segments, so a single "*" cannot
+ *   match it: any single-star pattern over that host+path FAILS. The only
+ *   pattern that reliably matches is the double-star one: exp://[**]
+ *   (written without brackets in the dashboard). See docs/mobile-oauth.md.
+ *
+ * When NO redirect URL matches, Supabase silently falls back to the Site URL —
+ * which is why an unmatched mobile redirect lands on localhost:3000. Set Site
+ * URL to your real domain (or http://localhost:8081 in dev), never :3000.
+ *
+ * NOTE ON THE PROPER MOBILE FIX: Supabase officially recommends *native* Google
+ * sign-in for React Native (@react-native-google-signin/google-signin +
+ * supabase.auth.signInWithIdToken), which uses Android's Credential Manager and
+ * involves no browser, no deep link and no redirect URL at all — so the dynamic
+ * Expo Go IP stops mattering entirely. It needs a development build (native
+ * module, unavailable in Expo Go). See docs/mobile-oauth.md.
  */
 function getRedirectUrl(): string {
   if (Platform.OS === "web") {
@@ -95,12 +112,11 @@ export function LoginScreen() {
     setError("");
     try {
       const redirectTo = getRedirectUrl();
-      // 👇 Check Expo logs for this value and make sure it is in your
-      // Supabase → Auth → URL Configuration → Redirect URLs list.
-      // Expo Go produces:  exp://192.168.x.x:8081/--/auth/callback
-      //   → add wildcard: exp://*/*/--/auth/callback
-      // Standalone produces: cinelog://auth/callback
-      //   → add exactly:  cinelog://auth/callback
+      // 👇 Check the Expo logs for this value and make sure it is matched by an
+      // entry in Supabase → Auth → URL Configuration → Redirect URLs.
+      //   Expo Go     → exp://192.168.x.x:8081/--/auth/callback   ⇒ add  exp://**
+      //   Dev build   → cinelog://auth/callback                   ⇒ add  cinelog://auth/callback
+      // If nothing matches, Supabase falls back to Site URL (the :3000 symptom).
       console.log("[CineLog OAuth] redirect_to =", redirectTo);
 
       const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({

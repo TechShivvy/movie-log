@@ -34,6 +34,7 @@ import {
   Ticket,
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog } from "../hooks/useMovieLogs";
 import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
@@ -131,6 +132,8 @@ function WebMetaCard({ label, value }: { label: string; value?: string | null })
 
 export function LogDetailScreen() {
   const { theme, fontConfig } = useTheme();
+  // Web → CSS family stack; native → the registered TTF family (e.g. Sora_700Bold)
+  const headingFamily = fontFamily(fontConfig, "heading", 700);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -269,7 +272,7 @@ export function LogDetailScreen() {
               margin: "0 0 8px",
               lineHeight: 1.2,
               letterSpacing: -0.3,
-              fontFamily: fontConfig.heading,
+              fontFamily: headingFamily,
             } as React.CSSProperties}>
               {log.movie_title}
             </h1>
@@ -302,7 +305,7 @@ export function LogDetailScreen() {
             {/* Notes */}
             {log.notes && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 12, fontFamily: fontConfig.heading } as React.CSSProperties}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 12, fontFamily: headingFamily } as React.CSSProperties}>
                   Review
                 </h3>
                 <div className="card" style={{ marginBottom: 24 } as React.CSSProperties}>
@@ -313,7 +316,7 @@ export function LogDetailScreen() {
 
             {/* Comments section */}
             <div style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 24 } as React.CSSProperties}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: fontConfig.heading } as React.CSSProperties}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: headingFamily } as React.CSSProperties}>
                 Comments ({log.comment_count})
               </h3>
 
@@ -424,7 +427,7 @@ export function LogDetailScreen() {
           fontWeight: "800",
           color: theme.text,
           marginBottom: 8,
-          fontFamily: fontConfig.heading,
+          fontFamily: headingFamily,
         }} numberOfLines={3}>
           {log.movie_title}
         </Text>
@@ -506,7 +509,7 @@ export function LogDetailScreen() {
         {/* Notes */}
         {log.notes && (
           <>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: fontConfig.heading }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
               Review
             </Text>
             <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16, marginBottom: 20 }}>
@@ -519,7 +522,7 @@ export function LogDetailScreen() {
         <View style={{ height: 1, backgroundColor: theme.divider, marginBottom: 20 }} />
 
         {/* Comments */}
-        <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: fontConfig.heading }}>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
           Comments ({log.comment_count})
         </Text>
 
