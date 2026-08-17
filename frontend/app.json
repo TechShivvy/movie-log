@@ -13,7 +13,16 @@
     },
     "android": {
       "package": "com.techshivvy.cinelog",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES"],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0b1326",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -51,10 +60,24 @@
           "resizeMode": "contain",
           "backgroundColor": "#0b1326"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6b04cf75-08ab-4b66-9f05-67e0301eccc8"
+      }
+    },
+    "owner": "brokolee",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6b04cf75-08ab-4b66-9f05-67e0301eccc8"
     }
   }
 }
