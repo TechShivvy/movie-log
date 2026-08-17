@@ -1,308 +1,442 @@
 /**
- * LibraryScreen — pixel-accurate match to CineLog Web.dc.html Library screen.
+ * LibraryScreen — ported from the design files.
  *
- * Web layout (max-width:1160px, padding:28px 32px 40px):
- *   - Cinematic header gradient behind title area (height:280px, inset:-60px)
- *   - Header row: kicker + h1 title count | Analytics btn + grid/list seg
- *   - Filter chips (tag-accent active, tag-neutral inactive)
- *   - 5-col CSS grid (gap:18px), each cell = .gridcard.lift.tapc
- *   - FAB bottom-right: .fab class
+ * WEB (CineLog Web.dc.html lines 98-116)
+ *   screen    padding:28px 32px 40px; max-width:1160px; position:relative
+ *   cine-bg   z-index:-1; height:280px; inset:-60px -60px auto -60px
+ *   header    flex; align-items:flex-end; space-between; margin-bottom:18px
+ *             kicker 11px/.1em uppercase accent "Your library"
+ *             h1 34px margin:4px 0 0
+ *             right gap:10 → btn-secondary [chart-bar] Analytics
+ *                            + seg [squares-four | rows]
+ *   filters   flex gap:8; margin-bottom:22px; wrap
+ *   grid      repeat(5,1fr) gap:18px
+ *   card      .tapc.gridcard.lift → .poster aspect-ratio:2/3
+ *             badge  top/right 8, rgba(0,0,0,.5), blur(4), radius 6,
+ *                    padding 2px 7px, 11px, accent star
+ *             .ov    padding 12, gradient to top rgba(0,0,0,.85)→transparent 65%
+ *                    title 15px heading #fff + 11px rgba(255,255,255,.7)
+ *             below  flex space-between margin-top:8
+ *                    title 13px heading + tag-neutral 10px padding 1px 6px
  *
- * Mobile layout:
- *   - PWA install banner (glass card, dismissible)
- *   - Same header / filter chips
- *   - 2-col FlatList grid
+ * MOBILE (CineLog Mobile.dc.html lines 108-166)
+ *   screen    padding:14px 18px 24px
+ *   pwa       .glass gap:10 padding:11 radius md mb:16 border 1px divider
+ *   header    kicker + h2 27px margin:2px 0 0 + btn-icon [chart-bar @18px]
+ *   filters   horizontal scroll, gap:8, margin:14px 0 4px
+ *   sort row  "Sorted by recent" 12px muted + seg, margin:14px 0 12px
+ *   grid      1fr 1fr gap:14px; title overlaid on poster (.pt padding:10)
+ *             16px heading #fff, text-shadow 0 1px 8px rgba(0,0,0,.6)
+ *             below: dateShort 11px muted + tag-neutral 10px padding 2px 7px
+ *   list      .card row gap:12 padding:10; poster 56px
  */
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { SquaresFour, Rows, ChartLine, Plus } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useMovieLogs } from "../hooks/useMovieLogs";
-import { PosterCard } from "../components/ui/PosterCard";
+import { CinematicBg } from "../components/layout/CinematicBg";
+import { Icon } from "../components/ui/Icon";
+import { Poster } from "../components/ui/Poster";
+import { fontFamily } from "../constants/fonts";
 import type { MovieLog } from "../types";
 
-const FILTERS = ["All", "IMAX", "4DX", "Dolby", "ScreenX", "Laser", "Standard"];
+// libFilters from the design, verbatim — "All" is tag-accent, rest tag-neutral
+const FILTERS = ["All", "IMAX", "This year", "5 stars", "FDFS", "Archived"] as const;
+type Filter = (typeof FILTERS)[number];
+
+function fmtShort(iso?: string) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function applyFilter(logs: MovieLog[], f: Filter): MovieLog[] {
+  switch (f) {
+    case "IMAX":      return logs.filter((l) => /imax/i.test(l.format ?? ""));
+    case "This year": return logs.filter((l) => new Date(l.created_at).getFullYear() === new Date().getFullYear());
+    case "5 stars":   return logs.filter((l) => (l.rating ?? 0) >= 5);
+    case "FDFS":      return logs.filter((l) => !!l.is_fdfs);
+    case "Archived":  return logs.filter((l) => !!l.is_archived);
+    default:          return logs;
+  }
+}
 
 export function LibraryScreen() {
-  const { theme } = useTheme();
+  const { theme, fontConfig } = useTheme();
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [filter, setFilter] = useState<Filter>("All");
+  const [mode, setMode] = useState<"grid" | "list">("grid");
+  const [showPwa, setShowPwa] = useState(true);
 
-  const { data: logs, isLoading } = useMovieLogs({ archived: false });
+  const { data: logs = [], isLoading } = useMovieLogs({
+    archived: filter === "Archived",
+  });
 
-  const filtered = !logs ? [] : activeFilter === "All" ? logs : logs.filter((l) => l.format === activeFilter);
-  const count = logs?.length ?? 0;
+  const heading = fontFamily(fontConfig, "heading", 600);
+  const muted = `${theme.text}8c`;
+  const shown = useMemo(() => applyFilter(logs, filter), [logs, filter]);
+  const open = (id: string) => router.push(`/(app)/log/${id}` as any);
 
-  // ── Web ────────────────────────────────────────────────────────────────────
+  // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1160, margin: "0 auto", position: "relative" } as React.CSSProperties}>
-        {/* Cinematic header gradient backdrop */}
-        <div style={{
-          position: "absolute",
-          inset: "-60px -60px auto -60px",
-          height: 280,
-          zIndex: -1,
-          pointerEvents: "none",
-          background: `radial-gradient(circle at 30% 50%, ${theme.accent800} 0%, transparent 60%)`,
-          filter: "blur(30px)",
-        } as React.CSSProperties} />
+      <div
+        className="screen-anim"
+        style={{ padding: "28px 32px 40px", maxWidth: 1160, position: "relative" } as React.CSSProperties}
+      >
+        {/* Header gradient band — the ONLY place .cine-bg appears on web */}
+        <div style={{ position: "absolute", top: -60, left: -60, right: -60, height: 280, zIndex: -1, overflow: "hidden" } as React.CSSProperties}>
+          <CinematicBg />
+        </div>
 
-        {/* Header row */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20 } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
           <div>
-            <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: theme.accent, marginBottom: 4 } as React.CSSProperties}>
+            <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
               Your library
             </div>
-            <h1 style={{ fontSize: 34, fontWeight: 700, color: theme.text, margin: 0, letterSpacing: -0.5 } as React.CSSProperties}>
-              {count} film{count !== 1 ? "s" : ""} logged
+            <h1 style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
+              {shown.length} {shown.length === 1 ? "film" : "films"} logged
             </h1>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" } as React.CSSProperties}>
             <button className="btn btn-secondary" onClick={() => router.push("/(app)/stats" as any)}>
-              <ChartLine size={14} color={theme.text} />
+              <Icon name="chart-bar" size={16} />
               Analytics
             </button>
             <div className="seg">
-              <button
-                className={viewMode === "grid" ? "seg-opt active" : "seg-opt"}
-                onClick={() => setViewMode("grid")}
-                style={{ background: "none", border: "none" } as React.CSSProperties}
+              <label
+                className={mode === "grid" ? "seg-opt active" : "seg-opt"}
+                onClick={() => setMode("grid")}
               >
-                <SquaresFour size={14} />
-              </button>
-              <button
-                className={viewMode === "list" ? "seg-opt active" : "seg-opt"}
-                onClick={() => setViewMode("list")}
-                style={{ background: "none", border: "none" } as React.CSSProperties}
+                <Icon name="squares-four" size={16} />
+              </label>
+              <label
+                className={mode === "list" ? "seg-opt active" : "seg-opt"}
+                onClick={() => setMode("list")}
               >
-                <Rows size={14} />
-              </button>
+                <Icon name="rows" size={16} />
+              </label>
             </div>
           </div>
         </div>
 
         {/* Filter chips */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 22 } as React.CSSProperties}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" } as React.CSSProperties}>
           {FILTERS.map((f) => (
-            <button
+            <span
               key={f}
-              className={activeFilter === f ? "tag tag-accent" : "tag tag-neutral"}
-              onClick={() => setActiveFilter(f)}
-              style={{ cursor: "pointer", border: "none" } as React.CSSProperties}
+              className={`tag ${f === filter ? "tag-accent" : "tag-neutral"}`}
+              style={{ cursor: "pointer" } as React.CSSProperties}
+              onClick={() => setFilter(f)}
             >
               {f}
-            </button>
+            </span>
           ))}
         </div>
 
-        {/* Content */}
         {isLoading ? (
-          <div style={{ textAlign: "center", padding: 60, color: theme.accent } as React.CSSProperties}>
-            <span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 80 } as React.CSSProperties}>
-            <div style={{ fontSize: 48, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-            <p style={{ color: `${theme.text}55`, fontSize: 15 } as React.CSSProperties}>No films yet</p>
-            <p style={{ color: `${theme.text}33`, fontSize: 13 } as React.CSSProperties}>Tap + to log your first screening</p>
-          </div>
-        ) : viewMode === "grid" ? (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            gap: 18,
-          } as React.CSSProperties}>
-            {filtered.map((log) => (
-              <PosterCard key={log.id} log={log} onPress={() => router.push(`/(app)/log/${log.id}` as any)} />
+          <ActivityIndicator color={theme.accent} />
+        ) : shown.length === 0 ? (
+          <EmptyState theme={theme} muted={muted} />
+        ) : mode === "grid" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 18 } as React.CSSProperties}>
+            {shown.map((log) => (
+              <div key={log.id} className="tapc gridcard lift" onClick={() => open(log.id)}>
+                <Poster title={log.movie_title} style={{ aspectRatio: "2/3" }}>
+                  <div
+                    style={{
+                      position: "absolute", top: 8, right: 8,
+                      background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
+                      borderRadius: 6, padding: "2px 7px", fontSize: 11, color: "#fff",
+                      display: "flex", alignItems: "center", gap: 3,
+                    } as React.CSSProperties}
+                  >
+                    <Icon name="star" weight="fill" size={11} color={theme.accent} />
+                    {(log.rating ?? 0).toFixed(1)}
+                  </div>
+
+                  <div className="ov" style={{ padding: 12 } as React.CSSProperties}>
+                    <div style={{ fontFamily: heading, fontSize: 15, color: "#fff" } as React.CSSProperties}>
+                      {log.movie_title}
+                    </div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
+                      {log.venue?.name ?? "—"} · {fmtShort(log.created_at)}
+                    </div>
+                  </div>
+                </Poster>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
+                  <span style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie_title}</span>
+                  {log.format ? (
+                    <span className="tag tag-neutral" style={{ fontSize: 10, padding: "1px 6px" } as React.CSSProperties}>
+                      {log.format}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             ))}
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
-            {filtered.map((log) => (
-              <WebListRow key={log.id} log={log} onPress={() => router.push(`/(app)/log/${log.id}` as any)} theme={theme} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 } as React.CSSProperties}>
+            {shown.map((log) => (
+              <div
+                key={log.id}
+                className="card tapc lift"
+                style={{ flexDirection: "row", gap: 12, alignItems: "stretch", padding: 10 } as React.CSSProperties}
+                onClick={() => open(log.id)}
+              >
+                <Poster title={log.movie_title} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 } as React.CSSProperties}>
+                    <div style={{ fontFamily: heading, fontSize: 16 } as React.CSSProperties}>{log.movie_title}</div>
+                    <span style={{ fontSize: 12, color: theme.accent, whiteSpace: "nowrap" } as React.CSSProperties}>
+                      <Icon name="star" weight="fill" size={11} /> {(log.rating ?? 0).toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
+                    <Icon name="map-pin" size={12} />
+                    {log.venue?.name ?? "—"}
+                  </div>
+                  <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
+                    <Icon name="calendar-blank" size={12} />
+                    {fmtShort(log.created_at)}
+                  </div>
+                  {log.format ? (
+                    <div style={{ display: "flex", gap: 5, marginTop: 3, flexWrap: "wrap" } as React.CSSProperties}>
+                      <span className="tag tag-outline" style={{ fontSize: 10, padding: "1px 7px" } as React.CSSProperties}>
+                        {log.format}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ))}
           </div>
         )}
-
-        {/* FAB */}
-        <button
-          className="fab"
-          onClick={() => router.push("/(app)/log/new" as any)}
-          title="Log a screening"
-        >
-          <Plus size={24} color={theme.bg} weight="bold" />
-        </button>
       </div>
     );
   }
 
-  // ── Native (mobile) ────────────────────────────────────────────────────────
+  // ── Native ──────────────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <FlatList
-        data={filtered}
-        key={viewMode}
-        numColumns={viewMode === "grid" ? 2 : 1}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={viewMode === "grid" ? styles.row : undefined}
-        ListHeaderComponent={
-          <LibraryHeader
-            count={count}
-            activeFilter={activeFilter}
-            setActiveFilter={setActiveFilter}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            theme={theme}
-            router={router}
-          />
-        }
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.loader}>
-              <ActivityIndicator color={theme.accent} size="large" />
-            </View>
-          ) : (
-            <View style={styles.empty}>
-              <Text style={{ fontSize: 48, textAlign: "center" }}>🎬</Text>
-              <Text style={[styles.emptyText, { color: `${theme.text}55` }]}>No films yet</Text>
-              <Text style={[styles.emptySubText, { color: `${theme.text}33` }]}>Tap + to log your first screening</Text>
-            </View>
-          )
-        }
-        renderItem={({ item }) =>
-          viewMode === "grid" ? (
-            <View style={styles.gridCell}>
-              <PosterCard log={item} width={160} onPress={() => router.push(`/(app)/log/${item.id}` as any)} />
-            </View>
-          ) : (
-            <NativeListRow log={item} onPress={() => router.push(`/(app)/log/${item.id}` as any)} theme={theme} />
-          )
-        }
-      />
-    </View>
-  );
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function LibraryHeader({ count, activeFilter, setActiveFilter, viewMode, setViewMode, theme, router }: any) {
-  return (
-    <View style={styles.headerArea}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: theme.accent, marginBottom: 4 }}>
-            Your library
-          </Text>
-          <Text style={{ fontSize: 27, fontWeight: "800", color: theme.text, letterSpacing: -0.5 }}>
-            {count} film{count !== 1 ? "s" : ""}
-          </Text>
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 24 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {showPwa && (
+        <View
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 10, padding: 11,
+            borderRadius: 8, marginBottom: 16,
+            borderWidth: 1, borderColor: theme.divider,
+            backgroundColor: `${theme.surface}b8`, // .glass ≈ surface 72%
+          }}
+        >
+          <Icon name="device-mobile-camera" size={22} color={theme.accent} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontFamily: heading, color: theme.text }}>Install CineLog</Text>
+            <Text style={{ fontSize: 11, color: muted }}>Add to home screen — works offline.</Text>
+          </View>
           <Pressable
-            onPress={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            style={[styles.toggleBtn, { borderColor: theme.divider, backgroundColor: theme.surfaceHigh }]}
+            onPress={() => setShowPwa(false)}
+            style={{ borderWidth: 1, borderColor: theme.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}
           >
-            {viewMode === "grid" ? <Rows size={16} color={theme.text} /> : <SquaresFour size={16} color={theme.text} />}
+            <Text style={{ fontSize: 12, color: theme.accent, fontFamily: heading }}>Install</Text>
+          </Pressable>
+          <Pressable onPress={() => setShowPwa(false)} hitSlop={8}>
+            <Icon name="x" size={16} color={muted} />
           </Pressable>
         </View>
+      )}
+
+      {/* Header */}
+      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
+        <View>
+          <Text style={{ fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase", color: theme.accent }}>
+            Your library
+          </Text>
+          <Text style={{ fontSize: 27, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4 }}>
+            {shown.length} {shown.length === 1 ? "film" : "films"} logged
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => router.push("/(app)/stats" as any)}
+          style={{
+            width: 36, height: 36, alignItems: "center", justifyContent: "center",
+            borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
+          }}
+        >
+          <Icon name="chart-bar" size={18} color={theme.text} />
+        </Pressable>
       </View>
 
-      {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12, marginBottom: 4 }}>
-        <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 16 }}>
-          {FILTERS.map((f) => (
+      {/* Filters — horizontal scroll */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginTop: 14, marginBottom: 4 }}
+        contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
+      >
+        {FILTERS.map((f) => {
+          const on = f === filter;
+          return (
             <Pressable
               key={f}
-              onPress={() => setActiveFilter(f)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: activeFilter === f ? theme.accent800 : theme.neutral800,
-                  borderColor: activeFilter === f ? theme.accent : "transparent",
-                },
-              ]}
+              onPress={() => setFilter(f)}
+              style={{
+                paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6,
+                backgroundColor: on ? theme.accent800 : theme.neutral800,
+              }}
             >
-              <Text style={{ fontSize: 11, color: activeFilter === f ? theme.accent100 : theme.neutral100 }}>
-                {f}
-              </Text>
+              <Text style={{ fontSize: 11, color: on ? theme.accent100 : theme.neutral100 }}>{f}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* Sort + view toggle */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 }}>
+        <Text style={{ fontSize: 12, color: muted }}>Sorted by recent</Text>
+        <View style={{ flexDirection: "row", borderWidth: 1, borderColor: theme.divider, borderRadius: 8, overflow: "hidden" }}>
+          {(["grid", "list"] as const).map((m, i) => (
+            <Pressable
+              key={m}
+              onPress={() => setMode(m)}
+              style={{
+                paddingHorizontal: 12, paddingVertical: 7,
+                borderLeftWidth: i === 1 ? 1 : 0, borderLeftColor: theme.divider,
+                backgroundColor: mode === m ? `${theme.accent}1f` : "transparent",
+              }}
+            >
+              <Icon
+                name={m === "grid" ? "squares-four" : "rows"}
+                size={16}
+                color={mode === m ? theme.accent : theme.text}
+              />
             </Pressable>
           ))}
         </View>
-      </ScrollView>
+      </View>
+
+      {isLoading ? (
+        <ActivityIndicator color={theme.accent} />
+      ) : shown.length === 0 ? (
+        <EmptyState theme={theme} muted={muted} />
+      ) : mode === "grid" ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
+          {shown.map((log) => (
+            <Pressable key={log.id} onPress={() => open(log.id)} style={{ width: "47.5%" }}>
+              <Poster title={log.movie_title} style={{ width: "100%", aspectRatio: 2 / 3 }}>
+                <View
+                  style={{
+                    position: "absolute", top: 8, right: 8,
+                    backgroundColor: "rgba(0,0,0,.45)", borderRadius: 6,
+                    paddingHorizontal: 7, paddingVertical: 2,
+                    flexDirection: "row", alignItems: "center", gap: 3,
+                  }}
+                >
+                  <Icon name="star" weight="fill" size={11} color={theme.accent} />
+                  <Text style={{ fontSize: 11, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
+                </View>
+
+                {/* .pt — title plate pinned to the poster's bottom */}
+                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 10 }}>
+                  <Text
+                    numberOfLines={2}
+                    style={{
+                      fontFamily: heading, fontSize: 16, lineHeight: 17.6, color: "#fff",
+                      textShadowColor: "rgba(0,0,0,.6)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 8,
+                    }}
+                  >
+                    {log.movie_title}
+                  </Text>
+                </View>
+              </Poster>
+
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
+                <Text style={{ fontSize: 11, color: muted }}>{fmtShort(log.created_at)}</Text>
+                {log.format ? (
+                  <View style={{ backgroundColor: theme.neutral800, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 10, color: theme.neutral100 }}>{log.format}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {shown.map((log) => (
+            <Pressable
+              key={log.id}
+              onPress={() => open(log.id)}
+              style={{
+                flexDirection: "row", gap: 12, padding: 10,
+                borderRadius: 8, backgroundColor: theme.surface,
+              }}
+            >
+              <Poster title={log.movie_title} style={{ width: 56, aspectRatio: 2 / 3 }} />
+              <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: 16, color: theme.text }}>
+                    {log.movie_title}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Icon name="map-pin" size={12} color={muted} />
+                  <Text style={{ fontSize: 12, color: muted }}>{log.venue?.name ?? "—"}</Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Icon name="calendar-blank" size={12} color={muted} />
+                  <Text style={{ fontSize: 12, color: muted }}>{fmtShort(log.created_at)}</Text>
+                </View>
+                {log.format ? (
+                  <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
+                    <View style={{ borderWidth: 1, borderColor: theme.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 10, color: theme.accent }}>{log.format}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function EmptyState({ theme, muted }: { theme: any; muted: string }) {
+  if (Platform.OS === "web") {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
+        <Icon name="film-slate" size={44} color={theme.accent} />
+        <div style={{ fontSize: 16, marginTop: 12 } as React.CSSProperties}>No films yet</div>
+        <div style={{ fontSize: 13, color: muted, marginTop: 4 } as React.CSSProperties}>
+          Log your first screening to start your library.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <View style={{ alignItems: "center", paddingVertical: 60 }}>
+      <Icon name="film-slate" size={44} color={theme.accent} />
+      <Text style={{ fontSize: 16, color: theme.text, marginTop: 12 }}>No films yet</Text>
+      <Text style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+        Log your first screening to start your library.
+      </Text>
     </View>
   );
 }
-
-function WebListRow({ log, onPress, theme }: { log: MovieLog; onPress: () => void; theme: any }) {
-  const hue = Array.from(log.movie_title).reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-  return (
-    <div
-      className="tapc"
-      onClick={onPress}
-      style={{
-        display: "flex", alignItems: "center", gap: 14, padding: "10px 0",
-        borderBottom: `1px solid ${theme.divider}`, cursor: "pointer",
-      } as React.CSSProperties}
-    >
-      <div style={{
-        width: 56, height: 84, borderRadius: 6, flexShrink: 0,
-        background: log.movie_poster_url
-          ? `url(${log.movie_poster_url}) center/cover`
-          : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
-      } as React.CSSProperties} />
-      <div style={{ flex: 1 } as React.CSSProperties}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: theme.text } as React.CSSProperties}>{log.movie_title}</div>
-        <div style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 3 } as React.CSSProperties}>
-          {[log.format, log.rating != null ? `★ ${log.rating}` : null, new Date(log.created_at).getFullYear()].filter(Boolean).join(" · ")}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function NativeListRow({ log, onPress, theme }: { log: MovieLog; onPress: () => void; theme: any }) {
-  return (
-    <Pressable onPress={onPress} style={[styles.listRow, { borderBottomColor: theme.divider }]}>
-      <View style={[styles.listPoster, { backgroundColor: theme.neutral800 }]}>
-        <Text style={{ fontSize: 20 }}>🎬</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{log.movie_title}</Text>
-        <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 3 }}>
-          {[log.format, log.rating != null ? `★ ${log.rating}` : null].filter(Boolean).join(" · ")}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  container:   { flex: 1 },
-  listContent: { paddingBottom: 100 },
-  headerArea:  { paddingBottom: 8 },
-  headerRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 20 },
-  toggleBtn:   { width: 36, height: 36, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  chip:        { paddingVertical: 3, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1 },
-  row:         { gap: 14, paddingHorizontal: 16 },
-  gridCell:    { flex: 1 },
-  listRow:     { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
-  listPoster:  { width: 56, height: 84, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  loader:      { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80 },
-  empty:       { alignItems: "center", paddingTop: 80, gap: 8 },
-  emptyText:   { fontSize: 15 },
-  emptySubText:{ fontSize: 13 },
-});

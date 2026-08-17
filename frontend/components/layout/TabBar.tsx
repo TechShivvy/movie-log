@@ -1,85 +1,108 @@
+/**
+ * TabBar — ported from docs/design/CineLog Mobile.dc.html (lines 558-568).
+ *
+ *   bar     flex; align-items:center; justify-content:space-around;
+ *           padding:8px 6px 22px; border-top:1px solid divider
+ *   tab     column; gap:3px; padding:4px 10px
+ *           icon 22px, label 10px
+ *           colour = accent when active, else text at 45%
+ *   centre  54x54 circle, margin-top:-24px, accent bg, bg-coloured
+ *           ph-bold ph-plus @26px,
+ *           box-shadow 0 6px 20px accent 45%
+ *
+ * Active mapping mirrors tabColor():
+ *   library ← detail | movie | venue | stats
+ *   profile ← settings | notifications
+ */
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
-import { Badge } from "../ui/Badge";
-import { styles } from "./TabBar.styles";
+import { Icon, type IconName } from "../ui/Icon";
 
-interface TabItem {
-  label: string;
-  icon: string;
-  href: string;
-  badge?: number;
-}
+const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] = [
+  { icon: "film-strip",       label: "Library", href: "/(app)",         owns: ["/log/", "/movie", "/venue", "/stats"] },
+  { icon: "rss",              label: "Feed",    href: "/(app)/feed" },
+  { icon: "magnifying-glass", label: "Search",  href: "/(app)/search" },
+  { icon: "user",             label: "Profile", href: "/(app)/profile", owns: ["/settings", "/notifications"] },
+];
 
-interface TabBarProps {
-  unreadNotifications?: number;
-}
-
-export function TabBar({ unreadNotifications = 0 }: TabBarProps) {
+export function TabBar() {
   const { theme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
 
-  const LEFT_TABS: TabItem[] = [
-    { label: "Library", icon: "🎬", href: "/(app)" },
-    { label: "Feed", icon: "📡", href: "/(app)/feed" },
-  ];
+  if (Platform.OS === "web") return null;
 
-  const RIGHT_TABS: TabItem[] = [
-    { label: "Search", icon: "🔍", href: "/(app)/search" },
-    { label: "Profile", icon: "👤", href: "/(app)/profile" },
-  ];
+  const inactive = `${theme.text}73`; // text 45%
 
-  const isActive = (href: string) =>
-    href === "/(app)" ? pathname === "/" || pathname === "/(app)" || pathname === "/index"
-    : pathname.startsWith(href.replace("/(app)", ""));
+  function isActive(t: (typeof TABS)[number]) {
+    const seg = t.href.replace("/(app)", "");
+    if (seg === "") {
+      return ["/", "", "/(app)", "/index"].includes(pathname)
+        || (t.owns ?? []).some((o) => pathname.startsWith(o));
+    }
+    return pathname.startsWith(seg) || (t.owns ?? []).some((o) => pathname.startsWith(o));
+  }
 
-  const renderTab = (item: TabItem) => {
-    const active = isActive(item.href);
+  // Split so the centre FAB sits between Feed and Search, as in the design
+  const left = TABS.slice(0, 2);
+  const right = TABS.slice(2);
+
+  const renderTab = (t: (typeof TABS)[number]) => {
+    const active = isActive(t);
     return (
-      <Pressable
-        key={item.href}
-        onPress={() => router.push(item.href as any)}
-        style={styles.tab}
-      >
-        <View>
-          <Text style={{ fontSize: 22 }}>{item.icon}</Text>
-          {item.badge != null && item.badge > 0 && (
-            <View style={styles.badgeWrap}>
-              <Badge count={item.badge} />
-            </View>
-          )}
-        </View>
-        <Text style={[styles.tabLabel, { color: active ? theme.accent : `${theme.text}66` }]}>
-          {item.label}
-        </Text>
+      <Pressable key={t.href} onPress={() => router.push(t.href as any)} style={styles.tab}>
+        <Icon name={t.icon} size={22} color={active ? theme.accent : inactive} />
+        <Text style={{ fontSize: 10, color: active ? theme.accent : inactive }}>{t.label}</Text>
       </Pressable>
     );
   };
 
   return (
-    <View style={[styles.tabBar, { backgroundColor: `${theme.surface}f0`, borderTopColor: theme.divider }]}>
-      {LEFT_TABS.map(renderTab)}
+    <View style={[styles.bar, { borderTopColor: theme.divider, backgroundColor: theme.surface }]}>
+      {left.map(renderTab)}
 
-      {/* Center FAB */}
-      <View style={styles.fabWrap}>
-        <Pressable
-          onPress={() => router.push("/(app)/log/new")}
-          style={[styles.fab, { backgroundColor: theme.accent }]}
-        >
-          <Text style={styles.fabIcon}>+</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => router.push("/(app)/log/new" as any)}
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.accent,
+            shadowColor: theme.accent,
+          },
+        ]}
+      >
+        <Icon name="plus" weight="bold" size={26} color={theme.bg} />
+      </Pressable>
 
-      {RIGHT_TABS.map((item) =>
-        renderTab(item.href === "/(app)/profile"
-          ? { ...item, badge: undefined }
-          : item.href === "/(app)/notifications"
-          ? { ...item, badge: unreadNotifications }
-          : item
-        )
-      )}
+      {right.map(renderTab)}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingTop: 8,
+    paddingHorizontal: 6,
+    paddingBottom: 22,
+    borderTopWidth: 1,
+  },
+  tab: { alignItems: "center", gap: 3, paddingVertical: 4, paddingHorizontal: 10 },
+  fab: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    marginTop: -24,
+    alignItems: "center",
+    justifyContent: "center",
+    // box-shadow: 0 6px 20px accent 45%
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+});
