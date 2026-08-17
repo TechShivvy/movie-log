@@ -28,11 +28,23 @@ import { useTheme } from "../../hooks/useTheme";
  *          soft, so the blur(60px) is approximated by the gradient falloff.
  *          The inset:-30% and the 18s clgDrift transform are reproduced exactly.
  */
-export function CinematicBg() {
+interface CinematicBgProps {
+  /**
+   * Web-only style override applied directly to the .cine-bg element.
+   * Pass the design's own overrides here — e.g. Library's header band uses
+   * { zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" }.
+   * Never wrap this component in an overflow:hidden container: the class's
+   * filter:blur(60px) is what softens its edges, and clipping it turns the
+   * glow into a hard-edged rectangle.
+   */
+  style?: React.CSSProperties;
+}
+
+export function CinematicBg({ style }: CinematicBgProps = {}) {
   const { theme } = useTheme();
 
   if (Platform.OS === "web") {
-    return <div className="cine-bg" />;
+    return <div className="cine-bg" style={style} />;
   }
 
   return <NativeCinematicBg accent={theme.accent} />;

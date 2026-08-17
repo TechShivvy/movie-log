@@ -89,12 +89,22 @@ export function LibraryScreen() {
     return (
       <div
         className="screen-anim"
-        style={{ padding: "28px 32px 40px", maxWidth: 1160, position: "relative" } as React.CSSProperties}
+        style={{
+          padding: "28px 32px 40px",
+          maxWidth: 1160,
+          width: "100%",
+          // .mainscroll > div { margin-inline:auto } in the design only reaches
+          // a direct child; expo-router nests screens deeper, so centre here.
+          margin: "0 auto",
+          position: "relative",
+        } as React.CSSProperties}
       >
-        {/* Header gradient band — the ONLY place .cine-bg appears on web */}
-        <div style={{ position: "absolute", top: -60, left: -60, right: -60, height: 280, zIndex: -1, overflow: "hidden" } as React.CSSProperties}>
-          <CinematicBg />
-        </div>
+        {/* Header gradient band — the ONLY place .cine-bg appears on web.
+            Styles go straight on the element (no wrapper): its blur(60px) is
+            what feathers the edges, so clipping it would draw a hard box. */}
+        <CinematicBg
+          style={{ zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" }}
+        />
 
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
           <div>
