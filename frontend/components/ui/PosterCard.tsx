@@ -87,9 +87,9 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
             <div style={{ fontWeight: 600, fontSize: 13, color: "#fff", lineHeight: 1.3 } as React.CSSProperties}>
               {log.movie_title}
             </div>
-            {(log.venue_name || log.watched_at) && (
+            {(log.venue?.name || log.created_at) && (
               <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", marginTop: 3 } as React.CSSProperties}>
-                {[log.venue_name, log.watched_at ? new Date(log.watched_at).getFullYear() : null]
+                {[log.venue?.name, new Date(log.created_at).getFullYear()]
                   .filter(Boolean).join(" · ")}
               </div>
             )}
@@ -144,9 +144,9 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
           pointerEvents="none"
         >
           <Text style={styles.overlayTitle} numberOfLines={2}>{log.movie_title}</Text>
-          {(log.venue_name || log.watched_at) && (
+          {(log.venue?.name || log.created_at) && (
             <Text style={styles.overlayMeta}>
-              {[log.venue_name, log.watched_at ? new Date(log.watched_at).getFullYear() : null].filter(Boolean).join(" · ")}
+              {[log.venue?.name, new Date(log.created_at).getFullYear()].filter(Boolean).join(" · ")}
             </Text>
           )}
         </LinearGradient>

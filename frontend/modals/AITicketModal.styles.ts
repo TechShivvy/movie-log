@@ -116,7 +116,6 @@ export const styles = StyleSheet.create({
     paddingVertical: 5.6,
     paddingHorizontal: 14,
     borderRadius: 8,
-    alignItems: "center",
   },
   applyBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
 

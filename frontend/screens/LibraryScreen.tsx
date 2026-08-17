@@ -267,7 +267,7 @@ function WebListRow({ log, onPress, theme }: { log: MovieLog; onPress: () => voi
       <div style={{ flex: 1 } as React.CSSProperties}>
         <div style={{ fontWeight: 600, fontSize: 14, color: theme.text } as React.CSSProperties}>{log.movie_title}</div>
         <div style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 3 } as React.CSSProperties}>
-          {[log.format, log.rating != null ? `★ ${log.rating}` : null, log.watched_at ? new Date(log.watched_at).getFullYear() : null].filter(Boolean).join(" · ")}
+          {[log.format, log.rating != null ? `★ ${log.rating}` : null, new Date(log.created_at).getFullYear()].filter(Boolean).join(" · ")}
         </div>
       </div>
     </div>
