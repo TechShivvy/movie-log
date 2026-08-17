@@ -44,6 +44,22 @@ segments:
 
 ---
 
+## Observed: `exp://**` did not match (2026-08)
+
+With Site URL `http://localhost:8081` and `exp://**` present in the Redirect
+URLs, a real device generating
+
+```
+exp://192.168.0.205:8081/--/auth/callback
+```
+
+was still bounced to the Site URL. So do **not** rely on a wildcard for the
+`exp://` scheme. Use the exact URL (below) for Expo Go, and move to a
+development build for anything longer-lived.
+
+Also remove `exp://*/*/--/auth/callback` if present — it cannot match anything
+(`*` stops at the dots in the IP) and only adds a broken pattern to the list.
+
 ## Fix A — unblock Expo Go testing right now
 
 **Supabase Dashboard → Authentication → URL Configuration**
@@ -56,11 +72,19 @@ segments:
    http://localhost:8081/auth/callback     ← web dev
    https://<your-domain>/auth/callback     ← web prod
    cinelog://auth/callback                 ← dev build / standalone
-   exp://**                                ← Expo Go (dynamic LAN IP)
+   exp://192.168.0.205:8081/--/auth/callback   ← Expo Go, EXACT current LAN IP
    ```
 
-`exp://**` is broad, which is acceptable for a development-only scheme. Remove it
-once you stop testing through Expo Go.
+The last one must be the exact URL the device prints, because the `exp://`
+wildcard was observed not to match (see above). Read it from the Expo log:
+
+```
+[CineLog OAuth] redirect_to = exp://192.168.0.205:8081/--/auth/callback
+```
+
+This entry breaks whenever your LAN IP changes (new network, DHCP lease, phone
+hotspot), at which point you re-read the log line and update it. That churn is
+the reason to move to Fix B rather than live on this.
 
 To confirm what your device is actually sending, tap **Continue with Google** and
 read the Expo log line:
