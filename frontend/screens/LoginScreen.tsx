@@ -48,6 +48,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import * as AuthSession from "expo-auth-session";
 import { supabase } from "../lib/supabase";
+import { completeAuthFromUrl } from "../lib/authCallback";
 import { useTheme } from "../hooks/useTheme";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
@@ -79,45 +80,22 @@ export function LoginScreen() {
   useEffect(() => {
     if (Platform.OS === "web") return;
     const sub = Linking.addEventListener("url", ({ url }) => {
-      void completeAuthFromUrl(url);
+      void handleRedirect(url);
     });
     return () => sub.remove();
   }, []);
 
   /**
-   * Completes sign-in from a redirect URL, accepting BOTH shapes:
-   *   PKCE     → ?code=…                 (exchangeCodeForSession)
-   *   implicit → #access_token=…&refresh_token=…  (setSession)
-   * Returns true when a session was established.
+   * Delegates to lib/authCallback, which de-duplicates by code so this and
+   * app/auth/callback.tsx can both react to the same deep link without
+   * double-spending the single-use PKCE code.
    */
-  async function completeAuthFromUrl(url: string): Promise<boolean> {
+  async function handleRedirect(url: string): Promise<boolean> {
+    setLoading(true);
     try {
-      const code = Linking.parse(url).queryParams?.code as string | undefined;
-      if (code) {
-        setLoading(true);
-        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exErr) throw exErr;
-        return true;
-      }
-
-      const hash = url.split("#")[1];
-      if (hash) {
-        const hp = new URLSearchParams(hash);
-        const access_token = hp.get("access_token");
-        const refresh_token = hp.get("refresh_token");
-        if (access_token && refresh_token) {
-          setLoading(true);
-          const { error: sErr } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (sErr) throw sErr;
-          return true;
-        }
-        const errDesc = hp.get("error_description");
-        if (errDesc) throw new Error(decodeURIComponent(errDesc.replace(/\+/g, " ")));
-      }
-      return false;
-    } catch (e: any) {
-      setError(e.message ?? "Sign-in failed");
-      return false;
+      const result = await completeAuthFromUrl(url);
+      if (result.status === "error") setError(result.message);
+      return result.status === "signed-in";
     } finally {
       setLoading(false);
     }
@@ -170,7 +148,7 @@ export function LoginScreen() {
       // reporting — the Linking listener above still catches the deep link.
       if (result.type !== "success") return;
 
-      await completeAuthFromUrl(result.url);
+      await handleRedirect(result.url);
     } catch (e: any) {
       setError(e.message ?? "Sign-in failed");
     } finally {

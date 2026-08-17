@@ -1,101 +1,77 @@
 /**
- * OAuth callback route — handles:
- *   Web (PKCE):     http://localhost:8081/auth/callback?code=xxx
- *   Web (implicit): http://localhost:8081/auth/callback#access_token=xxx
- *   Native:         cinelog://auth/callback?code=xxx
- *   Expo Go:        exp://host:port/--/auth/callback?code=xxx
+ * OAuth callback route — /auth/callback
  *
- * Supabase Redirect URLs that must be whitelisted in the dashboard:
- *   • http://localhost:8081/auth/callback    ← web dev
- *   • https://<your-domain>/auth/callback   ← web prod
- *   • cinelog://auth/callback               ← standalone mobile
- *   • exp://[host]:[port]/--/auth/callback    ← Expo Go (add wildcard in dashboard)
+ *   Web (PKCE)     http://localhost:8081/auth/callback?code=…
+ *   Dev build      cinelog://auth/callback?code=…
+ *   Expo Go        exp://<lan-ip>:8081/--/auth/callback?code=…
  *
- * Flow:
- *   1. On web with detectSessionInUrl:true, @supabase/supabase-js auto-detects
- *      the code/hash the moment the page loads — session is set before this
- *      component even mounts in most cases.
- *   2. If a `code` query param is present (PKCE), we exchange it explicitly as a
- *      belt-and-suspenders measure.
- *   3. On success, AuthContext.onAuthStateChange fires → navigate to (app).
+ * The exchange itself is delegated to lib/authCallback, which de-duplicates by
+ * code — LoginScreen's Linking listener reacts to the same deep link, and a
+ * PKCE code can only be spent once.
+ *
+ * Supabase Redirect URLs must contain an entry matching the redirect this app
+ * generates; when none matches, Supabase silently falls back to the Site URL.
+ * See docs/mobile-oauth.md.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, ActivityIndicator, Text, Platform } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import * as Linking from "expo-linking";
+import { completeAuthFromUrl } from "../../lib/authCallback";
 import { useTheme } from "../../hooks/useTheme";
 
 export default function AuthCallback() {
   const { theme } = useTheme();
   const router = useRouter();
-
-  // On web, the code arrives as a query param (?code=).
-  // On native (when this screen IS loaded), the deep-link also carries ?code=.
   const params = useLocalSearchParams<{
     code?: string;
     error?: string;
     error_description?: string;
   }>();
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function handleCallback() {
-      try {
-        // Auth error from provider
-        if (params.error) {
-          console.error("OAuth error:", params.error_description ?? params.error);
-          router.replace("/(auth)");
-          return;
-        }
-
-        // PKCE code exchange
-        if (params.code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(
-            params.code as string
-          );
-          if (error) {
-            console.error("Code exchange error:", error.message);
-            if (!cancelled) router.replace("/(auth)");
-            return;
-          }
-        }
-
-        // Implicit flow (web only): Supabase JS handles the hash automatically
-        // via detectSessionInUrl:true. Just wait a tick for onAuthStateChange.
-        if (!cancelled) router.replace("/(app)");
-      } catch (e) {
-        console.error("Callback error:", e);
+    (async () => {
+      // Provider-level failure (user denied consent, bad client config, …)
+      if (params.error) {
+        const detail = params.error_description ?? params.error;
+        console.error("OAuth error:", detail);
         if (!cancelled) router.replace("/(auth)");
+        return;
       }
-    }
 
-    handleCallback();
-    return () => {
-      cancelled = true;
-    };
+      // Prefer the full URL so the fragment survives; fall back to the routed
+      // ?code= param when the platform gives us no URL (web hard navigation).
+      const initial = Platform.OS === "web"
+        ? (window as any).location?.href
+        : await Linking.getInitialURL();
+      const url = initial ?? (params.code ? `?code=${params.code}` : "");
+
+      const result = await completeAuthFromUrl(url);
+      if (cancelled) return;
+
+      if (result.status === "error") {
+        setMessage(result.message);
+        setTimeout(() => router.replace("/(auth)"), 1500);
+        return;
+      }
+
+      // "none" is fine on web: detectSessionInUrl may have already consumed
+      // the URL before this mounted. AuthProvider owns the redirect either way.
+      router.replace("/(app)");
+    })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme.bg,
-      }}
-    >
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
       <ActivityIndicator color={theme.accent} size="large" />
-      <Text
-        style={{
-          color: theme.text,
-          marginTop: 16,
-          fontSize: 14,
-          opacity: 0.7,
-        }}
-      >
-        Signing you in…
+      <Text style={{ color: theme.text, marginTop: 16, fontSize: 14, opacity: 0.7 }}>
+        {message ?? "Signing you in…"}
       </Text>
     </View>
   );
