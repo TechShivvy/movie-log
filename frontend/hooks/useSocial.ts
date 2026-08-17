@@ -3,13 +3,19 @@ import { api, DEMO_MODE } from "../lib/api";
 import type { Comment } from "../types";
 
 // ─── Comments ────────────────────────────────────────────────────────────────
+//
+// Comments are a *flat* resource at /api/v1/comments, filtered by
+// movie_log_id — NOT nested under /movie-logs/{id}/comments.
+// See backend routers/comments.py for the rationale.
 
 export function useComments(logId: string) {
   return useQuery({
     queryKey: ["comments", logId],
     queryFn: async () => {
       if (DEMO_MODE) return [] as Comment[];
-      const { data } = await api.get<Comment[]>(`/movie-logs/${logId}/comments`);
+      const { data } = await api.get<Comment[]>("/comments", {
+        params: { movie_log_id: logId },
+      });
       return data;
     },
     enabled: !!logId,
@@ -19,9 +25,19 @@ export function useComments(logId: string) {
 export function useAddComment(logId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ content, parent_comment_id }: { content: string; parent_comment_id?: string }) => {
+    mutationFn: async ({
+      content,
+      parent_comment_id,
+    }: {
+      content: string;
+      parent_comment_id?: string;
+    }) => {
       if (DEMO_MODE) return;
-      await api.post(`/movie-logs/${logId}/comments`, { content, parent_comment_id });
+      await api.post("/comments", {
+        movie_log_id: logId,
+        content,
+        parent_comment_id,
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["comments", logId] }),
   });
@@ -30,12 +46,20 @@ export function useAddComment(logId: string) {
 export function useLikeComment(logId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ commentId, liked }: { commentId: string; liked: boolean }) => {
+    mutationFn: async ({
+      commentId,
+      liked,
+    }: {
+      commentId: string;
+      liked: boolean;
+    }) => {
       if (DEMO_MODE) return;
       if (liked) {
-        await api.delete(`/movie-logs/${logId}/comments/${commentId}/like`);
+        // currently liked → DELETE to remove the like
+        await api.delete(`/comments/${commentId}/like`);
       } else {
-        await api.post(`/movie-logs/${logId}/comments/${commentId}/like`);
+        // not liked yet → POST to add the like
+        await api.post(`/comments/${commentId}/like`);
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["comments", logId] }),
@@ -43,15 +67,26 @@ export function useLikeComment(logId: string) {
 }
 
 // ─── Log Likes ───────────────────────────────────────────────────────────────
+//
+// Likes on a log ARE nested: /api/v1/movie-logs/{log_id}/like
+// (movie_logs router registers /{log_id}/like routes).
 
 export function useLikeLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ logId, liked }: { logId: string; liked: boolean }) => {
+    mutationFn: async ({
+      logId,
+      liked,
+    }: {
+      logId: string;
+      liked: boolean;
+    }) => {
       if (DEMO_MODE) return;
       if (liked) {
+        // currently liked → DELETE
         await api.delete(`/movie-logs/${logId}/like`);
       } else {
+        // not liked → POST
         await api.post(`/movie-logs/${logId}/like`);
       }
     },
@@ -60,16 +95,27 @@ export function useLikeLog() {
 }
 
 // ─── Follow / Block ───────────────────────────────────────────────────────────
+//
+// Follows are at /api/v1/public/follows/{username}  (not /users/{username}/follow)
+// Blocks  are at /api/v1/public/blocks/{username}   (not /users/{username}/block)
 
 export function useFollowUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ username, following }: { username: string; following: boolean }) => {
+    mutationFn: async ({
+      username,
+      following,
+    }: {
+      username: string;
+      following: boolean;
+    }) => {
       if (DEMO_MODE) return;
       if (following) {
-        await api.delete(`/users/${username}/follow`);
+        // currently following → DELETE to unfollow
+        await api.delete(`/public/follows/${username}`);
       } else {
-        await api.post(`/users/${username}/follow`);
+        // not following → POST to follow
+        await api.post(`/public/follows/${username}`);
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
@@ -79,12 +125,20 @@ export function useFollowUser() {
 export function useBlockUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ username, blocked }: { username: string; blocked: boolean }) => {
+    mutationFn: async ({
+      username,
+      blocked,
+    }: {
+      username: string;
+      blocked: boolean;
+    }) => {
       if (DEMO_MODE) return;
       if (blocked) {
-        await api.delete(`/users/${username}/block`);
+        // currently blocked → DELETE to unblock
+        await api.delete(`/public/blocks/${username}`);
       } else {
-        await api.post(`/users/${username}/block`);
+        // not blocked → POST to block
+        await api.post(`/public/blocks/${username}`);
       }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),

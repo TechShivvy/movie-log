@@ -22,7 +22,7 @@ export function useExtractTicket(llmKey?: string) {
       }
       const headers = llmKey ? { "X-LLM-API-Key": llmKey } : {};
       const { data } = await api.post<ExtractionResult>(
-        "/extract",
+        "/movie-metadata/extract",
         { image_base64: imageBase64 },
         { headers },
       );
@@ -50,7 +50,7 @@ export function useExtractTicketFromLink(llmKey?: string) {
       }
       const headers = llmKey ? { "X-LLM-API-Key": llmKey } : {};
       const { data } = await api.post<ExtractionResult>(
-        "/extract-from-link",
+        "/movie-metadata/extract-from-link",
         { url },
         { headers },
       );
