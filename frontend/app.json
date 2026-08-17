@@ -7,11 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0b1326"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.techshivvy.cinelog"
@@ -47,6 +42,14 @@
         "expo-image-picker",
         {
           "photosPermission": "CineLog needs photo access to scan your tickets."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0b1326"
         }
       ]
     ],
