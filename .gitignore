@@ -37,3 +37,4 @@ coverage.xml
 
 **/node_modules
 **/.temp/
+**/frontend/android/
