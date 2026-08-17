@@ -176,18 +176,17 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
     onClose();
   };
 
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: theme.surface }]}>
-          {/* Handle */}
-          <View style={[styles.handle, { backgroundColor: theme.text }]} />
-
+  // Inner content shared between web and native renders
+  const dialogContent = (
+    <>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>🎟 AI Ticket Scan</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 18 }}>🎟</Text>
+              <Text style={[styles.title, { color: theme.text }]}>AI ticket scan</Text>
+            </View>
             <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={22} color={theme.text} />
+              <X size={20} color={theme.text} />
             </Pressable>
           </View>
 
@@ -196,7 +195,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
             <SegmentedControl
               options={[
                 { label: "Single", value: "single" },
-                { label: "Batch", value: "batch" },
+                { label: `Batch${batchImages.length > 0 ? ` · ${batchImages.length}` : ""}`, value: "batch" },
                 { label: "Link", value: "link" },
               ]}
               value={tab}
@@ -275,7 +274,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                 ) : (
                   <>
                     {/* Progress bar */}
-                    <View style={[styles.progressWrap, { backgroundColor: theme.neutral }]}>
+                    <View style={[styles.progressWrap, { backgroundColor: theme.neutral800 }]}>
                       <View
                         style={[
                           styles.progressBar,
@@ -375,22 +374,47 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
             )}
           </ScrollView>
 
-          {/* Batch footer: Add N logs */}
-          {tab === "batch" && batchDone && successResults.length > 0 && (
-            <View style={styles.footer}>
+          {/* Dialog actions */}
+          <View style={styles.footer}>
+            <Pressable onPress={handleClose} style={[styles.cancelBtn, { borderColor: theme.divider }]}>
+              <Text style={{ color: `${theme.text}88`, fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+            {tab === "batch" && batchDone && successResults.length > 0 ? (
               <Pressable
-                onPress={() => {
-                  onBatchResults?.(successResults);
-                  handleClose();
-                }}
+                onPress={() => { onBatchResults?.(successResults); handleClose(); }}
                 style={[styles.applyBtn, { backgroundColor: theme.accent }]}
               >
                 <Text style={styles.applyBtnText}>
                   Add {successResults.length} log{successResults.length !== 1 ? "s" : ""}
                 </Text>
               </Pressable>
-            </View>
-          )}
+            ) : (tab === "batch" && !!batchJobId && !batchDone) ? (
+              <View style={[styles.applyBtn, { backgroundColor: theme.neutral800 }]}>
+                <ActivityIndicator color={theme.accent} size="small" />
+                <Text style={[styles.applyBtnText, { color: theme.text }]}>Processing…</Text>
+              </View>
+            ) : null}
+          </View>
+    </>
+  );
+
+  // ── Web: centered dialog using CSS classes ────────────────────────────────
+  if (Platform.OS === "web" && visible) {
+    return (
+      <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && handleClose()}>
+        <div className="dialog">
+          {dialogContent}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Native: Modal with centered dialog (not bottom sheet) ─────────────────
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <View style={styles.overlay}>
+        <View style={[styles.dialog, { backgroundColor: theme.surface }]}>
+          {dialogContent}
         </View>
       </View>
     </Modal>

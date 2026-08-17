@@ -1,31 +1,44 @@
 import React from "react";
-import { Platform, View } from "react-native";
-import { styles } from "./FilmGrain.styles";
+import { Platform, StyleSheet, View } from "react-native";
+import Svg, { Defs, Filter, FeTurbulence, Rect } from "react-native-svg";
 
 /**
- * Film grain overlay — fixed/absolute, pointer-events none.
- * On web uses an SVG feTurbulence filter via inline style.
- * On native renders a semi-transparent noise view (approximation).
+ * Film-grain overlay — identical on every platform.
+ *
+ * Web    → <div className="grain"> (CSS injects the SVG feTurbulence background)
+ * Native → react-native-svg feTurbulence tiled over the full screen,
+ *           opacity 0.04, pointerEvents none.
  */
 export function FilmGrain() {
   if (Platform.OS === "web") {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9999,
-          pointerEvents: "none",
-          opacity: 0.04,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "128px 128px",
-        }}
-      />
-    );
+    return <div className="grain" />;
   }
 
-  // Native: lightweight semi-transparent overlay
-  return <View style={styles.native} pointerEvents="none" />;
+  return (
+    <View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, styles.overlay]}
+    >
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <Filter id="grain" x="0%" y="0%" width="100%" height="100%">
+            <FeTurbulence
+              type="fractalNoise"
+              baseFrequency={0.85}
+              numOctaves={2}
+              stitchTiles="stitch"
+            />
+          </Filter>
+        </Defs>
+        <Rect width="100%" height="100%" filter="url(#grain)" />
+      </Svg>
+    </View>
+  );
 }
 
+const styles = StyleSheet.create({
+  overlay: {
+    zIndex: 200,
+    opacity: 0.04,
+  },
+});

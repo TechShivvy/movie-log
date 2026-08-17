@@ -9,19 +9,37 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { TabBar } from "../../components/layout/TabBar";
 import { TopBar } from "../../components/layout/TopBar";
 
+/**
+ * Web layout:
+ *   .app-shell (position:relative, display:flex, height:100vh, overflow:hidden)
+ *     ├── .cine-bg  (position:absolute, animated gradient backdrop)
+ *     ├── .grain    (position:fixed, film grain)
+ *     ├── .sidebar  (236px → 68px collapsed)
+ *     └── main column (flex:1, display:flex, flex-direction:column)
+ *           ├── .topbar (height:62px)
+ *           └── .mainscroll .clg-scroll (flex:1, overflow-y:auto)
+ *
+ * The Sidebar component owns the app-shell div and the bg layers on web.
+ */
 function WebLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   return (
-    <View style={[styles.webRoot, { backgroundColor: theme.bg }]}>
-      <CinematicBg />
-      <FilmGrain />
-      <Sidebar>
-        <View style={styles.webMain}>
-          <TopBar />
-          <View style={styles.webContent}>{children}</View>
-        </View>
-      </Sidebar>
-    </View>
+    // On web, Sidebar renders the full app-shell div including bg layers.
+    // We pass TopBar + main content as children.
+    <Sidebar>
+      <TopBar />
+      <div
+        className="clg-scroll mainscroll"
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          position: "relative",
+          zIndex: 1,
+        } as React.CSSProperties}
+      >
+        {children}
+      </div>
+    </Sidebar>
   );
 }
 
@@ -29,10 +47,13 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   return (
     <View style={[styles.mobileRoot, { backgroundColor: theme.bg }]}>
+      {/* Background layers — native */}
       <CinematicBg />
       <FilmGrain />
+
       <View style={styles.mobileContent}>{children}</View>
-      <SafeAreaView style={{ backgroundColor: `${theme.surface}f0` }}>
+
+      <SafeAreaView style={{ backgroundColor: theme.surface }}>
         <TabBar />
       </SafeAreaView>
     </View>
@@ -65,10 +86,7 @@ export default function AppLayout() {
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, alignItems: "center", justifyContent: "center" },
-  webRoot: { flex: 1 },
-  webMain: { flex: 1, flexDirection: "column" },
-  webContent: { flex: 1 },
-  mobileRoot: { flex: 1 },
-  mobileContent: { flex: 1 },
+  loader:        { flex: 1, alignItems: "center", justifyContent: "center" },
+  mobileRoot:    { flex: 1, position: "relative" },
+  mobileContent: { flex: 1, zIndex: 1 },
 });

@@ -235,7 +235,7 @@ export function LogDetailScreen() {
         <StarRating value={log.rating ?? 0} onChange={() => {}} readonly size="small" />
         <Text style={[styles.dateText, { color: theme.text }]}>{formatShortDate(log.created_at)}</Text>
         {log.edited_at && (
-          <View style={[styles.editedBadge, { backgroundColor: theme.neutral }]}>
+          <View style={[styles.editedBadge, { backgroundColor: theme.neutral800 }]}>
             <Text style={[styles.editedText, { color: theme.text }]}>edited</Text>
           </View>
         )}
