@@ -1,7 +1,2 @@
-import { SafeAreaView, Text, StyleSheet } from "react-native";
-import { useTheme } from "../../hooks/useTheme";
-export default function SearchRoute() {
-  const { theme } = useTheme();
-  return <SafeAreaView style={[s.root, { backgroundColor: theme.bg }]}><Text style={{ color: theme.text, padding: 24, fontSize: 20 }}>Search — coming in Phase 6</Text></SafeAreaView>;
-}
-const s = StyleSheet.create({ root: { flex: 1 } });
+import { SearchScreen } from "../../screens/SearchScreen";
+export default SearchScreen;
