@@ -242,7 +242,8 @@ textarea.input { min-height: 90px; resize: vertical; }
   transition: background .15s ease;
 }
 .navitem:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
-.navitem.active { background: var(--color-accent-900); color: var(--color-accent); }
+/* active nav = accent at 13% over the ground, per navItems' activeFor() style */
+.navitem.active { background: color-mix(in srgb, var(--color-accent) 13%, transparent); color: var(--color-accent); }
 .gridcard:hover .ov { opacity: 1; }
 .ov {
   position: absolute; inset: 0; opacity: 0; transition: opacity .16s ease;

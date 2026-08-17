@@ -3,7 +3,6 @@ import { Redirect, Stack } from "expo-router";
 import { Platform, SafeAreaView, StyleSheet, View, ActivityIndicator } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
-import { CinematicBg } from "../../components/layout/CinematicBg";
 import { FilmGrain } from "../../components/layout/FilmGrain";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { TabBar } from "../../components/layout/TabBar";
@@ -47,8 +46,9 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   return (
     <View style={[styles.mobileRoot, { backgroundColor: theme.bg }]}>
-      {/* Background layers — native */}
-      <CinematicBg />
+      {/* Only .grain is app-wide. .cine-bg is NOT a shell layer — in the design
+          it appears solely on the mobile login screen and as the Library
+          header's 280px band, so rendering it here tinted every screen. */}
       <FilmGrain />
 
       <View style={styles.mobileContent}>{children}</View>

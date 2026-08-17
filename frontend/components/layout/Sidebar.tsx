@@ -1,196 +1,231 @@
 /**
- * Sidebar component — matches CineLog Web.dc.html exactly.
+ * Sidebar — ported from docs/design/CineLog Web.dc.html (lines 55-79).
  *
- * Web:    Uses design-system CSS classes (sidebar, navitem, navitem.active,
- *         btn btn-primary btn-block, lbl, brandrow) via className prop.
- *         Width transition handled by CSS cubic-bezier.
- * Native: StyleSheet with exact design-system measurements.
+ *   .sidebar  flex:none; border-right:1px solid divider; column;
+ *             padding:18px 14px; gap:4px; overflow:hidden
+ *             width 236px → 68px when .collapsed (CSS transition)
+ *   brandrow  gap:9px; padding:4px 8px 18px
+ *             32x32 radius 9, 1px accent border, fill film-slate @18px
+ *             19px heading, letter-spacing -.01em, flex:1
+ *             ph-sidebar-simple toggle @20px (muted)
+ *   navitems  FIRST, then the CTA — icons @19px; badge pill is
+ *             accent bg / bg-coloured text, 10px, radius 999, padding 1px 6px
+ *   CTA       btn-primary btn-block, ph-plus-circle, margin-top:12px
+ *   bottom    margin-top:auto; gap:12px
+ *             ├ "Palette · <theme>" 10px uppercase opacity .45, pl 4, mb 7
+ *             │ swatches 22x22 radius 6, 2px border (accent when active),
+ *             │   background linear-gradient(135deg, bg 45%, accent 45%)
+ *             ├ offline card: 1px divider border, radius md, padding 8,
+ *             │   gap 7, 11px muted, ph-wifi-slash
+ *             └ user row: padding 6px 4px; gap 9
+ *                 avatar 32x32 radius 10, gradient accent→accent-700, #fff
+ *                 name 13px heading + @handle 11px muted
+ *                 ph-gear-six @17px → settings
+ *
+ * Note the sidebar has no background of its own — only a right border.
  */
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import {
-  Bell,
-  CaretLeft,
-  CaretRight,
-  ChartBar,
-  FilmSlate,
-  FilmStrip,
-  MagnifyingGlass,
-  Plus,
-  Rss,
-  SignOut,
-  User,
-  Palette,
-} from "phosphor-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { THEMES } from "../../constants/themes";
-import { CinematicBg } from "./CinematicBg";
-import { FilmGrain } from "./FilmGrain";
+import { Icon, type IconName } from "../ui/Icon";
+import { fontFamily } from "../../constants/fonts";
 
-const NAV = [
-  { label: "Library",       icon: FilmStrip,       href: "/(app)" },
-  { label: "Feed",          icon: Rss,             href: "/(app)/feed" },
-  { label: "Search",        icon: MagnifyingGlass, href: "/(app)/search" },
-  { label: "Notifications", icon: Bell,            href: "/(app)/notifications", badge: 3 },
-  { label: "Stats",         icon: ChartBar,        href: "/(app)/stats" },
-  { label: "Profile",       icon: User,            href: "/(app)/profile" },
-] as const;
+const NAV: { icon: IconName; label: string; href: string; badge?: number }[] = [
+  { icon: "film-strip",       label: "Library",       href: "/(app)" },
+  { icon: "rss",              label: "Feed",          href: "/(app)/feed" },
+  { icon: "magnifying-glass", label: "Search",        href: "/(app)/search" },
+  { icon: "bell",             label: "Notifications", href: "/(app)/notifications", badge: 3 },
+  { icon: "chart-bar",        label: "Stats",         href: "/(app)/stats" },
+  { icon: "user",             label: "Profile",       href: "/(app)/profile" },
+];
 
-interface SidebarProps {
-  children: React.ReactNode;
-}
-
-export function Sidebar({ children }: SidebarProps) {
+export function Sidebar({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const { theme } = useTheme();
+  const { theme, setTheme, fontConfig } = useTheme();
   const { signOut, session } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const isWeb = Platform.OS === "web";
 
+  const headingFamily = fontFamily(fontConfig, "heading", 600);
+  const muted = `${theme.text}8c`;
+
+  // activeFor(): library also owns detail/log; profile also owns settings
   function isActive(href: string) {
-    if (href === "/(app)") {
-      return pathname === "/" || pathname === "/(app)" || pathname === "/index" || pathname === "";
-    }
     const seg = href.replace("/(app)", "");
+    if (seg === "") {
+      return ["/", "", "/(app)", "/index"].includes(pathname)
+        || pathname.startsWith("/log") || pathname.startsWith("/movie");
+    }
+    if (seg === "/profile") return pathname.startsWith("/profile") || pathname.startsWith("/settings");
     return pathname.startsWith(seg);
   }
 
-  // ── Web render (uses CSS classes) ────────────────────────────────────────────
-  if (isWeb) {
+  const displayName =
+    (session?.user?.user_metadata?.full_name as string | undefined)
+    ?? session?.user?.email?.split("@")[0]
+    ?? "Guest";
+  const handle = session?.user?.email?.split("@")[0] ?? "guest";
+  const initial = displayName[0]?.toUpperCase() ?? "U";
+
+  // ── Web ─────────────────────────────────────────────────────────────────────
+  if (Platform.OS === "web") {
     return (
-      <div
-        className={"app-shell"}
-        style={{ position: "relative", flex: 1, display: "flex" } as React.CSSProperties}
-      >
-        {/* Background layers */}
-        <CinematicBg />
-        <FilmGrain />
+      <div className="app-shell">
+        {/* .grain sits at shell level in the design; .cine-bg does NOT —
+            it belongs to the Library header only (see LibraryScreen). */}
+        <div className="grain" style={{ position: "absolute" } as React.CSSProperties} />
 
-        {/* Sidebar */}
-        <div className={collapsed ? "sidebar collapsed" : "sidebar"}>
-
+        <div
+          className={collapsed ? "sidebar collapsed" : "sidebar"}
+          style={{
+            flex: "none",
+            borderRight: `1px solid ${theme.divider}`,
+            display: "flex",
+            flexDirection: "column",
+            padding: "18px 14px",
+            gap: 4,
+            overflow: "hidden",
+          } as React.CSSProperties}
+        >
           {/* Brand row */}
           <div
             className="brandrow"
-            style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingInline: 4 } as React.CSSProperties}
+            style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 8px 18px" } as React.CSSProperties}
           >
-            <div style={{
-              width: 32, height: 32, border: `1px solid ${theme.accent}`,
-              borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            } as React.CSSProperties}>
-              <FilmSlate size={16} color={theme.accent} weight="fill" />
-            </div>
-            <span
+            <div
               className="lbl"
-              style={{ fontSize: 19, fontWeight: "700", letterSpacing: -0.4, color: theme.text, flex: 1 } as React.CSSProperties}
+              style={{
+                width: 32, height: 32, borderRadius: 9, flex: "none",
+                display: "grid", placeItems: "center",
+                border: `1px solid ${theme.accent}`, color: theme.accent,
+              } as React.CSSProperties}
+            >
+              <Icon name="film-slate" weight="fill" size={18} />
+            </div>
+            <div
+              className="lbl"
+              style={{ fontFamily: headingFamily, fontSize: 19, letterSpacing: "-.01em", flex: 1 } as React.CSSProperties}
             >
               CineLog
-            </span>
-            <button
+            </div>
+            <Icon
+              name="sidebar-simple"
+              size={20}
+              className="tapc text-muted"
+              style={{ cursor: "pointer" }}
               onClick={() => setCollapsed((c) => !c)}
-              style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.5, padding: 2 } as React.CSSProperties}
-            >
-              {collapsed
-                ? <CaretRight size={14} color={theme.text} />
-                : <CaretLeft  size={14} color={theme.text} />}
-            </button>
+            />
           </div>
 
-          {/* Log a screening CTA */}
-          <button
-            className="btn btn-primary btn-block"
-            onClick={() => router.push("/(app)/log/new" as any)}
-            style={{ marginBottom: 8 } as React.CSSProperties}
-          >
-            <Plus size={14} color={theme.accent} />
-            <span className="lbl">Log a screening</span>
-          </button>
-
-          {/* Nav items */}
-          {NAV.map(({ label, icon: Icon, href, badge }: any) => {
-            const active = isActive(href);
+          {/* Nav items — before the CTA, per the design */}
+          {NAV.map((n) => {
+            const active = isActive(n.href);
             return (
-              <button
-                key={href}
+              <div
+                key={n.href}
                 className={active ? "navitem active" : "navitem"}
-                onClick={() => router.push(href as any)}
-                style={{ background: "none", border: "none", width: "100%", textAlign: "left" } as React.CSSProperties}
+                onClick={() => router.push(n.href as any)}
               >
-                <Icon size={18} color={active ? theme.accent : `${theme.text}99`} weight={active ? "fill" : "regular"} />
-                <span className="lbl" style={{ flex: 1 } as React.CSSProperties}>{label}</span>
-                {badge > 0 && (
-                  <span style={{
-                    fontSize: 11, background: theme.accent, color: "#fff",
-                    borderRadius: 10, padding: "1px 6px", fontWeight: 700,
-                  } as React.CSSProperties}>
-                    {badge}
+                <Icon name={n.icon} size={19} />
+                <span className="lbl" style={{ flex: 1 } as React.CSSProperties}>{n.label}</span>
+                {n.badge ? (
+                  <span
+                    className="lbl"
+                    style={{
+                      background: theme.accent, color: theme.bg, fontSize: 10,
+                      borderRadius: 999, padding: "1px 6px",
+                    } as React.CSSProperties}
+                  >
+                    {n.badge}
                   </span>
-                )}
-              </button>
+                ) : null}
+              </div>
             );
           })}
 
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* Theme palette swatches */}
-          <div style={{ display: "flex", gap: 5, paddingInline: 4, marginBottom: 8, flexWrap: "wrap" } as React.CSSProperties}>
-            {THEMES.slice(0, 6).map((t) => (
-              <div
-                key={t.key}
-                title={t.label}
-                style={{
-                  width: 13, height: 13, borderRadius: 3,
-                  background: t.accent, flexShrink: 0,
-                  cursor: "pointer", opacity: 0.8,
-                } as React.CSSProperties}
-              />
-            ))}
-          </div>
-
-          {/* Offline-ready card */}
-          {!collapsed && (
-            <div className="card" style={{ marginBottom: 8, padding: "8px 10px" } as React.CSSProperties}>
-              <span style={{ fontSize: 11, opacity: 0.55, color: theme.text } as React.CSSProperties}>
-                Offline-ready · installed as PWA
-              </span>
-            </div>
-          )}
-
-          {/* User row */}
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 8, paddingInline: 4,
-              paddingTop: 8, borderTop: `1px solid ${theme.divider}`,
-            } as React.CSSProperties}
+          {/* CTA */}
+          <button
+            className="btn btn-primary btn-block"
+            style={{ marginTop: 12 } as React.CSSProperties}
+            onClick={() => router.push("/(app)/log/new" as any)}
           >
-            {/* Avatar */}
-            <div style={{
-              width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-              background: `linear-gradient(135deg, ${theme.accent800}, ${theme.accent900})`,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: theme.text,
-            } as React.CSSProperties}>
-              {session?.user?.email?.[0]?.toUpperCase() ?? "U"}
+            <Icon name="plus-circle" size={16} />
+            <span className="lbl">Log a screening</span>
+          </button>
+
+          {/* Bottom block */}
+          <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 } as React.CSSProperties}>
+            <div className="lbl">
+              <div
+                style={{
+                  fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase",
+                  opacity: 0.45, marginBottom: 7, paddingLeft: 4,
+                } as React.CSSProperties}
+              >
+                Palette · {THEMES.find((t) => t.key === theme.key)?.label ?? ""}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 } as React.CSSProperties}>
+                {THEMES.map((t) => (
+                  <button
+                    key={t.key}
+                    className="tapc"
+                    title={t.label}
+                    onClick={() => setTheme(t.key)}
+                    style={{
+                      width: 22, height: 22, borderRadius: 6, padding: 0, cursor: "pointer",
+                      border: `2px solid ${t.key === theme.key ? theme.accent : "transparent"}`,
+                      background: `linear-gradient(135deg, ${t.bg} 45%, ${t.accent} 45%)`,
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </div>
             </div>
-            {!collapsed && (
-              <span style={{ flex: 1, fontSize: 13, color: theme.text, opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
-                {session?.user?.email ?? "Guest"}
-              </span>
-            )}
-            <button
-              onClick={signOut}
-              title="Sign out"
-              style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.5, padding: 2 } as React.CSSProperties}
+
+            <div
+              className="lbl"
+              style={{
+                display: "flex", alignItems: "center", gap: 7, fontSize: 11,
+                color: muted, padding: 8,
+                border: `1px solid ${theme.divider}`, borderRadius: 8,
+              } as React.CSSProperties}
             >
-              <SignOut size={16} color={theme.text} />
-            </button>
+              <Icon name="wifi-slash" size={14} />
+              Offline-ready · installed as PWA
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 4px" } as React.CSSProperties}>
+              <div
+                style={{
+                  width: 32, height: 32, flex: "none", borderRadius: 10,
+                  background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent700})`,
+                  display: "grid", placeItems: "center", color: "#fff",
+                  fontFamily: headingFamily, fontSize: 14,
+                } as React.CSSProperties}
+              >
+                {initial}
+              </div>
+              <div className="lbl" style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
+                <div style={{ fontSize: 13, fontFamily: headingFamily, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as React.CSSProperties}>
+                  {displayName}
+                </div>
+                <div className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>@{handle}</div>
+              </div>
+              <Icon
+                name="gear-six"
+                size={17}
+                className="tapc text-muted lbl"
+                style={{ cursor: "pointer" }}
+                onClick={() => router.push("/(app)/settings" as any)}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Main content area */}
+        {/* Main column */}
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" } as React.CSSProperties}>
           {children}
         </div>
@@ -198,167 +233,142 @@ export function Sidebar({ children }: SidebarProps) {
     );
   }
 
-  // ── Native render (React Native StyleSheet) ───────────────────────────────────
-  const w = collapsed ? 68 : 236;
+  // ── Native ──────────────────────────────────────────────────────────────────
+  // The sidebar is a web-only affordance; mobile navigates via TabBar. This
+  // branch exists for tablet/landscape use and mirrors the same measurements.
+  const width = collapsed ? 68 : 236;
   return (
-    <View style={styles.container}>
-      <View
-        style={[
-          styles.sidebar,
-          {
-            width: w,
-            backgroundColor: theme.surface,
-            borderRightColor: theme.divider,
-          },
-        ]}
-      >
-        {/* Brand row */}
-        <View style={[styles.brandRow, collapsed && styles.brandRowCollapsed]}>
-          <View style={[styles.brandIcon, { borderColor: theme.accent }]}>
-            <FilmSlate size={14} color={theme.accent} weight="fill" />
+    <View style={styles.root}>
+      <View style={[styles.sidebar, { width, borderRightColor: theme.divider }]}>
+        <View style={[styles.brandRow, collapsed && styles.centered]}>
+          <View style={[styles.brandTile, { borderColor: theme.accent }]}>
+            <Icon name="film-slate" weight="fill" size={18} color={theme.accent} />
           </View>
           {!collapsed && (
-            <Text style={[styles.brandText, { color: theme.text }]}>CineLog</Text>
+            <Text style={{ fontFamily: headingFamily, fontSize: 19, letterSpacing: -0.19, flex: 1, color: theme.text }}>
+              CineLog
+            </Text>
           )}
-          <Pressable onPress={() => setCollapsed((c) => !c)} style={styles.toggleBtn}>
-            {collapsed
-              ? <CaretRight size={12} color={theme.text} />
-              : <CaretLeft  size={12} color={theme.text} />}
+          <Pressable onPress={() => setCollapsed((c) => !c)} hitSlop={8}>
+            <Icon name="sidebar-simple" size={20} color={muted} />
           </Pressable>
         </View>
 
-        {/* Log CTA */}
-        <Pressable
-          onPress={() => router.push("/(app)/log/new" as any)}
-          style={[
-            styles.logBtn,
-            {
-              borderColor: theme.accent,
-              justifyContent: collapsed ? "center" : "flex-start",
-            },
-          ]}
-        >
-          <Plus size={14} color={theme.accent} />
-          {!collapsed && <Text style={[styles.logBtnText, { color: theme.accent }]}>Log a screening</Text>}
-        </Pressable>
-
-        {/* Nav items */}
-        <View style={styles.nav}>
-          {NAV.map(({ label, icon: Icon, href, badge }: any) => {
-            const active = isActive(href);
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
+          {NAV.map((n) => {
+            const active = isActive(n.href);
             return (
               <Pressable
-                key={href}
-                onPress={() => router.push(href as any)}
+                key={n.href}
+                onPress={() => router.push(n.href as any)}
                 style={[
                   styles.navItem,
-                  {
-                    backgroundColor: active ? theme.accent900 : "transparent",
-                    justifyContent: collapsed ? "center" : "flex-start",
-                    paddingLeft: collapsed ? 0 : 12,
-                    paddingRight: collapsed ? 0 : 12,
-                  },
+                  collapsed && styles.navItemCollapsed,
+                  active && { backgroundColor: `${theme.accent}21` }, // 13%
                 ]}
               >
-                <Icon
-                  size={18}
-                  color={active ? theme.accent : `${theme.text}99`}
-                  weight={active ? "fill" : "regular"}
-                />
+                <Icon name={n.icon} size={19} color={active ? theme.accent : `${theme.text}9e`} />
                 {!collapsed && (
-                  <Text style={[styles.navLabel, { color: active ? theme.accent : `${theme.text}99` }]}>
-                    {label}
+                  <Text style={{ flex: 1, fontSize: 14, color: active ? theme.accent : `${theme.text}9e` }}>
+                    {n.label}
                   </Text>
                 )}
-                {!collapsed && (badge ?? 0) > 0 && (
-                  <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-                    <Text style={styles.badgeText}>{badge}</Text>
+                {!collapsed && n.badge ? (
+                  <View style={{ backgroundColor: theme.accent, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
+                    <Text style={{ fontSize: 10, color: theme.bg }}>{n.badge}</Text>
                   </View>
-                )}
+                ) : null}
               </Pressable>
             );
           })}
-        </View>
 
-        {/* Spacer */}
-        <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={() => router.push("/(app)/log/new" as any)}
+            style={[styles.cta, { borderColor: theme.accent }, collapsed && styles.centered]}
+          >
+            <Icon name="plus-circle" size={16} color={theme.accent} />
+            {!collapsed && (
+              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.accent }}>Log a screening</Text>
+            )}
+          </Pressable>
+        </ScrollView>
 
-        {/* Theme swatches */}
-        <View style={[styles.swatches, collapsed && styles.swatchesCollapsed]}>
-          {THEMES.slice(0, collapsed ? 3 : 6).map((t) => (
-            <View key={t.key} style={[styles.swatch, { backgroundColor: t.accent }]} />
-          ))}
-        </View>
-
-        {/* User row */}
-        <View style={[styles.userRow, { borderTopColor: theme.divider }]}>
-          <View style={[styles.avatar, { backgroundColor: theme.accent800 }]}>
-            <Text style={[styles.avatarText, { color: theme.accent }]}>
-              {session?.user?.email?.[0]?.toUpperCase() ?? "U"}
-            </Text>
-          </View>
+        <View style={{ gap: 12 }}>
           {!collapsed && (
-            <Text style={[styles.userEmail, { color: `${theme.text}88` }]} numberOfLines={1}>
-              {session?.user?.email ?? "Guest"}
-            </Text>
+            <View>
+              <Text style={styles.paletteLabel}>
+                PALETTE · {(THEMES.find((t) => t.key === theme.key)?.label ?? "").toUpperCase()}
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
+                {THEMES.map((t) => (
+                  <Pressable
+                    key={t.key}
+                    onPress={() => setTheme(t.key)}
+                    style={{
+                      width: 22, height: 22, borderRadius: 6, overflow: "hidden",
+                      borderWidth: 2,
+                      borderColor: t.key === theme.key ? theme.accent : "transparent",
+                    }}
+                  >
+                    <LinearGradient
+                      colors={[t.bg, t.bg, t.accent, t.accent]}
+                      locations={[0, 0.45, 0.45, 1]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           )}
-          <Pressable onPress={signOut} style={styles.signOutBtn}>
-            <SignOut size={15} color={`${theme.text}55`} />
+
+          <Pressable
+            onPress={() => router.push("/(app)/settings" as any)}
+            style={[styles.userRow, collapsed && styles.centered]}
+          >
+            <LinearGradient
+              colors={[theme.accent, theme.accent700]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatar}
+            >
+              <Text style={{ color: "#fff", fontFamily: headingFamily, fontSize: 14 }}>{initial}</Text>
+            </LinearGradient>
+            {!collapsed && (
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: headingFamily, color: theme.text }}>
+                  {displayName}
+                </Text>
+                <Text style={{ fontSize: 11, color: muted }}>@{handle}</Text>
+              </View>
+            )}
+            {!collapsed && <Icon name="gear-six" size={17} color={muted} />}
           </Pressable>
         </View>
       </View>
 
-      {/* Main content */}
-      <View style={styles.main}>{children}</View>
+      <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, flexDirection: "row" },
+  root: { flex: 1, flexDirection: "row" },
   sidebar: {
-    flexShrink: 0,
-    borderRightWidth: 1,
-    paddingVertical: 18,
-    paddingHorizontal: 14,
-    gap: 4,
-    overflow: "hidden",
-    flexDirection: "column",
+    flexShrink: 0, borderRightWidth: 1,
+    paddingVertical: 18, paddingHorizontal: 14, gap: 4, overflow: "hidden",
   },
-
-  // Brand
-  brandRow:          { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16, paddingHorizontal: 4 },
-  brandRowCollapsed: { justifyContent: "center" },
-  brandIcon:         { width: 32, height: 32, borderWidth: 1, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  brandText:         { flex: 1, fontSize: 19, fontWeight: "700", letterSpacing: -0.4 },
-  toggleBtn:         { marginLeft: "auto", padding: 4, opacity: 0.5 },
-
-  // Log CTA button
-  logBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    borderWidth: 1, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10,
-    marginBottom: 8,
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 9, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 18 },
+  brandTile: { width: 32, height: 32, borderRadius: 9, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  centered: { justifyContent: "center" },
+  navItem: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 8 },
+  navItemCollapsed: { justifyContent: "center", paddingHorizontal: 0 },
+  cta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    marginTop: 12, borderWidth: 1, borderRadius: 8, paddingVertical: 5.6, paddingHorizontal: 10,
   },
-  logBtnText: { fontSize: 14, fontWeight: "500" },
-
-  // Nav
-  nav:      { gap: 2 },
-  navItem:  { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 9, borderRadius: 8 },
-  navLabel: { fontSize: 14, fontWeight: "500" },
-  badge:    { marginLeft: "auto", minWidth: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
-  badgeText:{ fontSize: 10, color: "#fff", fontWeight: "700" },
-
-  // Swatches
-  swatches:         { flexDirection: "row", flexWrap: "wrap", gap: 5, paddingHorizontal: 4, marginBottom: 8 },
-  swatchesCollapsed:{ justifyContent: "center" },
-  swatch:           { width: 13, height: 13, borderRadius: 3 },
-
-  // User row
-  userRow:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingTop: 8, borderTopWidth: 1 },
-  avatar:    { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center" },
-  avatarText:{ fontSize: 13, fontWeight: "700" },
-  userEmail: { flex: 1, fontSize: 12 },
-  signOutBtn:{ padding: 4 },
-
-  main:      { flex: 1, minWidth: 0 },
+  paletteLabel: { fontSize: 10, letterSpacing: 1, opacity: 0.45, marginBottom: 7, paddingLeft: 4 },
+  userRow: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 6, paddingHorizontal: 4 },
+  avatar: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 });

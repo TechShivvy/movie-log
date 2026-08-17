@@ -110,6 +110,8 @@ export interface IconProps {
   /** Extra CSS classes on web (e.g. "tapc text-muted"), ignored on native. */
   className?: string;
   style?: any;
+  /** Web-only click handler; on native wrap the Icon in a Pressable instead. */
+  onClick?: () => void;
 }
 
 export function Icon({
@@ -119,6 +121,7 @@ export function Icon({
   weight = "regular",
   className,
   style,
+  onClick,
 }: IconProps) {
   if (Platform.OS === "web") {
     // ph = regular, ph-fill, ph-bold — the three weight stylesheets imported
@@ -127,6 +130,7 @@ export function Icon({
     return (
       <i
         className={[weightCls, `ph-${name}`, className].filter(Boolean).join(" ")}
+        onClick={onClick}
         style={{
           fontSize: size,
           color,
