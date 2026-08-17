@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { Platform, StyleSheet } from "react-native";
+import Svg, { Defs, RadialGradient, Stop, Rect } from "react-native-svg";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,12 +12,21 @@ import Animated, {
 import { useTheme } from "../../hooks/useTheme";
 
 /**
- * Cinematic radial-gradient backdrop with slow drift animation.
+ * Cinematic backdrop — ported from the .cine-bg rule in
+ * docs/design/CineLog Web.dc.html:
  *
- * Web    → <div className="cine-bg"> which uses the design-system CSS class:
- *           two radial-gradient blobs, filter:blur(60px), clgDrift 18s keyframe.
- * Native → Two LinearGradient overlays approximating the radial blobs,
- *           animated with react-native-reanimated (18 s loop matching design).
+ *   position:absolute; inset:-30%; z-index:0; filter:blur(60px);
+ *   animation: clgDrift 18s ease-in-out infinite;
+ *   background:
+ *     radial-gradient(circle at 28% 30%, accent 26%, transparent 48%),
+ *     radial-gradient(circle at 78% 62%, accent 16%, transparent 54%);
+ *
+ * Web    → the .cine-bg class (injected by lib/designCss.ts).
+ * Native → real SVG radial gradients at the same centres/stops. react-native-svg
+ *          supports gradients (it does NOT support filter primitives such as
+ *          feGaussianBlur/feTurbulence), and a radial gradient is inherently
+ *          soft, so the blur(60px) is approximated by the gradient falloff.
+ *          The inset:-30% and the 18s clgDrift transform are reproduced exactly.
  */
 export function CinematicBg() {
   const { theme } = useTheme();
@@ -26,71 +35,62 @@ export function CinematicBg() {
     return <div className="cine-bg" />;
   }
 
-  return <NativeCinematicBg accent={theme.accent} bg={theme.bg} />;
+  return <NativeCinematicBg accent={theme.accent} />;
 }
 
-function hexToRgba(hex: string, alpha: number) {
-  const m = hex.replace("#", "").match(/.{2}/g);
-  if (!m) return `rgba(0,0,0,${alpha})`;
-  return `rgba(${parseInt(m[0], 16)},${parseInt(m[1], 16)},${parseInt(m[2], 16)},${alpha})`;
-}
-
-function NativeCinematicBg({ accent, bg }: { accent: string; bg: string }) {
-  // Mimics the 18 s clgDrift keyframe: translate(-4%,-3%) scale(1.06) at 50%
+function NativeCinematicBg({ accent }: { accent: string }) {
+  // clgDrift: 0% none → 50% translate(-4%,-3%) scale(1.06) → 100% none, over 18s
   const progress = useSharedValue(0);
 
   useEffect(() => {
     progress.value = withRepeat(
       withSequence(
         withTiming(1, { duration: 9000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0, { duration: 9000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 9000, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
-      false,
+      false
     );
   }, []);
 
-  const animStyle = useAnimatedStyle(() => {
-    const tx = progress.value * -0.04 * 100; // -4% of 100 (arbitrary unit)
-    const ty = progress.value * -0.03 * 100;
-    const sc = 1 + progress.value * 0.06;
-    return { transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }] };
-  });
-
-  const blob1 = hexToRgba(accent, 0.26);
-  const blob2 = hexToRgba(accent, 0.16);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: progress.value * -16 }, // ≈ -4% of the oversized layer
+      { translateY: progress.value * -12 }, // ≈ -3%
+      { scale: 1 + progress.value * 0.06 },
+    ],
+  }));
 
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.container, animStyle]}
-    >
-      {/* Top-left radial blob — circle at 28% 30% */}
-      <LinearGradient
-        colors={[blob1, "transparent"]}
-        style={[StyleSheet.absoluteFill, styles.blob1]}
-        start={{ x: 0.0, y: 0.0 }}
-        end={{ x: 1.0, y: 1.0 }}
-      />
-      {/* Bottom-right radial blob — circle at 78% 62% */}
-      <LinearGradient
-        colors={[blob2, "transparent"]}
-        style={[StyleSheet.absoluteFill, styles.blob2]}
-        start={{ x: 1.0, y: 1.0 }}
-        end={{ x: 0.0, y: 0.0 }}
-      />
+    <Animated.View pointerEvents="none" style={[styles.layer, animStyle]}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          {/* circle at 28% 30%, accent @26% → transparent at 48% */}
+          <RadialGradient id="clgBlob1" cx="28%" cy="30%" r="48%">
+            <Stop offset="0" stopColor={accent} stopOpacity={0.26} />
+            <Stop offset="1" stopColor={accent} stopOpacity={0} />
+          </RadialGradient>
+          {/* circle at 78% 62%, accent @16% → transparent at 54% */}
+          <RadialGradient id="clgBlob2" cx="78%" cy="62%" r="54%">
+            <Stop offset="0" stopColor={accent} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={accent} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#clgBlob1)" />
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#clgBlob2)" />
+      </Svg>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  // inset:-30% — the layer is oversized so the drift never exposes an edge
+  layer: {
+    position: "absolute",
+    top: "-30%",
+    left: "-30%",
+    right: "-30%",
+    bottom: "-30%",
     zIndex: 0,
-  },
-  blob1: {
-    opacity: 1,
-  },
-  blob2: {
-    opacity: 1,
   },
 });

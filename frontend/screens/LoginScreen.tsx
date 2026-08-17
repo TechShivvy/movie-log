@@ -1,19 +1,47 @@
 /**
- * LoginScreen — pixel-accurate match to CineLog Web/Mobile design HTML.
+ * LoginScreen — ported from docs/design/CineLog Mobile.dc.html (lines 85-104).
  *
- * OAuth flow (Supabase + Google):
- *   - Web:    redirect directly via window.location.href (Supabase handles token from URL)
- *   - Native: expo-auth-session makeRedirectUri() + Linking.addEventListener fallback
- *             (Chrome Custom Tabs on Android may not reliably fire openAuthSessionAsync
- *              callback, so we listen for the deep-link via Linking too)
+ * The design only specifies a mobile login, so web renders the same spec
+ * centred at the phone's content width (392px frame − 26px padding each side).
+ *
+ * Exact spec:
+ *   container   padding:48px 26px 30px; flex column; overflow:hidden; + .cine-bg
+ *   logo block  margin-top:40px; center; gap:6px
+ *     tile      60x60, radius 16, 1px accent border, accent film-slate @30px,
+ *               margin-bottom:6px
+ *     title     var(--font-heading) 30px, letter-spacing -.02em
+ *     subtitle  .text-muted 14px "Track every theatre memory."
+ *   form        margin-top:44px; gap:16px
+ *     .field    label "Email address" / "Password" + .input
+ *     buttons   btn-primary btn-block  <ph-sign-in>   Sign in
+ *               btn-secondary btn-block <ph-magic-wand> Send magic link
+ *     OR row    gap:10px margin:4px 0; 1px divider lines; 11px muted "OR"
+ *               btn-secondary btn-block <ph-google-logo> Continue with Google
+ *   footer      margin-top:auto; center; 13px; padding-top:30px
+ *               "New here? " + accent "Create an account"
+ *
+ * ── OAuth ────────────────────────────────────────────────────────────────────
+ * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+ * must include ALL of:
+ *   • http://localhost:8081/auth/callback   (web dev)
+ *   • https://<prod-domain>/auth/callback   (web prod)
+ *   • cinelog://auth/callback               (dev build / standalone iOS+Android)
+ *   • a double-star exp:// pattern          (Expo Go — dynamic LAN IP)
+ *
+ * Supabase treats BOTH "." and "/" as separators, so a single "*" stops at the
+ * first dot of the IP: no single-star pattern can ever match Expo Go's
+ * exp://192.168.1.42:8081/--/auth/callback. When nothing matches, Supabase
+ * silently falls back to the Site URL — the cause of landing on :3000.
+ * Full explanation + the native-sign-in alternative: docs/mobile-oauth.md
  */
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
@@ -22,145 +50,59 @@ import * as AuthSession from "expo-auth-session";
 import { supabase } from "../lib/supabase";
 import { useTheme } from "../hooks/useTheme";
 import { CinematicBg } from "../components/layout/CinematicBg";
-import { FilmGrain } from "../components/layout/FilmGrain";
-import { Input } from "../components/ui/Input";
-import { Button } from "../components/ui/Button";
-import { Card } from "../components/ui/Card";
+import { Icon } from "../components/ui/Icon";
+import { fontFamily } from "../constants/fonts";
 
-// Required for expo-web-browser auth session to close properly on return
 WebBrowser.maybeCompleteAuthSession();
 
-// ── Redirect URL helpers ───────────────────────────────────────────────────────
-
-/**
- * Returns the correct OAuth redirect URL for the current platform/environment.
- *
- * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
- * must include ALL of:
- *   • http://localhost:8081/auth/callback   (web dev)
- *   • https://<prod-domain>/auth/callback   (web prod)
- *   • cinelog://auth/callback               (dev build / standalone iOS+Android)
- *   • exp://**                              (Expo Go — see wildcard note below)
- *
- * WILDCARD RULES (https://supabase.com/docs/guides/auth/redirect-urls):
- *   Separator characters are BOTH "." and "/".
- *     *  matches any run of NON-separator characters — it stops at "." and "/"
- *     ** matches any run of characters, crossing separators
- *   Expo Go's redirect is exp://192.168.1.42:8081/--/auth/callback, whose host
- *   contains dots AND whose path has multiple segments, so a single "*" cannot
- *   match it: any single-star pattern over that host+path FAILS. The only
- *   pattern that reliably matches is the double-star one: exp://[**]
- *   (written without brackets in the dashboard). See docs/mobile-oauth.md.
- *
- * When NO redirect URL matches, Supabase silently falls back to the Site URL —
- * which is why an unmatched mobile redirect lands on localhost:3000. Set Site
- * URL to your real domain (or http://localhost:8081 in dev), never :3000.
- *
- * NOTE ON THE PROPER MOBILE FIX: Supabase officially recommends *native* Google
- * sign-in for React Native (@react-native-google-signin/google-signin +
- * supabase.auth.signInWithIdToken), which uses Android's Credential Manager and
- * involves no browser, no deep link and no redirect URL at all — so the dynamic
- * Expo Go IP stops mattering entirely. It needs a development build (native
- * module, unavailable in Expo Go). See docs/mobile-oauth.md.
- */
 function getRedirectUrl(): string {
   if (Platform.OS === "web") {
     return `${(window as any).location.origin}/auth/callback`;
   }
-  // AuthSession.makeRedirectUri detects Expo Go vs standalone automatically:
-  //   Expo Go   → exp://192.168.x.x:8081/--/auth/callback
-  //   Standalone → cinelog://auth/callback
-  // Both must be in Supabase's Redirect URLs list (use the wildcard for Expo Go).
-  return AuthSession.makeRedirectUri({
-    scheme: "cinelog",
-    path: "auth/callback",
-  });
+  // Expo Go → exp://<ip>:<port>/--/auth/callback; dev build → cinelog://auth/callback
+  return AuthSession.makeRedirectUri({ scheme: "cinelog", path: "auth/callback" });
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
-
 export function LoginScreen() {
-  const { theme } = useTheme();
-  const [email,   setEmail]   = useState("");
+  const { theme, fontConfig } = useTheme();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [error,   setError]   = useState("");
+  const [error, setError] = useState("");
 
-  // Fallback deep-link listener for Android Chrome Custom Tabs
-  // (openAuthSessionAsync may not fire its callback reliably on Android)
+  const headingFamily = fontFamily(fontConfig, "heading", 600);
+  const muted = `${theme.text}8c`; // .text-muted ≈ text 55%
+
+  // Fallback deep-link listener: on Android, Chrome Custom Tabs does not always
+  // fire openAuthSessionAsync's callback, so catch the redirect here too.
   useEffect(() => {
     if (Platform.OS === "web") return;
-
     const sub = Linking.addEventListener("url", ({ url }) => {
-      const parsed = Linking.parse(url);
-      const code = parsed.queryParams?.code as string | undefined;
+      const code = Linking.parse(url).queryParams?.code as string | undefined;
       if (!code) return;
-
       setLoading(true);
-      supabase.auth.exchangeCodeForSession(code)
-        .then(() => { /* AuthContext onAuthStateChange will redirect */ })
+      supabase.auth
+        .exchangeCodeForSession(code)
         .catch((e) => setError(e.message ?? "Sign-in failed"))
         .finally(() => setLoading(false));
     });
-
     return () => sub.remove();
   }, []);
 
-  // ── Google OAuth ─────────────────────────────────────────────────────────────
-  async function signInGoogle() {
+  async function signInPassword() {
+    if (!email.trim() || !password) {
+      setError("Enter your email and password");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const redirectTo = getRedirectUrl();
-      // 👇 Check the Expo logs for this value and make sure it is matched by an
-      // entry in Supabase → Auth → URL Configuration → Redirect URLs.
-      //   Expo Go     → exp://192.168.x.x:8081/--/auth/callback   ⇒ add  exp://**
-      //   Dev build   → cinelog://auth/callback                   ⇒ add  cinelog://auth/callback
-      // If nothing matches, Supabase falls back to Site URL (the :3000 symptom).
-      console.log("[CineLog OAuth] redirect_to =", redirectTo);
-
-      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo,
-          skipBrowserRedirect: true, // we control when to open the browser
-        },
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
       });
-      if (oauthErr) throw oauthErr;
-      if (!data.url) throw new Error("No OAuth URL returned");
-
-      if (Platform.OS === "web") {
-        // Web: redirect directly — Supabase handles token from URL hash/query
-        (window as any).location.href = data.url;
-        return;
-      }
-
-      // Native: open in-app browser; wait for redirect back to app
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
-        showInRecents: true,
-        preferEphemeralSession: false,
-      });
-
-      if (result.type === "success") {
-        const parsed = Linking.parse(result.url);
-        // PKCE flow: ?code=xxx
-        const code = parsed.queryParams?.code as string | undefined;
-        if (code) {
-          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeErr) throw exchangeErr;
-          return;
-        }
-        // Implicit flow fallback: #access_token=xxx
-        const hash = result.url.split("#")[1] ?? "";
-        const hp = new URLSearchParams(hash);
-        const access_token  = hp.get("access_token");
-        const refresh_token = hp.get("refresh_token");
-        if (access_token && refresh_token) {
-          const { error: sessionErr } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (sessionErr) throw sessionErr;
-        }
-      }
-      // If result.type === "cancel" or "dismiss", the Linking listener handles it
+      if (err) throw err;
     } catch (e: any) {
       setError(e.message ?? "Sign-in failed");
     } finally {
@@ -168,19 +110,70 @@ export function LoginScreen() {
     }
   }
 
-  // ── Magic link ────────────────────────────────────────────────────────────────
-  async function sendMagicLink() {
-    if (!email.trim()) { setError("Enter your email"); return; }
+  async function signInGoogle() {
     setLoading(true);
     setError("");
     try {
-      const emailRedirectTo = getRedirectUrl();
+      const redirectTo = getRedirectUrl();
+      // Compare this against the Supabase Redirect URLs list when debugging.
+      console.log("[CineLog OAuth] redirect_to =", redirectTo);
+
+      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
+      if (oauthErr) throw oauthErr;
+      if (!data.url) throw new Error("No OAuth URL returned");
+
+      if (Platform.OS === "web") {
+        (window as any).location.href = data.url;
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
+        showInRecents: true,
+      });
+      if (result.type !== "success") return; // Linking listener may still fire
+
+      const parsed = Linking.parse(result.url);
+      const code = parsed.queryParams?.code as string | undefined;
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) throw exErr;
+        return;
+      }
+      // Implicit flow fallback: #access_token=…&refresh_token=…
+      const hp = new URLSearchParams(result.url.split("#")[1] ?? "");
+      const access_token = hp.get("access_token");
+      const refresh_token = hp.get("refresh_token");
+      if (access_token && refresh_token) {
+        const { error: sErr } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        if (sErr) throw sErr;
+      }
+    } catch (e: any) {
+      setError(e.message ?? "Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendMagicLink() {
+    if (!email.trim()) {
+      setError("Enter your email");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
       const { error: err } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { emailRedirectTo },
+        options: { emailRedirectTo: getRedirectUrl() },
       });
       if (err) throw err;
-      setMessage("Check your email for the magic link ✉️");
+      setMessage("Check your email for the magic link");
     } catch (e: any) {
       setError(e.message ?? "Failed to send link");
     } finally {
@@ -188,143 +181,267 @@ export function LoginScreen() {
     }
   }
 
-  // ── Web render ────────────────────────────────────────────────────────────────
+  // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ position: "relative", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: theme.bg } as React.CSSProperties}>
+      <div
+        style={{
+          position: "relative",
+          minHeight: "100vh",
+          display: "flex",
+          justifyContent: "center",
+          background: theme.bg,
+          overflow: "hidden",
+        } as React.CSSProperties}
+      >
         <CinematicBg />
-        <FilmGrain />
 
-        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 420, padding: "0 16px" } as React.CSSProperties}>
-          {/* Logo */}
-          <div style={{ textAlign: "center", marginBottom: 32 } as React.CSSProperties}>
-            <div style={{ fontSize: 48, marginBottom: 8 } as React.CSSProperties}>🎬</div>
-            <h1 style={{ fontSize: 32, fontWeight: 700, color: theme.accent, margin: 0, letterSpacing: -0.6 } as React.CSSProperties}>CineLog</h1>
-            <p style={{ color: `${theme.text}88`, margin: "4px 0 0", fontSize: 14 } as React.CSSProperties}>Your cinema diary</p>
+        <div
+          className="screen-anim"
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            maxWidth: 340, // 392px design frame − 26px padding each side
+            padding: "48px 26px 30px",
+            display: "flex",
+            flexDirection: "column",
+          } as React.CSSProperties}
+        >
+          {/* Logo block */}
+          <div
+            style={{
+              marginTop: 40,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              gap: 6,
+            } as React.CSSProperties}
+          >
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 16,
+                display: "grid",
+                placeItems: "center",
+                border: `1px solid ${theme.accent}`,
+                color: theme.accent,
+                marginBottom: 6,
+              } as React.CSSProperties}
+            >
+              <Icon name="film-slate" weight="fill" size={30} />
+            </div>
+            <div style={{ fontFamily: headingFamily, fontSize: 30, letterSpacing: "-.02em" } as React.CSSProperties}>
+              CineLog
+            </div>
+            <div className="text-muted" style={{ fontSize: 14 } as React.CSSProperties}>
+              Track every theatre memory.
+            </div>
           </div>
 
-          {/* Card */}
-          <div className="card glass elev-md" style={{ padding: 24, gap: 14 } as React.CSSProperties}>
-            <h2 style={{ fontSize: 20, fontWeight: 600, color: theme.text, margin: 0 } as React.CSSProperties}>Sign in</h2>
-
-            <button
-              className="btn btn-secondary btn-block"
-              onClick={signInGoogle}
-              disabled={loading}
-              style={{ marginTop: 0 } as React.CSSProperties}
-            >
-              {loading ? <span className="spin">◌</span> : "Continue with Google"}
-            </button>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties}>
-              <div className="hr" style={{ flex: 1, margin: 0 } as React.CSSProperties} />
-              <span style={{ fontSize: 12, color: `${theme.text}55` } as React.CSSProperties}>or</span>
-              <div className="hr" style={{ flex: 1, margin: 0 } as React.CSSProperties} />
-            </div>
-
+          {/* Form */}
+          <div style={{ marginTop: 44, display: "flex", flexDirection: "column", gap: 16 } as React.CSSProperties}>
             <div className="field">
-              <label>Email</label>
+              <label>Email address</label>
               <input
                 className="input"
                 type="email"
-                placeholder="you@example.com"
+                autoComplete="email"
+                placeholder="you@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
+                onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }}
               />
             </div>
 
-            <button
-              className="btn btn-primary btn-block"
-              onClick={sendMagicLink}
-              disabled={loading}
-              style={{ marginTop: 0 } as React.CSSProperties}
-            >
-              {loading ? <span className="spin">◌</span> : "Send magic link"}
+            <div className="field">
+              <label>Password</label>
+              <input
+                className="input"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }}
+              />
+            </div>
+
+            <button className="btn btn-primary btn-block" onClick={signInPassword} disabled={loading}>
+              <Icon name={loading ? "circle-notch" : "sign-in"} size={16} />
+              Sign in
             </button>
 
-            {message && <p style={{ color: theme.accent, fontSize: 13, margin: 0 } as React.CSSProperties}>{message}</p>}
-            {error   && <p style={{ color: theme.error,  fontSize: 13, margin: 0 } as React.CSSProperties}>{error}</p>}
+            <button className="btn btn-secondary btn-block" onClick={sendMagicLink} disabled={loading}>
+              <Icon name="magic-wand" size={16} />
+              Send magic link
+            </button>
+
+            {/* OR divider */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" } as React.CSSProperties}>
+              <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
+              <span className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>OR</span>
+              <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
+            </div>
+
+            <button className="btn btn-secondary btn-block" onClick={signInGoogle} disabled={loading}>
+              <Icon name="google-logo" size={16} />
+              Continue with Google
+            </button>
+
+            {message ? <p style={{ color: theme.accent, fontSize: 13, margin: 0 } as React.CSSProperties}>{message}</p> : null}
+            {error ? <p style={{ color: theme.error, fontSize: 13, margin: 0 } as React.CSSProperties}>{error}</p> : null}
           </div>
 
-          <p style={{ textAlign: "center", color: `${theme.text}44`, fontSize: 12, marginTop: 20 } as React.CSSProperties}>
-            Log every screening. Track every theatre.
-          </p>
+          {/* Footer pinned to bottom */}
+          <div
+            className="text-muted"
+            style={{ marginTop: "auto", textAlign: "center", fontSize: 13, paddingTop: 30 } as React.CSSProperties}
+          >
+            New here? <span style={{ color: theme.accent, cursor: "pointer" } as React.CSSProperties}>Create an account</span>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── Native render ─────────────────────────────────────────────────────────────
+  // ── Native ──────────────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg, overflow: "hidden" }}>
       <CinematicBg />
-      <FilmGrain />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingTop: 48,
+            paddingHorizontal: 26,
+            paddingBottom: 30,
+          }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo */}
-          <View style={{ alignItems: "center", marginBottom: 32 }}>
-            <Text style={{ fontSize: 56, marginBottom: 6 }}>🎬</Text>
-            <Text style={{ fontSize: 30, fontWeight: "800", color: theme.accent, letterSpacing: -0.6 }}>
+          {/* Logo block */}
+          <View style={{ marginTop: 40, alignItems: "center", gap: 6 }}>
+            <View
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: theme.accent,
+                marginBottom: 6,
+              }}
+            >
+              <Icon name="film-slate" weight="fill" size={30} color={theme.accent} />
+            </View>
+            <Text style={{ fontFamily: headingFamily, fontSize: 30, letterSpacing: -0.6, color: theme.text }}>
               CineLog
             </Text>
-            <Text style={{ fontSize: 14, color: `${theme.text}88`, marginTop: 4 }}>
-              Your cinema diary
-            </Text>
+            <Text style={{ fontSize: 14, color: muted }}>Track every theatre memory.</Text>
           </View>
 
-          {/* Login card */}
-          <Card glass style={{ padding: 24, gap: 14, borderRadius: 16 }}>
-            <Text style={{ fontSize: 20, fontWeight: "600", color: theme.text }}>Sign in</Text>
+          {/* Form */}
+          <View style={{ marginTop: 44, gap: 16 }}>
+            <View>
+              <Text style={{ fontSize: 12, marginBottom: 5, color: `${theme.text}b3` }}>Email address</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@email.com"
+                placeholderTextColor={`${theme.text}55`}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                style={{
+                  minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, fontSize: 14,
+                  color: theme.text, backgroundColor: theme.surface,
+                  borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
+                }}
+              />
+            </View>
 
-            <Button
-              label="Continue with Google"
-              variant="secondary"
-              loading={loading}
-              onPress={signInGoogle}
-              block
-              style={{ marginTop: 0 }}
-            />
+            <View>
+              <Text style={{ fontSize: 12, marginBottom: 5, color: `${theme.text}b3` }}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="current-password"
+                style={{
+                  minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, fontSize: 14,
+                  color: theme.text, backgroundColor: theme.surface,
+                  borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
+                }}
+              />
+            </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {/* btn-primary btn-block */}
+            <Pressable
+              onPress={signInPassword}
+              disabled={loading}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
+                borderRadius: 8, borderWidth: 1, borderColor: theme.accent,
+                opacity: loading ? 0.45 : 1,
+              }}
+            >
+              <Icon name={loading ? "circle-notch" : "sign-in"} size={16} color={theme.accent} />
+              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.accent }}>Sign in</Text>
+            </Pressable>
+
+            {/* btn-secondary btn-block */}
+            <Pressable
+              onPress={sendMagicLink}
+              disabled={loading}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
+                borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
+                opacity: loading ? 0.45 : 1,
+              }}
+            >
+              <Icon name="magic-wand" size={16} color={theme.text} />
+              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Send magic link</Text>
+            </Pressable>
+
+            {/* OR divider */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 }}>
               <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-              <Text style={{ fontSize: 12, color: `${theme.text}55` }}>or</Text>
+              <Text style={{ fontSize: 11, color: muted }}>OR</Text>
               <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
             </View>
 
-            <Input
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-
-            <Button
-              label="Send magic link"
-              variant="primary"
-              loading={loading}
-              onPress={sendMagicLink}
-              block
-              style={{ marginTop: 0 }}
-            />
+            <Pressable
+              onPress={signInGoogle}
+              disabled={loading}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
+                borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
+                opacity: loading ? 0.45 : 1,
+              }}
+            >
+              <Icon name="google-logo" size={16} color={theme.text} />
+              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Continue with Google</Text>
+            </Pressable>
 
             {message ? <Text style={{ color: theme.accent, fontSize: 13 }}>{message}</Text> : null}
-            {error   ? <Text style={{ color: theme.error,  fontSize: 13 }}>{error}</Text>   : null}
-          </Card>
+            {error ? <Text style={{ color: theme.error, fontSize: 13 }}>{error}</Text> : null}
+          </View>
 
-          <Text style={{ textAlign: "center", color: `${theme.text}44`, fontSize: 12, marginTop: 20 }}>
-            Log every screening. Track every theatre.
-          </Text>
+          {/* Footer pinned to bottom (margin-top:auto) */}
+          <View style={{ marginTop: "auto", paddingTop: 30, alignItems: "center" }}>
+            <Text style={{ fontSize: 13, color: muted }}>
+              New here? <Text style={{ color: theme.accent }}>Create an account</Text>
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
