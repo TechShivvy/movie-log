@@ -20,6 +20,8 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
+              {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
+              <Stack.Screen name="auth" options={{ headerShown: false }} />
             </Stack>
           </AuthProvider>
         </ThemeProvider>

@@ -1,44 +1,20 @@
-import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
-import Svg, { Defs, Filter, FeTurbulence, Rect } from "react-native-svg";
+import { Platform } from "react-native";
 
 /**
- * Film-grain overlay — identical on every platform.
+ * Film-grain overlay.
  *
- * Web    → <div className="grain"> (CSS injects the SVG feTurbulence background)
- * Native → react-native-svg feTurbulence tiled over the full screen,
- *           opacity 0.04, pointerEvents none.
+ * Web    → <div className="grain"> whose CSS injects an SVG feTurbulence
+ *           background-image (supported by all modern browsers).
+ * Native → No-op. react-native-svg does not support feTurbulence/feBlend
+ *           filter primitives on iOS/Android, so we omit the grain on native
+ *           rather than log warnings. The cinematic atmosphere comes from the
+ *           CinematicBg gradient instead.
  */
 export function FilmGrain() {
-  if (Platform.OS === "web") {
-    return <div className="grain" />;
-  }
+  if (Platform.OS !== "web") return null;
 
-  return (
-    <View
-      pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.overlay]}
-    >
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <Filter id="grain" x="0%" y="0%" width="100%" height="100%">
-            <FeTurbulence
-              type="fractalNoise"
-              baseFrequency={0.85}
-              numOctaves={2}
-              stitchTiles="stitch"
-            />
-          </Filter>
-        </Defs>
-        <Rect width="100%" height="100%" filter="url(#grain)" />
-      </Svg>
-    </View>
-  );
+  // The .grain class is injected by lib/designCss.ts on web.
+  // It sets position:fixed, inset:0, z-index:9999, pointer-events:none and
+  // an SVG feTurbulence background-image at 4% opacity.
+  return <div className="grain" />;
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    zIndex: 200,
-    opacity: 0.04,
-  },
-});

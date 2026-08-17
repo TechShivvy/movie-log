@@ -33,17 +33,27 @@ WebBrowser.maybeCompleteAuthSession();
 // ── Redirect URL helpers ───────────────────────────────────────────────────────
 
 /**
- * Returns the correct OAuth redirect URL:
- *   Web            → current origin + /auth/callback
- *   Expo Go / dev  → exp://host:port/--/auth/callback   (via AuthSession)
- *   Standalone     → cinelog://auth/callback             (via AuthSession)
+ * Returns the correct OAuth redirect URL for the current platform/environment.
+ *
+ * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+ * must include ALL of:
+ *   • http://localhost:8081/auth/callback   (web dev)
+ *   • https://<prod-domain>/auth/callback   (web prod)
+ *   • cinelog://auth/callback               (standalone iOS/Android)
+ *   • exp://[host]:[port]/--/auth/callback   (Expo Go — add wildcard in Supabase dashboard)
+ *
+ * The "Site URL" should also be set to your production domain, NOT localhost,
+ * otherwise Supabase uses it as the fallback redirect which sends mobile users
+ * to localhost:3000 instead of back to the app.
  */
 function getRedirectUrl(): string {
   if (Platform.OS === "web") {
     return `${(window as any).location.origin}/auth/callback`;
   }
-  // AuthSession.makeRedirectUri handles Expo Go vs standalone scheme automatically
-  // and produces the URL that Supabase must have in its Redirect URLs list.
+  // AuthSession.makeRedirectUri detects Expo Go vs standalone automatically:
+  //   Expo Go   → exp://192.168.x.x:8081/--/auth/callback
+  //   Standalone → cinelog://auth/callback
+  // Both must be in Supabase's Redirect URLs list (use the wildcard for Expo Go).
   return AuthSession.makeRedirectUri({
     scheme: "cinelog",
     path: "auth/callback",
