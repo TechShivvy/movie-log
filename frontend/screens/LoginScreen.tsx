@@ -95,6 +95,13 @@ export function LoginScreen() {
     setError("");
     try {
       const redirectTo = getRedirectUrl();
+      // 👇 Check Expo logs for this value and make sure it is in your
+      // Supabase → Auth → URL Configuration → Redirect URLs list.
+      // Expo Go produces:  exp://192.168.x.x:8081/--/auth/callback
+      //   → add wildcard: exp://*/*/--/auth/callback
+      // Standalone produces: cinelog://auth/callback
+      //   → add exactly:  cinelog://auth/callback
+      console.log("[CineLog OAuth] redirect_to =", redirectTo);
 
       const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
