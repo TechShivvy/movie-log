@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Robot } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useCreateLog } from "../hooks/useMovieLogs";
 import { useMovieSearch, useVenueSearch } from "../hooks/useSearch";
@@ -18,7 +19,8 @@ import { StarRating } from "../components/ui/StarRating";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
-import type { Format, Visibility, ArrivalStatus, MovieSearchResult, Venue } from "../types";
+import { AITicketModal } from "../modals/AITicketModal";
+import type { Format, Visibility, ArrivalStatus, MovieSearchResult, Venue, ExtractionResult } from "../types";
 import { styles } from "./LogFormScreen.styles";
 
 const FORMATS: Format[] = ["IMAX", "4DX", "Dolby", "ScreenX", "Laser", "PLF", "Standard"];
@@ -54,6 +56,7 @@ export function LogFormScreen() {
   const [notes, setNotes] = useState("");
   const [ticketUrl, setTicketUrl] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showAIModal, setShowAIModal] = useState(false);
 
   // Movie search
   const [movieQuery, setMovieQuery] = useState("");
@@ -78,6 +81,13 @@ export function LogFormScreen() {
     setVenueName(v.name);
     setVenueQuery(v.name);
     setShowVenueSuggestions(false);
+  }, []);
+
+  const handleExtractionResult = useCallback((result: ExtractionResult) => {
+    if (result.movie_title) setMovieTitle(result.movie_title);
+    if (result.venue_name) setVenueQuery(result.venue_name);
+    if (result.format) setFormat(result.format as Format);
+    if (result.seat) setSeat(result.seat);
   }, []);
 
   async function handleSubmit() {
@@ -231,11 +241,24 @@ export function LogFormScreen() {
       )}
 
       <Button
+        label="🤖 AI Scan Ticket"
+        variant="secondary"
+        onPress={() => setShowAIModal(true)}
+        style={{ marginBottom: 10 }}
+      />
+
+      <Button
         label={isPending ? "Saving…" : "Save Log"}
         variant="primary"
         loading={isPending}
         onPress={handleSubmit}
         style={styles.submitBtn}
+      />
+
+      <AITicketModal
+        visible={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        onResult={handleExtractionResult}
       />
     </>
   );
