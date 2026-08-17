@@ -36,8 +36,15 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     storage,
     autoRefreshToken: true,
     persistSession: true,
-    // On web (SPA mode) Supabase can read the OAuth redirect hash from the URL.
-    // On native, Expo handles deep links differently — disable URL detection.
+    // On web (SPA mode) Supabase can read the OAuth redirect from the URL.
+    // On native, Expo delivers it as a deep link — disable URL detection.
     detectSessionInUrl: Platform.OS === "web",
+    // supabase-js defaults flowType to 'implicit', which returns the session as
+    // a URL *fragment* (#access_token=…). A fragment is invisible to
+    // Linking.parse()'s queryParams and cannot be exchanged with
+    // exchangeCodeForSession(), so the native callback had nothing to act on.
+    // PKCE returns ?code=… instead, is the recommended flow for mobile, and
+    // keeps the code verifier in `storage` above.
+    flowType: "pkce",
   },
 });

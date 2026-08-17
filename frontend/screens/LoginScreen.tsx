@@ -79,16 +79,49 @@ export function LoginScreen() {
   useEffect(() => {
     if (Platform.OS === "web") return;
     const sub = Linking.addEventListener("url", ({ url }) => {
-      const code = Linking.parse(url).queryParams?.code as string | undefined;
-      if (!code) return;
-      setLoading(true);
-      supabase.auth
-        .exchangeCodeForSession(code)
-        .catch((e) => setError(e.message ?? "Sign-in failed"))
-        .finally(() => setLoading(false));
+      void completeAuthFromUrl(url);
     });
     return () => sub.remove();
   }, []);
+
+  /**
+   * Completes sign-in from a redirect URL, accepting BOTH shapes:
+   *   PKCE     → ?code=…                 (exchangeCodeForSession)
+   *   implicit → #access_token=…&refresh_token=…  (setSession)
+   * Returns true when a session was established.
+   */
+  async function completeAuthFromUrl(url: string): Promise<boolean> {
+    try {
+      const code = Linking.parse(url).queryParams?.code as string | undefined;
+      if (code) {
+        setLoading(true);
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) throw exErr;
+        return true;
+      }
+
+      const hash = url.split("#")[1];
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        const access_token = hp.get("access_token");
+        const refresh_token = hp.get("refresh_token");
+        if (access_token && refresh_token) {
+          setLoading(true);
+          const { error: sErr } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (sErr) throw sErr;
+          return true;
+        }
+        const errDesc = hp.get("error_description");
+        if (errDesc) throw new Error(decodeURIComponent(errDesc.replace(/\+/g, " ")));
+      }
+      return false;
+    } catch (e: any) {
+      setError(e.message ?? "Sign-in failed");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function signInPassword() {
     if (!email.trim() || !password) {
@@ -133,26 +166,11 @@ export function LoginScreen() {
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
         showInRecents: true,
       });
-      if (result.type !== "success") return; // Linking listener may still fire
+      // "cancel"/"dismiss" can also mean Android closed the tab before
+      // reporting — the Linking listener above still catches the deep link.
+      if (result.type !== "success") return;
 
-      const parsed = Linking.parse(result.url);
-      const code = parsed.queryParams?.code as string | undefined;
-      if (code) {
-        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
-        if (exErr) throw exErr;
-        return;
-      }
-      // Implicit flow fallback: #access_token=…&refresh_token=…
-      const hp = new URLSearchParams(result.url.split("#")[1] ?? "");
-      const access_token = hp.get("access_token");
-      const refresh_token = hp.get("refresh_token");
-      if (access_token && refresh_token) {
-        const { error: sErr } = await supabase.auth.setSession({
-          access_token,
-          refresh_token,
-        });
-        if (sErr) throw sErr;
-      }
+      await completeAuthFromUrl(result.url);
     } catch (e: any) {
       setError(e.message ?? "Sign-in failed");
     } finally {
