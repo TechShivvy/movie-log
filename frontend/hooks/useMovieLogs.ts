@@ -96,7 +96,30 @@ export function useDeleteLog() {
       if (DEMO_MODE) return;
       await api.delete(`/movie-logs/${id}`);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: logKeys.all }),
+    // Was invalidateQueries({queryKey: logKeys.all}) — which also invalidates
+    // this exact log's own detail query (logKeys.detail(id)), now 404ing
+    // since the row is gone. invalidateQueries awaits the refetch of every
+    // active query it touches, and the default queryClient retries a failed
+    // query once with backoff (app/_layout.tsx's retry:1) before settling —
+    // so deleting a log while its own detail screen was open made this
+    // mutation's returned promise (and anything awaiting it, e.g. a
+    // "delete then navigate away" flow) hang for several seconds on a
+    // pointless refetch-of-something-that-no-longer-exists. Removing the
+    // detail query outright — not invalidating it — is also the more
+    // correct action for a deleted resource: there's nothing left to
+    // refetch. List queries still get a real invalidate-and-refetch, same
+    // as before.
+    onSuccess: (_data, id) => {
+      qc.removeQueries({ queryKey: logKeys.detail(id) });
+      // logKeys.all (not logKeys.list()) — invalidateQueries prefix-matches
+      // on the queryKey array, and logKeys.list() with no params produces
+      // [...all, "list", undefined], which isn't a structural prefix of the
+      // real cached keys (logKeys.list({archived: false}), etc.). all is
+      // the broadest key that still correctly prefix-matches every list
+      // variant — same as the pre-existing behavior, just without the one
+      // query already removed above.
+      qc.invalidateQueries({ queryKey: logKeys.all });
+    },
   });
 }
 
