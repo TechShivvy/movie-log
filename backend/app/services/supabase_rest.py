@@ -283,6 +283,21 @@ async def upsert_venue_rating(user_token: str, row: dict[str, Any]) -> dict[str,
     return result[0] if isinstance(result, list) else result
 
 
+async def get_venue_rating(
+    user_token: str, user_id: str, log_id: str
+) -> Optional[dict[str, Any]]:
+    params = {
+        'movie_log_id': f'eq.{log_id}',
+        'user_id': f'eq.{user_id}',
+        'limit': '1',
+    }
+    response = await _request(
+        'GET', '/visit_venue_ratings', user_token, 'get_venue_rating', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
 async def delete_venue_rating(user_token: str, user_id: str, log_id: str) -> bool:
     params = {'movie_log_id': f'eq.{log_id}', 'user_id': f'eq.{user_id}'}
     response = await _request(

@@ -555,6 +555,37 @@ class MovieLog(MovieLogInput):
     )
 
 
+class VenueRating(BaseModel):
+    """The caller's own venue rating for one log, as returned by GET
+    .../venue-rating — same fields as VenueRatingInput (schemas/venues.py)
+    plus the row's identity/timestamps."""
+
+    movie_log_id: str
+    user_id: str
+    screen_rating: Optional[float] = Field(default=None)
+    speaker_rating: Optional[float] = Field(default=None)
+    ac_rating: Optional[float] = Field(default=None)
+    seat_rating: Optional[float] = Field(default=None)
+    created_at: str
+    updated_at: str
+
+    model_config = ConfigDict(
+        extra='ignore',
+        json_schema_extra={
+            'example': {
+                'movie_log_id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+                'user_id': '11111111-1111-1111-1111-111111111111',
+                'screen_rating': 4.5,
+                'speaker_rating': 5.0,
+                'ac_rating': 3.5,
+                'seat_rating': 4.0,
+                'created_at': '2026-08-10T03:31:15.977764+00:00',
+                'updated_at': '2026-08-10T03:31:15.977764+00:00',
+            }
+        },
+    )
+
+
 class MovieLogSearchResult(MovieLog):
     """GET /movie-logs/search's response shape — every MovieLog field plus
     which ones matched the query, for the frontend to highlight. The

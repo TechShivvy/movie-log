@@ -445,6 +445,39 @@ responses = {
         **_VALIDATION,
         **_UPSTREAM,
     },
+    'get_venue_rating': {
+        200: {
+            'description': "The caller's own venue-rating row for this log (screen/"
+            'speaker/AC/seat, half-star 0.5-5.0).',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'movie_log_id': _MOVIE_LOG_EXAMPLE['id'],
+                        'user_id': _MOVIE_LOG_EXAMPLE['user_id'],
+                        'screen_rating': 4.5,
+                        'speaker_rating': 5.0,
+                        'ac_rating': 3.5,
+                        'seat_rating': 4.0,
+                        'created_at': '2026-08-10T03:31:15.977764+00:00',
+                        'updated_at': '2026-08-10T03:31:15.977764+00:00',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'No venue rating exists for this log (nothing to return), '
+            "or the log itself doesn't belong to the caller (RLS makes the two "
+            'indistinguishable on purpose).',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No venue rating for this log.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
     'delete_venue_rating': {
         204: {'description': 'Deleted — no response body. The log itself is untouched.'},
         404: {

@@ -20,6 +20,7 @@ from schemas.movie_logs import (
     MovieLogInput,
     MovieLogSearchResult,
     MovieLogUpdate,
+    VenueRating,
 )
 from schemas.venues import VenueRatingInput
 from services import supabase_rest
@@ -347,6 +348,32 @@ async def upsert_venue_rating(
     result = await supabase_rest.upsert_venue_rating(current_user.access_token, row)
     LOGGER.info('upsert_venue_rating user={} log_id={}', _uid(current_user.user_id), log_id)
     return result
+
+
+@router.get(
+    '/{log_id}/venue-rating',
+    response_model=VenueRating,
+    tags=['Movie Logs'],
+    description="Fetch the caller's own venue rating (screen/speaker/AC/seat) "
+    "for one of their own logs. Returns 404 (not 403) if no rating exists for "
+    "that log, or if the log belongs to someone else — same 'not yours' and "
+    "'does not exist' indistinguishable-on-purpose pattern as GET /{log_id}.",
+    response_description="The caller's stored venue-rating row.",
+    responses=responses['get_venue_rating'],
+    operation_id='GetVenueRating',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_venue_rating(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    row = await supabase_rest.get_venue_rating(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if row is None:
+        raise APIError(404, 'NOT_FOUND', 'No venue rating for this log.')
+    return row
 
 
 @router.delete(

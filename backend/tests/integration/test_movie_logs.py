@@ -314,3 +314,60 @@ async def test_venue_rating_delete_recomputes_stats(client, make_user):
     # A second delete 404s, doesn't silently no-op.
     second_delete = await client.delete(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers)
     assert second_delete.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_venue_rating_round_trip_and_404s(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Get Venue Rating Test'},
+    )
+    log_id = log.json()['id']
+
+    # No rating stored yet.
+    missing = await client.get(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers)
+    assert missing.status_code == 404
+
+    upserted = await client.put(
+        f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers,
+        json={'screen_rating': 4.5, 'speaker_rating': 5.0, 'ac_rating': 3.5, 'seat_rating': 4.0},
+    )
+    assert upserted.status_code == 200
+
+    fetched = await client.get(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers)
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body['movie_log_id'] == log_id
+    assert body['user_id']
+    assert body['screen_rating'] == 4.5
+    assert body['speaker_rating'] == 5.0
+    assert body['ac_rating'] == 3.5
+    assert body['seat_rating'] == 4.0
+    assert body['created_at']
+    assert body['updated_at']
+
+    # After deleting, it's 404 again, not an empty/stale row.
+    await client.delete(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers)
+    after_delete = await client.get(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers)
+    assert after_delete.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_venue_rating_404s_for_someone_elses_log(client, make_user):
+    _, token_a = await make_user()
+    _, token_b = await make_user()
+    headers_a = {'Authorization': f'Bearer {token_a}'}
+    headers_b = {'Authorization': f'Bearer {token_b}'}
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers_a, json={'movie': 'Other Users Venue Rating'},
+    )
+    log_id = log.json()['id']
+    await client.put(
+        f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers_a,
+        json={'screen_rating': 4.0},
+    )
+
+    as_b = await client.get(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers_b)
+    assert as_b.status_code == 404  # RLS-scoped, not a leaked 403
