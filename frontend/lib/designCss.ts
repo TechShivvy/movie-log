@@ -23,8 +23,25 @@ export const DESIGN_SYSTEM_CSS = `
 @import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css');
 
 /* ══════════════════════════════════════════════════════════════════════════
-   1. Nocturne design system — ported from _ds/nocturne-*/styles.css
-   ══════════════════════════════════════════════════════════════════════ */
+   1. Nocturne design system — ported from the nocturne folder's styles.css
+   ══════════════════════════════════════════════════════════════════════
+   BUG THAT LIVED HERE: this line used to end in a literal star-slash
+   sequence in the middle of a sentence (a glob-style path with a folder
+   name ending in a star, immediately followed by a slash) — CSS comments
+   have no escaping, so that in-sentence star-slash is a real end-of-comment
+   token and silently closed this banner three lines early. Everything from
+   there through the :root block below got swallowed into one garbled,
+   invalid selector (up to :root's own opening brace), and a rule with an
+   invalid selector is dropped whole — so the entire :root block below
+   (every --space-*, --radius-*, and --shadow-* token) was defined in source
+   but never once reached the page. Confirmed via computed styles: every
+   .btn had padding:0 (var(--space-2) resolved to nothing) and
+   border-radius:0 (same for var(--radius-md)) — the thin, square-cornered
+   buttons/inputs across the whole app. Colors survived only because
+   ThemeContext.tsx separately sets those 12 tokens inline on
+   documentElement, unaffected by what this stylesheet does or doesn't
+   parse. Moral: never spell out a real star-slash inside a CSS comment,
+   including in a comment describing this bug. */
 
 :root {
   /* Colour defaults (nocturne). ThemeContext overrides these per theme. */
@@ -118,7 +135,8 @@ figcaption {
   cursor: pointer; text-decoration: none;
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 14px; line-height: 1.2; color: var(--color-text);
-  background: transparent; border: 1px solid transparent;
+  background: transparent; border: 1.5px solid transparent;
+  min-height: 36px; /* lines up with .input's own min-height */
   padding: var(--space-2) calc(var(--space-3) * 1.2);
   border-radius: var(--radius-md);
 }
@@ -145,7 +163,7 @@ figcaption {
   width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
   font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
   background: var(--color-surface);
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-divider); border-radius: var(--radius-md);
 }
 .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
 .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
@@ -165,7 +183,7 @@ textarea.input { min-height: 90px; resize: vertical; }
 }
 .seg {
   display: inline-flex; overflow: hidden;
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-divider); border-radius: var(--radius-md);
 }
 .seg-opt {
   display: inline-flex; align-items: center; gap: 6px;
