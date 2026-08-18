@@ -305,6 +305,48 @@ textarea.input { min-height: 90px; resize: vertical; }
   padding: 0 26px; border-bottom: 1px solid var(--color-divider);
 }
 .mainscroll { flex: 1; overflow-y: auto; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3. Responsive — breakpoints mirror hooks/useBreakpoint.ts's BP
+      (mobile:768, tablet:1120). Below "mobile", app/(app)/_layout.tsx swaps
+      the whole shell from WebLayout (Sidebar) to MobileLayout (TabBar) — a
+      JS-level component swap, not something CSS alone can do. What's here is
+      purely the styling half: grid columns and shell padding at the widths
+      WebLayout still renders at.
+   ══════════════════════════════════════════════════════════════════════ */
+.libgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+@media (max-width: 1119px) {
+  .libgrid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .topbar { padding: 0 16px; }
+}
+@media (max-width: 767px) {
+  .libgrid { grid-template-columns: 1fr 1fr; gap: 14px; }
+  /* LibraryScreen's header row (kicker + "N films logged" + Analytics +
+     grid/list toggle) is written for desktop's wide top band; at phone
+     width the 34px heading and both controls fought for the same line. */
+  .lib-header { flex-direction: column; align-items: flex-start !important; gap: 10px; }
+  .lib-title { font-size: 27px !important; }
+}
+/* .ov (designed as a hover-reveal overlay, see section 2 above) has no
+   hover on a touchscreen, so its title/venue/date never appeared on mobile
+   web — the poster was a blank gradient rectangle. Leave it shown whenever
+   there's no pointer to hover with (real touch devices) or the viewport is
+   phone-width (a narrow desktop window still has hover, but matching the
+   mobile design here reads better than a bare poster at that width). */
+/* .lib-card-title/.lib-card-date: see the comment at their JSX call site in
+   LibraryScreen.tsx — exactly one of this pair is ever shown; default to
+   the desktop pairing (title shown, date hidden) and flip both together
+   with .ov below, so the three rules can never fall out of sync. */
+.lib-card-date { display: none; }
+@media (hover: none), (max-width: 767px) {
+  .ov { opacity: 1; }
+  .lib-card-title { display: none; }
+  .lib-card-date { display: inline; }
+}
+/* Guards against any fixed-width element (a grid, a nowrap row) forcing the
+   page itself to scroll sideways; scoped containers keep their own
+   overflow-x:auto (e.g. .clg-scroll filter rows) regardless. */
+html, body { overflow-x: hidden; }
 `;
 
 /** Injects the design-system stylesheet once (web only). */

@@ -52,20 +52,66 @@ import type { MovieLog } from "../types";
 const FILTERS = ["All", "IMAX", "This year", "5 stars", "FDFS", "Archived"] as const;
 type Filter = (typeof FILTERS)[number];
 
+// These chips/toggles were <span>/<label onClick> — unreachable by keyboard,
+// invisible to a screen reader as controls. `<button>` fixes both for free
+// (native focus, Enter/Space activation, the app's own global
+// :focus-visible ring from designCss.ts), but a bare <button> also carries
+// browser chrome (background, border, font, margin) neither .tag nor
+// .seg-opt account for since they were written for non-button elements.
+// Only reset what those classes don't already set themselves — anything set
+// here as an inline style wins over the class's rule, so setting e.g.
+// `background` would blank out .tag-accent/.tag-neutral's own color.
+const TAG_BTN_RESET: React.CSSProperties = { border: "none", font: "inherit", margin: 0, cursor: "pointer" };
+const SEG_BTN_RESET: React.CSSProperties = { ...TAG_BTN_RESET, background: "transparent" };
+
+/** Enter/Space activation for the div-wrapped poster/list cards below —
+ *  they carry `role="button"` + `tabIndex` rather than becoming real
+ *  <button> elements, since each wraps a <Poster> plus nested tag/icon
+ *  markup that would fight a real button's default padding/text-align. */
+function onCardKey(activate: () => void) {
+  return (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      activate();
+    }
+  };
+}
+
 function fmtShort(iso?: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
+// Every date shown on a card used to be log.created_at — when the row was
+// logged, not when the film was actually seen. Harmless if you log same-day,
+// visibly wrong otherwise: backfilling three old ticket stubs in one sitting
+// showed all three as "today," even sorted correctly by watched_date above
+// them. watched_date is optional (older/incomplete rows), so this falls back
+// to created_at rather than rendering a blank date.
+function fmtLogDate(log: MovieLog) {
+  return fmtShort(log.watched_date ?? log.created_at);
+}
+
 function applyFilter(logs: MovieLog[], f: Filter): MovieLog[] {
   switch (f) {
     case "IMAX":      return logs.filter((l) => /imax/i.test(l.format ?? ""));
-    case "This year": return logs.filter((l) => new Date(l.created_at).getFullYear() === new Date().getFullYear());
+    case "This year": return logs.filter((l) => new Date(l.watched_date ?? l.created_at).getFullYear() === new Date().getFullYear());
     case "5 stars":   return logs.filter((l) => (l.rating ?? 0) >= 5);
     case "FDFS":      return logs.filter((l) => !!l.is_fdfs);
     case "Archived":  return logs.filter((l) => !!l.is_archived);
     default:          return logs;
   }
+}
+
+// "Sorted by recent" (the sort-row label, both platforms) described an order
+// applyFilter never actually produced — the list rendered in whatever order
+// the API returned. watched_date is when the film was actually seen; it's
+// optional (older/incomplete rows), so logs missing it fall back to
+// created_at (when the row was logged) rather than sorting to the top/bottom
+// arbitrarily.
+function sortRecent(logs: MovieLog[]): MovieLog[] {
+  const at = (l: MovieLog) => new Date(l.watched_date ?? l.created_at).getTime();
+  return [...logs].sort((a, b) => at(b) - at(a));
 }
 
 export function LibraryScreen() {
@@ -74,13 +120,13 @@ export function LibraryScreen() {
   const [filter, setFilter] = useState<Filter>("All");
   const [mode, setMode] = useState<"grid" | "list">("grid");
 
-  const { data: logs = [], isLoading } = useMovieLogs({
+  const { data: logs = [], isLoading, isError, refetch } = useMovieLogs({
     archived: filter === "Archived",
   });
 
   const heading = fontFamily(fontConfig, "heading", 600);
   const muted = `${theme.text}8c`;
-  const shown = useMemo(() => applyFilter(logs, filter), [logs, filter]);
+  const shown = useMemo(() => sortRecent(applyFilter(logs, filter)), [logs, filter]);
   const open = (id: string) => router.push(`/(app)/log/${id}` as any);
 
   // ── Web ─────────────────────────────────────────────────────────────────────
@@ -105,12 +151,16 @@ export function LibraryScreen() {
           style={{ zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" }}
         />
 
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
+        {/* .lib-header wraps to a stacked layout under 768px (designCss.ts) —
+            at that width this row used to cram "Analytics" and the grid/list
+            toggle onto the same line as a 34px heading, all fighting for a
+            392px-wide column. */}
+        <div className="lib-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
           <div>
             <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
               Your library
             </div>
-            <h1 style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
+            <h1 className="lib-title" style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
               {shown.length} {shown.length === 1 ? "film" : "films"} logged
             </h1>
           </div>
@@ -121,18 +171,26 @@ export function LibraryScreen() {
               Analytics
             </button>
             <div className="seg">
-              <label
+              <button
+                type="button"
+                aria-pressed={mode === "grid"}
+                aria-label="Grid view"
                 className={mode === "grid" ? "seg-opt active" : "seg-opt"}
+                style={SEG_BTN_RESET}
                 onClick={() => setMode("grid")}
               >
                 <Icon name="squares-four" size={16} />
-              </label>
-              <label
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "list"}
+                aria-label="List view"
                 className={mode === "list" ? "seg-opt active" : "seg-opt"}
+                style={SEG_BTN_RESET}
                 onClick={() => setMode("list")}
               >
                 <Icon name="rows" size={16} />
-              </label>
+              </button>
             </div>
           </div>
         </div>
@@ -140,25 +198,36 @@ export function LibraryScreen() {
         {/* Filter chips */}
         <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" } as React.CSSProperties}>
           {FILTERS.map((f) => (
-            <span
+            <button
+              type="button"
               key={f}
+              aria-pressed={f === filter}
               className={`tag ${f === filter ? "tag-accent" : "tag-neutral"}`}
-              style={{ cursor: "pointer" } as React.CSSProperties}
+              style={TAG_BTN_RESET}
               onClick={() => setFilter(f)}
             >
               {f}
-            </span>
+            </button>
           ))}
         </div>
 
         {isLoading ? (
           <ActivityIndicator color={theme.accent} />
+        ) : isError ? (
+          <ErrorState theme={theme} muted={muted} onRetry={refetch} />
         ) : shown.length === 0 ? (
-          <EmptyState theme={theme} muted={muted} />
+          <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} />
         ) : mode === "grid" ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 18 } as React.CSSProperties}>
+          <div className="libgrid">
             {shown.map((log) => (
-              <div key={log.id} className="tapc gridcard lift" onClick={() => open(log.id)}>
+              <div
+                key={log.id}
+                className="tapc gridcard lift"
+                role="button"
+                tabIndex={0}
+                onClick={() => open(log.id)}
+                onKeyDown={onCardKey(() => open(log.id))}
+              >
                 <Poster title={log.movie ?? "Untitled"} style={{ aspectRatio: "2/3" }}>
                   <div
                     style={{
@@ -177,13 +246,22 @@ export function LibraryScreen() {
                       {log.movie}
                     </div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
-                      {log.theater ?? "—"} · {fmtShort(log.created_at)}
+                      {log.theater ?? "—"} · {fmtLogDate(log)}
                     </div>
                   </div>
                 </Poster>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
-                  <span style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
+                  {/* .ov (above) is always visible below tablet width now —
+                      see designCss.ts's `(hover: none), (max-width: 767px)`
+                      rule — and already carries the title, so repeating it
+                      here would show it twice. Swap to the date instead,
+                      matching the native/mobile design's own below-poster
+                      row (dateShort + format), which never repeated the
+                      title either. Both spans always render; the CSS below
+                      shows exactly one depending on viewport/pointer. */}
+                  <span className="lib-card-title" style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
+                  <span className="lib-card-date text-muted" style={{ fontSize: 11 } as React.CSSProperties}>{fmtLogDate(log)}</span>
                   {log.format ? (
                     <span className="tag tag-neutral" style={{ fontSize: 10, padding: "1px 6px" } as React.CSSProperties}>
                       {log.format}
@@ -199,8 +277,11 @@ export function LibraryScreen() {
               <div
                 key={log.id}
                 className="card tapc lift"
+                role="button"
+                tabIndex={0}
                 style={{ flexDirection: "row", gap: 12, alignItems: "stretch", padding: 10 } as React.CSSProperties}
                 onClick={() => open(log.id)}
+                onKeyDown={onCardKey(() => open(log.id))}
               >
                 <Poster title={log.movie ?? "Untitled"} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
@@ -216,7 +297,7 @@ export function LibraryScreen() {
                   </div>
                   <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
                     <Icon name="calendar-blank" size={12} />
-                    {fmtShort(log.created_at)}
+                    {fmtLogDate(log)}
                   </div>
                   {log.format ? (
                     <div style={{ display: "flex", gap: 5, marginTop: 3, flexWrap: "wrap" } as React.CSSProperties}>
@@ -320,8 +401,10 @@ export function LibraryScreen() {
 
       {isLoading ? (
         <ActivityIndicator color={theme.accent} />
+      ) : isError ? (
+        <ErrorState theme={theme} muted={muted} onRetry={refetch} />
       ) : shown.length === 0 ? (
-        <EmptyState theme={theme} muted={muted} />
+        <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} />
       ) : mode === "grid" ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
           {shown.map((log) => (
@@ -356,7 +439,7 @@ export function LibraryScreen() {
               </Poster>
 
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
-                <Text style={{ fontSize: 11, color: muted }}>{fmtShort(log.created_at)}</Text>
+                <Text style={{ fontSize: 11, color: muted }}>{fmtLogDate(log)}</Text>
                 {log.format ? (
                   <View style={{ backgroundColor: theme.neutral800, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ fontSize: 10, color: theme.neutral100 }}>{log.format}</Text>
@@ -391,7 +474,7 @@ export function LibraryScreen() {
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Icon name="calendar-blank" size={12} color={muted} />
-                  <Text style={{ fontSize: 12, color: muted }}>{fmtShort(log.created_at)}</Text>
+                  <Text style={{ fontSize: 12, color: muted }}>{fmtLogDate(log)}</Text>
                 </View>
                 {log.format ? (
                   <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
@@ -409,7 +492,7 @@ export function LibraryScreen() {
   );
 }
 
-function EmptyState({ theme, muted }: { theme: any; muted: string }) {
+function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog: () => void }) {
   if (Platform.OS === "web") {
     return (
       <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
@@ -418,6 +501,10 @@ function EmptyState({ theme, muted }: { theme: any; muted: string }) {
         <div style={{ fontSize: 13, color: muted, marginTop: 4 } as React.CSSProperties}>
           Log your first screening to start your library.
         </div>
+        <button className="btn btn-primary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onLog}>
+          <Icon name="plus-circle" size={16} />
+          Log a screening
+        </button>
       </div>
     );
   }
@@ -428,6 +515,56 @@ function EmptyState({ theme, muted }: { theme: any; muted: string }) {
       <Text style={{ fontSize: 13, color: muted, marginTop: 4 }}>
         Log your first screening to start your library.
       </Text>
+      <Pressable
+        onPress={onLog}
+        style={{
+          flexDirection: "row", alignItems: "center", gap: 6, marginTop: 18,
+          paddingVertical: 8, paddingHorizontal: 14,
+          borderWidth: 1, borderColor: theme.accent, borderRadius: 8,
+        }}
+      >
+        <Icon name="plus-circle" size={16} color={theme.accent} />
+        <Text style={{ color: theme.accent, fontSize: 14 }}>Log a screening</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+// Previously: an API failure fell through to `logs = []` (useMovieLogs's
+// default) and rendered EmptyState — "No films yet" is a confident wrong
+// answer when the real story is "couldn't reach the server."
+function ErrorState({ theme, muted, onRetry }: { theme: any; muted: string; onRetry: () => void }) {
+  if (Platform.OS === "web") {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
+        <Icon name="warning-circle" size={44} color={theme.error} />
+        <div style={{ fontSize: 16, marginTop: 12 } as React.CSSProperties}>Couldn't load your library</div>
+        <div style={{ fontSize: 13, color: muted, marginTop: 4 } as React.CSSProperties}>
+          Check your connection and try again.
+        </div>
+        <button className="btn btn-secondary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onRetry}>
+          <Icon name="arrow-clockwise" size={16} />
+          Retry
+        </button>
+      </div>
+    );
+  }
+  return (
+    <View style={{ alignItems: "center", paddingVertical: 60 }}>
+      <Icon name="warning-circle" size={44} color={theme.error} />
+      <Text style={{ fontSize: 16, color: theme.text, marginTop: 12 }}>Couldn't load your library</Text>
+      <Text style={{ fontSize: 13, color: muted, marginTop: 4 }}>Check your connection and try again.</Text>
+      <Pressable
+        onPress={onRetry}
+        style={{
+          flexDirection: "row", alignItems: "center", gap: 6, marginTop: 18,
+          paddingVertical: 8, paddingHorizontal: 14,
+          borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
+        }}
+      >
+        <Icon name="arrow-clockwise" size={16} color={theme.text} />
+        <Text style={{ color: theme.text, fontSize: 14 }}>Retry</Text>
+      </Pressable>
     </View>
   );
 }
