@@ -73,18 +73,15 @@ export function TopBar() {
               Install app
             </button>
           )}
+          {/* The unread dot used to render unconditionally — see the same
+              note on Sidebar.tsx's NAV `badge`. No unread-notifications data
+              source exists yet, so show none rather than a fake one. */}
           <button
             className="btn btn-icon btn-secondary"
             style={{ position: "relative" } as React.CSSProperties}
             onClick={() => router.push("/(app)/notifications" as any)}
           >
             <Icon name="bell" size={18} />
-            <span
-              style={{
-                position: "absolute", top: 7, right: 8,
-                width: 7, height: 7, borderRadius: "50%", background: theme.accent,
-              } as React.CSSProperties}
-            />
           </button>
         </div>
       </div>
@@ -103,7 +100,6 @@ export function TopBar() {
 
       <Pressable onPress={() => router.push("/(app)/notifications" as any)} style={styles.bellBtn}>
         <Icon name="bell" size={20} color={theme.text} />
-        <View style={[styles.dot, { backgroundColor: theme.accent }]} />
       </Pressable>
     </View>
   );
@@ -116,5 +112,4 @@ const styles = StyleSheet.create({
     minHeight: 36, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1,
   },
   bellBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  dot: { position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: 4 },
 });

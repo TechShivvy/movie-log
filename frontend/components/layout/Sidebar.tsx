@@ -24,7 +24,7 @@
  *
  * Note the sidebar has no background of its own — only a right border.
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,11 +34,17 @@ import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
 import { fontFamily } from "../../constants/fonts";
 
+// `badge` was a hardcoded `3` here regardless of any real unread count —
+// every account, forever, saw "3 new notifications." No notifications
+// endpoint is wired anywhere in hooks/ yet (NotificationsScreen renders a
+// fixed DEMO_NOTIFS array), so there's no real count to show. Once that
+// screen gets its own pass, wire a real unread count through here instead
+// of restoring a fixed number.
 const NAV: { icon: IconName; label: string; href: string; badge?: number }[] = [
   { icon: "film-strip",       label: "Library",       href: "/(app)" },
   { icon: "rss",              label: "Feed",          href: "/(app)/feed" },
   { icon: "magnifying-glass", label: "Search",        href: "/(app)/search" },
-  { icon: "bell",             label: "Notifications", href: "/(app)/notifications", badge: 3 },
+  { icon: "bell",             label: "Notifications", href: "/(app)/notifications" },
   { icon: "chart-bar",        label: "Stats",         href: "/(app)/stats" },
   { icon: "user",             label: "Profile",       href: "/(app)/profile" },
 ];
@@ -52,6 +58,22 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
 
   const headingFamily = fontFamily(fontConfig, "heading", 600);
   const muted = `${theme.text}8c`;
+
+  // This card used to render unconditionally, every session, claiming
+  // "Offline-ready · installed as PWA" — false on both counts (dist/ ships
+  // no manifest and no service worker; nothing was actually installed).
+  // Only show it, and only the part that's actually checkable, when the
+  // page is genuinely running in an installed/standalone window.
+  const [isStandalone, setIsStandalone] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const mq = (window as any).matchMedia?.("(display-mode: standalone)");
+    if (!mq) return;
+    setIsStandalone(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsStandalone(e.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
 
   // activeFor(): library also owns detail/log; profile also owns settings
   function isActive(href: string) {
@@ -185,17 +207,19 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <div
-              className="lbl"
-              style={{
-                display: "flex", alignItems: "center", gap: 7, fontSize: 11,
-                color: muted, padding: 8,
-                border: `1px solid ${theme.divider}`, borderRadius: 8,
-              } as React.CSSProperties}
-            >
-              <Icon name="wifi-slash" size={14} />
-              Offline-ready · installed as PWA
-            </div>
+            {isStandalone ? (
+              <div
+                className="lbl"
+                style={{
+                  display: "flex", alignItems: "center", gap: 7, fontSize: 11,
+                  color: muted, padding: 8,
+                  border: `1px solid ${theme.divider}`, borderRadius: 8,
+                } as React.CSSProperties}
+              >
+                <Icon name="wifi-slash" size={14} />
+                Installed as PWA
+              </div>
+            ) : null}
 
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 4px" } as React.CSSProperties}>
               <div
