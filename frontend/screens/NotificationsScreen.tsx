@@ -33,19 +33,27 @@ import type { NotificationType } from "../types";
 function notifIcon(type: NotificationType, color: string) {
   const props = { size: 18, color, weight: "fill" as const };
   switch (type) {
-    case "follow":        return <UserPlus {...props} />;
-    case "log_like":      return <Heart {...props} />;
-    case "new_comment":   return <ChatCircle {...props} />;
-    case "comment_reply": return <ChatCircle {...props} />;
-    case "comment_like":  return <Heart {...props} />;
-    case "report_resolved": return <Info {...props} />;
-    default:              return <Bell {...props} />;
+    case "follow_request":
+    case "follow_accepted":
+    case "new_follower":     return <UserPlus {...props} />;
+    case "log_like":
+    case "comment_like":     return <Heart {...props} />;
+    case "new_comment":
+    case "comment_reply":    return <ChatCircle {...props} />;
+    case "report_resolved":
+    case "auto_insert_complete":
+    case "batch_extraction_complete": return <Info {...props} />;
+    default:                 return <Bell {...props} />;
   }
 }
 
 function notifText(n: any): string {
-  switch (n.type) {
-    case "follow":
+  switch (n.type as NotificationType) {
+    case "follow_request":
+      return `${n.actor_username ?? "Someone"} wants to follow you`;
+    case "follow_accepted":
+      return `${n.actor_username ?? "Someone"} accepted your follow request`;
+    case "new_follower":
       return `${n.actor_username ?? "Someone"} started following you`;
     case "log_like":
       return `${n.actor_username ?? "Someone"} liked your log${n.movie ? ` of ${n.movie}` : ""}`;
@@ -57,6 +65,10 @@ function notifText(n: any): string {
       return `${n.actor_username ?? "Someone"} liked your comment`;
     case "report_resolved":
       return "Your report has been resolved";
+    case "auto_insert_complete":
+      return `${n.movie ?? "A ticket"} was auto-logged from your extraction settings`;
+    case "batch_extraction_complete":
+      return `Your batch of ${n.batch_total_items ?? "several"} tickets finished processing`;
     default:
       return "You have a new notification";
   }
@@ -72,18 +84,21 @@ function relTime(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Mock notifications for demo
+// Mock notifications for demo — no useNotifications hook exists yet
+// (GET /notifications is unwired here), so this screen is demo-data only
+// for now; the type/field names below at least match the real Notification
+// shape (types/index.ts) so wiring the real hook in later is a drop-in.
 const DEMO_NOTIFS = [
-  { id: "1", type: "follow" as NotificationType, actor_username: "cinephile99", is_read: false, created_at: new Date(Date.now() - 120000).toISOString() },
-  { id: "2", type: "log_like" as NotificationType, actor_username: "sarah_films", movie: "Dune: Part Two", is_read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: "3", type: "new_comment" as NotificationType, actor_username: "moviejunkie", movie: "Oppenheimer", is_read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
-  { id: "4", type: "comment_like" as NotificationType, actor_username: "filmcritic", is_read: true, created_at: new Date(Date.now() - 172800000).toISOString() },
+  { id: "1", type: "follow_request" as NotificationType, actor_username: "cinephile99", read: false, created_at: new Date(Date.now() - 120000).toISOString() },
+  { id: "2", type: "log_like" as NotificationType, actor_username: "sarah_films", movie: "Dune: Part Two", read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: "3", type: "new_comment" as NotificationType, actor_username: "moviejunkie", movie: "Oppenheimer", read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
+  { id: "4", type: "comment_like" as NotificationType, actor_username: "filmcritic", read: true, created_at: new Date(Date.now() - 172800000).toISOString() },
 ];
 
 // ─── Notification Row ─────────────────────────────────────────────────────────
 
 function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }) {
-  const isFollow = notif.type === "follow";
+  const isFollowRequest = notif.type === "follow_request";
 
   if (Platform.OS === "web") {
     return (
@@ -93,7 +108,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
         gap: 14,
         padding: "14px 0",
         borderBottom: `1px solid ${theme.divider}`,
-        opacity: notif.is_read ? 0.65 : 1,
+        opacity: notif.read ? 0.65 : 1,
       } as React.CSSProperties}>
         {/* Icon box — 40×40px, accent-800 bg */}
         <div style={{
@@ -120,7 +135,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
         </div>
 
         {/* Actions for follow requests */}
-        {isFollow && (
+        {isFollowRequest && (
           <div style={{ display: "flex", gap: 6 } as React.CSSProperties}>
             <button className="btn btn-primary" style={{ fontSize: 12, padding: "4px 12px" } as React.CSSProperties}>
               Accept
@@ -132,7 +147,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
         )}
 
         {/* Unread dot */}
-        {!notif.is_read && (
+        {!notif.read && (
           <div style={{
             width: 8,
             height: 8,
@@ -153,7 +168,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.divider,
-      opacity: notif.is_read ? 0.65 : 1,
+      opacity: notif.read ? 0.65 : 1,
     }}>
       {/* Icon box */}
       <View style={{
@@ -175,7 +190,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
       </View>
 
       {/* Follow actions */}
-      {isFollow && (
+      {isFollowRequest && (
         <View style={{ flexDirection: "row", gap: 6 }}>
           <Pressable style={{
             backgroundColor: theme.accent,
@@ -198,7 +213,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
       )}
 
       {/* Unread dot */}
-      {!notif.is_read && (
+      {!notif.read && (
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent }} />
       )}
     </View>

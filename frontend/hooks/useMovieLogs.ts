@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { MOCK_LOGS } from "../lib/mockData";
-import type { MovieLog, CreateMovieLogPayload } from "../types";
+import type { MovieLog, MovieLogInput } from "../types";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 export const logKeys = {
@@ -40,23 +40,26 @@ export function useMovieLog(id: string) {
 }
 
 // ─── Create log ───────────────────────────────────────────────────────────────
+// `movie` is the only field the backend actually requires (routers/
+// movie_logs.py's own create_log docstring) — everything else is optional,
+// same as MovieLogInput below allows.
 export function useCreateLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: CreateMovieLogPayload) => {
+    mutationFn: async (payload: MovieLogInput & { movie: string }) => {
       if (DEMO_MODE) {
         const fake: MovieLog = {
           id: `demo-${Date.now()}`,
           user_id: "u1",
-          ...payload,
+          seats: [],
+          is_fdfs: false,
+          is_first_day: false,
           is_archived: false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           like_count: 0,
-          comment_count: 0,
-          is_liked: false,
-          visibility: payload.visibility ?? "public",
-          movie_title: payload.movie_title,
+          visibility: payload.visibility ?? "private",
+          ...payload,
         };
         return fake;
       }
@@ -68,12 +71,14 @@ export function useCreateLog() {
 }
 
 // ─── Update log ───────────────────────────────────────────────────────────────
+// PATCH, not PUT — a partial update, only the fields actually sent are
+// changed (MovieLogUpdate's own "extra='ignore'" exclude-unset convention).
 export function useUpdateLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<CreateMovieLogPayload> }) => {
+    mutationFn: async ({ id, payload }: { id: string; payload: MovieLogInput }) => {
       if (DEMO_MODE) return { id, ...payload } as MovieLog;
-      const { data } = await api.put<MovieLog>(`/movie-logs/${id}`, payload);
+      const { data } = await api.patch<MovieLog>(`/movie-logs/${id}`, payload);
       return data;
     },
     onSuccess: (log) => {
@@ -96,16 +101,15 @@ export function useDeleteLog() {
 }
 
 // ─── Archive / unarchive ──────────────────────────────────────────────────────
+// No dedicated /archive sub-resource exists on the backend — archiving is
+// just PATCH /movie-logs/{id} { is_archived }, same endpoint as any other
+// field update.
 export function useArchiveLog() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, archive }: { id: string; archive: boolean }) => {
       if (DEMO_MODE) return;
-      if (archive) {
-        await api.post(`/movie-logs/${id}/archive`);
-      } else {
-        await api.delete(`/movie-logs/${id}/archive`);
-      }
+      await api.patch(`/movie-logs/${id}`, { is_archived: archive });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: logKeys.all }),
   });

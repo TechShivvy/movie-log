@@ -35,12 +35,23 @@ import { StarRating } from "../components/ui/StarRating";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { AITicketModal } from "../modals/AITicketModal";
-import type { Format, Visibility, ArrivalStatus, MovieSearchResult, Venue, ExtractionResult } from "../types";
+import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
+import type {
+  Format,
+  LogVisibility,
+  ArrivalStatus,
+  MovieSearchResult,
+  TheatreMatchCandidate,
+  ExtractionResult,
+} from "../types";
 
 const FORMATS: Format[] = ["IMAX", "4DX", "Dolby", "ScreenX", "Laser", "PLF", "Standard"];
+// LogVisibility is "private" | "anonymous" | "public" — there is no
+// "followers_only" at the log level (that's the distinct account-level
+// AccountVisibility).
 const VISIBILITY_OPTS = [
   { label: "Public",    value: "public" },
-  { label: "Followers", value: "followers_only" },
+  { label: "Anonymous", value: "anonymous" },
   { label: "Private",   value: "private" },
 ];
 const ARRIVAL_OPTS = [
@@ -53,19 +64,24 @@ const ARRIVAL_OPTS = [
 
 interface FormState {
   movieTitle:     string;
+  // UI preview only — resolved from a TMDB search hit's poster_path. There's
+  // no movie_id here: MovieSearchResult only carries a tmdb_id, and turning
+  // that into the catalog UUID MovieLogInput.movie_id expects would need a
+  // POST /movies (MovieCreate) round-trip that no hook wires up yet. Picking
+  // a title from search just fills the title + preview, same as typing it.
   moviePosterUrl: string | undefined;
-  movieId:        string | undefined;
   rating:         number;
   format:         Format | undefined;
   venueId:        string | undefined;
   venueName:      string;
   screenNumber:   string;
+  // Free-typed, comma-separated — split into MovieLogInput.seats (string[])
+  // on submit. The real backend has no single "seat" field.
   seat:           string;
   isFdfs:         boolean;
   arrivalStatus:  ArrivalStatus;
-  visibility:     Visibility;
+  visibility:     LogVisibility;
   notes:          string;
-  ticketUrl:      string;
 }
 
 // ─── Web poster column ────────────────────────────────────────────────────────
@@ -192,7 +208,7 @@ function WebForm({
             } as React.CSSProperties}>
               {movieSuggestions.map((m: MovieSearchResult) => (
                 <div
-                  key={m.id}
+                  key={m.tmdb_id}
                   onClick={() => pickMovie(m)}
                   style={{
                     padding: "10px 14px",
@@ -204,7 +220,11 @@ function WebForm({
                   className="tapc"
                 >
                   {m.title}
-                  {m.year && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>{m.year}</span>}
+                  {releaseYear(m.release_date) && (
+                    <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>
+                      {releaseYear(m.release_date)}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -260,7 +280,7 @@ function WebForm({
               overflow: "hidden",
               marginTop: 4,
             } as React.CSSProperties}>
-              {venueSuggestions.map((v: Venue) => (
+              {venueSuggestions.map((v: TheatreMatchCandidate) => (
                 <div
                   key={v.id}
                   onClick={() => pickVenue(v)}
@@ -268,7 +288,7 @@ function WebForm({
                   className="tapc"
                 >
                   {v.name}
-                  {v.address && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.address}</span>}
+                  {v.city && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.city}</span>}
                 </div>
               ))}
             </div>
@@ -327,7 +347,7 @@ function WebForm({
           <SegmentedControl
             options={VISIBILITY_OPTS}
             value={fs.visibility}
-            onChange={(v) => setFs((p: FormState) => ({ ...p, visibility: v as Visibility }))}
+            onChange={(v) => setFs((p: FormState) => ({ ...p, visibility: v as LogVisibility }))}
           />
         </div>
 
@@ -344,17 +364,9 @@ function WebForm({
           />
         </div>
 
-        {/* Ticket URL — full width */}
-        <div className="field" style={{ gridColumn: "1/-1" } as React.CSSProperties}>
-          <label>Ticket URL</label>
-          <input
-            className="input"
-            value={fs.ticketUrl}
-            placeholder="https://…"
-            type="url"
-            onChange={(e) => setFs((p: FormState) => ({ ...p, ticketUrl: e.target.value }))}
-          />
-        </div>
+        {/* No "Ticket URL" field — the backend has no such column.
+            ticket_image_path is a Supabase Storage path set only via the
+            AI extraction flow, never a manually-typed URL. */}
       </div>
 
       {errors.submit && (
@@ -398,7 +410,6 @@ export function LogFormScreen() {
   const [fs, setFs] = useState<FormState>({
     movieTitle:     "",
     moviePosterUrl: undefined,
-    movieId:        undefined,
     rating:         0,
     format:         undefined,
     venueId:        undefined,
@@ -409,7 +420,6 @@ export function LogFormScreen() {
     arrivalStatus:  "on_time",
     visibility:     "public",
     notes:          "",
-    ticketUrl:      "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAIModal, setShowAIModal] = useState(false);
@@ -425,12 +435,13 @@ export function LogFormScreen() {
   const { data: venueSuggestions } = useVenueSearch(venueQuery);
 
   const pickMovie = useCallback((m: MovieSearchResult) => {
-    setFs((p) => ({ ...p, movieTitle: m.title, movieId: m.id, moviePosterUrl: m.poster_url }));
+    // No movie_id here — see FormState's note above.
+    setFs((p) => ({ ...p, movieTitle: m.title, moviePosterUrl: tmdbPosterUrl(m.poster_path, "w342") }));
     setMovieQuery(m.title);
     setShowMovieSuggestions(false);
   }, []);
 
-  const pickVenue = useCallback((v: Venue) => {
+  const pickVenue = useCallback((v: TheatreMatchCandidate) => {
     setFs((p) => ({ ...p, venueId: v.id, venueName: v.name }));
     setVenueQuery(v.name);
     setShowVenueSuggestions(false);
@@ -439,13 +450,13 @@ export function LogFormScreen() {
   const handleExtractionResult = useCallback((result: ExtractionResult) => {
     setFs((p) => ({
       ...p,
-      movieTitle:     result.movie_title ?? p.movieTitle,
-      venueName:      result.venue_name  ?? p.venueName,
-      format:         (result.format as Format | undefined) ?? p.format,
-      seat:           result.seat        ?? p.seat,
+      movieTitle: result.movie ?? p.movieTitle,
+      venueName:  result.theater ?? p.venueName,
+      format:     (result.format as Format | undefined) ?? p.format,
+      seat:       result.seats?.length ? result.seats.join(", ") : p.seat,
     }));
-    if (result.movie_title) setMovieQuery(result.movie_title);
-    if (result.venue_name)  setVenueQuery(result.venue_name);
+    if (result.movie)   setMovieQuery(result.movie);
+    if (result.theater) setVenueQuery(result.theater);
   }, []);
 
   async function handleSubmit() {
@@ -456,18 +467,17 @@ export function LogFormScreen() {
 
     try {
       await createLog({
-        movie_title:    fs.movieTitle.trim(),
-        movie_poster_url: fs.moviePosterUrl,
-        movie_id:       fs.movieId,
-        venue_id:       fs.venueId,
-        screen_number:  fs.screenNumber || undefined,
-        seat:           fs.seat || undefined,
-        format:         fs.format,
-        rating:         fs.rating > 0 ? fs.rating : undefined,
-        notes:          fs.notes || undefined,
-        visibility:     fs.visibility,
-        is_fdfs:        fs.isFdfs,
-        ticket_url:     fs.ticketUrl || undefined,
+        movie:         fs.movieTitle.trim(),
+        theater:       fs.venueName || undefined,
+        theatre_id:    fs.venueId,
+        screen:        fs.screenNumber || undefined,
+        seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        format:        fs.format,
+        rating:        fs.rating > 0 ? fs.rating : undefined,
+        notes:         fs.notes || undefined,
+        visibility:    fs.visibility,
+        is_fdfs:       fs.isFdfs,
+        arrival_status: fs.arrivalStatus,
       });
       router.back();
     } catch (e: any) {
@@ -681,12 +691,14 @@ export function LogFormScreen() {
         }}>
           {(movieSuggestions ?? []).map((m: MovieSearchResult) => (
             <Pressable
-              key={m.id}
+              key={m.tmdb_id}
               onPress={() => pickMovie(m)}
               style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
             >
               <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{m.title}</Text>
-              {m.year && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{m.year}</Text>}
+              {releaseYear(m.release_date) && (
+                <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{releaseYear(m.release_date)}</Text>
+              )}
             </Pressable>
           ))}
         </View>
@@ -741,10 +753,10 @@ export function LogFormScreen() {
         />
         {showVenueSuggestions && (venueSuggestions?.length ?? 0) > 0 && (
           <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
-            {(venueSuggestions ?? []).map((v: Venue) => (
+            {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
               <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
                 <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{v.name}</Text>
-                {v.address && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.address}</Text>}
+                {v.city && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.city}</Text>}
               </Pressable>
             ))}
           </View>
@@ -779,7 +791,7 @@ export function LogFormScreen() {
       {/* Visibility */}
       <View style={{ marginTop: 14 }}>
         <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>VISIBILITY</Text>
-        <SegmentedControl options={VISIBILITY_OPTS} value={fs.visibility} onChange={(v) => setFs((p) => ({ ...p, visibility: v as Visibility }))} />
+        <SegmentedControl options={VISIBILITY_OPTS} value={fs.visibility} onChange={(v) => setFs((p) => ({ ...p, visibility: v as LogVisibility }))} />
       </View>
 
       {/* Notes */}
@@ -794,16 +806,7 @@ export function LogFormScreen() {
         />
       </View>
 
-      {/* Ticket URL */}
-      <View style={{ marginTop: 14 }}>
-        <Input
-          label="Ticket URL"
-          value={fs.ticketUrl}
-          onChangeText={(v) => setFs((p) => ({ ...p, ticketUrl: v }))}
-          placeholder="https://…"
-          keyboardType="url"
-        />
-      </View>
+      {/* No "Ticket URL" field — see the matching note in WebForm above. */}
 
       {errors.submit && (
         <Text style={{ color: theme.error, fontSize: 13, marginTop: 8 }}>{errors.submit}</Text>

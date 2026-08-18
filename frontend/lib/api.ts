@@ -1,4 +1,5 @@
 import axios from "axios";
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 /**
@@ -32,4 +33,31 @@ api.interceptors.request.use(async (config) => {
 /** Temporarily inject a BYO LLM key header for extraction calls */
 export function withLLMKey(key: string) {
   return { headers: { "X-LLM-API-Key": key } };
+}
+
+/**
+ * POST /movie-metadata/extract and /extract-batch are BOTH real multipart
+ * file uploads (ticket_image / ticket_images) — never a JSON body with a
+ * base64 string, despite ImagePicker being able to hand back base64
+ * directly. Appends one picked image to a FormData under `fieldName`,
+ * cross-platform: web's ImagePicker asset.uri is a blob:/data: URL that
+ * needs re-fetching into a real Blob before FormData will send it as a
+ * file part; native's own FormData accepts the {uri, name, type} shape
+ * directly, no fetch needed.
+ */
+export async function appendTicketImage(
+  formData: FormData,
+  fieldName: string,
+  asset: { uri: string; mimeType?: string; fileName?: string | null },
+): Promise<void> {
+  const name = asset.fileName || "ticket.jpg";
+  const type = asset.mimeType || "image/jpeg";
+  if (Platform.OS === "web") {
+    const response = await fetch(asset.uri);
+    const blob = await response.blob();
+    formData.append(fieldName, blob, name);
+  } else {
+    // React Native's FormData accepts this file-descriptor shape directly.
+    formData.append(fieldName, { uri: asset.uri, name, type } as unknown as Blob);
+  }
 }

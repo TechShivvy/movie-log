@@ -22,6 +22,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useMovieSearch } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { PosterCard } from "../components/ui/PosterCard";
+import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import type { MovieLog } from "../types";
 
 type Scope = "all" | "logs" | "people";
@@ -43,7 +44,7 @@ export function SearchScreen() {
 
   // Filter own logs by title
   const logMatches: MovieLog[] = query
-    ? (logs ?? []).filter((l) => l.movie_title.toLowerCase().includes(query.toLowerCase()))
+    ? (logs ?? []).filter((l) => (l.movie ?? "").toLowerCase().includes(query.toLowerCase()))
     : [];
 
   // ── Web ─────────────────────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ export function SearchScreen() {
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
                   {movieResults?.slice(0, 8).map((m) => (
-                    <div key={m.id} className="tapc" style={{
+                    <div key={m.tmdb_id} className="tapc" style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 14,
@@ -141,13 +142,17 @@ export function SearchScreen() {
                         height: 60,
                         borderRadius: 5,
                         flexShrink: 0,
-                        background: m.poster_url
-                          ? `url(${m.poster_url}) center/cover`
+                        background: tmdbPosterUrl(m.poster_path)
+                          ? `url(${tmdbPosterUrl(m.poster_path)}) center/cover`
                           : theme.neutral800,
                       } as React.CSSProperties} />
                       <div style={{ flex: 1 } as React.CSSProperties}>
                         <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{m.title}</div>
-                        {m.year && <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{m.year}</div>}
+                        {releaseYear(m.release_date) && (
+                          <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
+                            {releaseYear(m.release_date)}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -249,7 +254,7 @@ export function SearchScreen() {
           }
           renderItem={({ item }) => {
             // Check if it's a MovieLog or MovieSearchResult
-            if ("movie_title" in item) {
+            if ("movie" in item) {
               const log = item as MovieLog;
               return (
                 <Pressable
@@ -265,7 +270,7 @@ export function SearchScreen() {
                 >
                   <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{log.movie_title}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{log.movie}</Text>
                     <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>
                       {log.format} · Your log
                     </Text>
@@ -274,6 +279,7 @@ export function SearchScreen() {
               );
             }
             const movie = item as any;
+            const year = releaseYear(movie.release_date);
             return (
               <View style={{
                 flexDirection: "row",
@@ -286,7 +292,7 @@ export function SearchScreen() {
                 <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{movie.title}</Text>
-                  {movie.year && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{movie.year}</Text>}
+                  {year && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{year}</Text>}
                 </View>
               </View>
             );

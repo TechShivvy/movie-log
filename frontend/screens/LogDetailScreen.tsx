@@ -31,7 +31,6 @@ import {
   ArrowLeft,
   ChatCircle,
   Robot,
-  Ticket,
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { fontFamily } from "../constants/fonts";
@@ -61,8 +60,14 @@ function fmtTime(iso: string) {
 function punctualityLabel(s?: string) {
   return s === "early" ? "🟢 Arrived Early" : s === "on_time" ? "🟡 On Time" : s === "late" ? "🔴 Late" : null;
 }
+function screeningStartLabel(s?: string) {
+  return s === "early" ? "Started Early" : s === "on_time" ? "Started On Time"
+    : s === "delayed" ? "Delayed" : s === "cancelled" ? "Cancelled" : null;
+}
+// LogVisibility is "private" | "anonymous" | "public" — no "followers_only"
+// (that's the distinct account-level AccountVisibility).
 function visColor(v: string) {
-  return v === "public" ? "#4caf7a" : v === "followers_only" ? "#ffb800" : "#9e9e9e";
+  return v === "public" ? "#4caf7a" : v === "anonymous" ? "#ffb800" : "#9e9e9e";
 }
 
 // ─── CommentItem ──────────────────────────────────────────────────────────────
@@ -80,19 +85,20 @@ function CommentItem({
     <View style={depth > 0 ? { marginLeft: 28, marginTop: 6 } : undefined}>
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <Avatar name={comment.user?.display_name ?? comment.user?.username ?? "?"} size="sm" uri={comment.user?.avatar_url} />
+          {/* Comment has no display_name/avatar_url — only a flat username */}
+          <Avatar name={comment.username ?? "?"} size="sm" />
           <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
-            {comment.user?.display_name ?? comment.user?.username ?? "User"}
+            {comment.username ?? "User"}
           </Text>
           <Text style={{ fontSize: 12, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>
         </View>
-        <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.content}</Text>
+        <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
         <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
-          <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.is_liked })}>
-            <Text style={{ fontSize: 12, color: comment.is_liked ? theme.accent : theme.text }}>♥ {comment.like_count ?? 0}</Text>
+          <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
+            <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>♥ {comment.like_count ?? 0}</Text>
           </Pressable>
           {depth === 0 && (
-            <Pressable onPress={() => onReply(comment.user?.username ?? "User", comment.id)}>
+            <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
               <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
             </Pressable>
           )}
@@ -166,7 +172,7 @@ export function LogDetailScreen() {
   }
 
   const vcol = visColor(log.visibility);
-  const handleLike = () => likeLog.mutate({ logId: log.id, liked: log.is_liked });
+  const handleLike = () => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller });
   const handleArchive = () => archiveLog.mutate({ id: log.id, archive: !log.is_archived });
   const handleReply = (username: string, commentId: string) => {
     setReplyTo({ username, commentId });
@@ -175,15 +181,17 @@ export function LogDetailScreen() {
   const handleSendComment = async () => {
     const text = commentText.trim();
     if (!text) return;
-    await addComment.mutateAsync({ content: text, parent_comment_id: replyTo?.commentId });
+    await addComment.mutateAsync({ text, parent_comment_id: replyTo?.commentId });
     setCommentText("");
     setReplyTo(null);
   };
 
-  // Hue from title for poster gradient — movie_title can be null/undefined
+  // Hue from title for poster gradient — `movie` can be null/undefined
   // (e.g. a log created without a resolved title), which crashed Array.from
   // with "undefined is not iterable". hueFromTitle already guards this.
-  const hue = hueFromTitle(log.movie_title);
+  const hue = hueFromTitle(log.movie);
+  // No poster image support yet — see PosterCard.tsx's own note on why.
+  const posterUrl: string | undefined = undefined;
 
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -207,19 +215,19 @@ export function LogDetailScreen() {
               aspectRatio: "2/3",
               borderRadius: 12,
               overflow: "hidden",
-              background: log.movie_poster_url
-                ? `url(${log.movie_poster_url}) center/cover`
+              background: posterUrl
+                ? `url(${posterUrl}) center/cover`
                 : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
             } as React.CSSProperties} />
 
             {/* Like + Edit row below poster */}
             <div style={{ display: "flex", gap: 8, marginTop: 12 } as React.CSSProperties}>
               <button
-                className={`btn ${log.is_liked ? "btn-primary" : "btn-secondary"}`}
+                className={`btn ${log.liked_by_caller ? "btn-primary" : "btn-secondary"}`}
                 onClick={handleLike}
                 style={{ flex: 1 } as React.CSSProperties}
               >
-                <Heart size={14} weight={log.is_liked ? "fill" : "regular"} />
+                <Heart size={14} weight={log.liked_by_caller ? "fill" : "regular"} />
                 {log.like_count} {log.like_count === 1 ? "like" : "likes"}
               </button>
               <button
@@ -251,20 +259,16 @@ export function LogDetailScreen() {
               </span>
               {log.is_fdfs && <span className="tag tag-accent">FDFS 🎟️</span>}
               {log.format && <span className="tag tag-neutral">{log.format}</span>}
-              {(log.used_provider || log.used_model) && (
+              {(log.extraction_provider || log.extraction_model) && (
                 <span className="tag" style={{ backgroundColor: theme.surface, color: theme.accent, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
                   <Robot size={11} color={theme.accent} />
-                  {[log.used_provider, log.used_model].filter(Boolean).join(" · ")}
+                  {[log.extraction_provider, log.extraction_model].filter(Boolean).join(" · ")}
                 </span>
               )}
-              {log.ticket_url && (
-                <a href={log.ticket_url} target="_blank" rel="noreferrer">
-                  <span className="tag tag-neutral" style={{ display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
-                    <Ticket size={11} />
-                    Ticket
-                  </span>
-                </a>
-              )}
+              {/* No direct ticket link — ticket_image_path is a Supabase
+                  Storage path, not a public URL; resolving it to a viewable
+                  link needs a signed-URL fetch, out of scope for this pass
+                  (same deferred-work class as the poster image). */}
             </div>
 
             {/* Title */}
@@ -277,7 +281,7 @@ export function LogDetailScreen() {
               letterSpacing: -0.3,
               fontFamily: headingFamily,
             } as React.CSSProperties}>
-              {log.movie_title}
+              {log.movie}
             </h1>
 
             {/* Stars + date */}
@@ -296,11 +300,10 @@ export function LogDetailScreen() {
               gap: 10,
               marginBottom: 24,
             } as React.CSSProperties}>
-              <WebMetaCard label="Venue" value={log.venue?.name} />
-              <WebMetaCard label="Screen" value={log.screen_number ? `Screen ${log.screen_number}` : undefined} />
-              <WebMetaCard label="Seat" value={log.seat} />
-              {log.screening_started_at && <WebMetaCard label="Started" value={fmtTime(log.screening_started_at)} />}
-              {log.arrived_at && <WebMetaCard label="Arrived" value={fmtTime(log.arrived_at)} />}
+              <WebMetaCard label="Venue" value={log.theater} />
+              <WebMetaCard label="Screen" value={log.screen} />
+              <WebMetaCard label="Seats" value={log.seats?.length ? log.seats.join(", ") : undefined} />
+              <WebMetaCard label="Screening" value={screeningStartLabel(log.screening_start_status) ?? undefined} />
               <WebMetaCard label="Punctuality" value={punctualityLabel(log.arrival_status) ?? undefined} />
               <WebMetaCard label="Logged" value={log.created_at ? fmtShort(log.created_at) : undefined} />
             </div>
@@ -319,8 +322,10 @@ export function LogDetailScreen() {
 
             {/* Comments section */}
             <div style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 24 } as React.CSSProperties}>
+              {/* No comment_count field exists on MovieLog — this is the
+                  real count of the currently-loaded comment list. */}
               <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: headingFamily } as React.CSSProperties}>
-                Comments ({log.comment_count})
+                Comments ({comments.length})
               </h3>
 
               {/* Compose */}
@@ -369,8 +374,8 @@ export function LogDetailScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Hero poster — 340px */}
       <View style={{ width: "100%", height: 340, position: "relative" }}>
-        {log.movie_poster_url ? (
-          <Image source={{ uri: log.movie_poster_url }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        {posterUrl ? (
+          <Image source={{ uri: posterUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
         ) : (
           <LinearGradient
             colors={[c1Native, c2Native]}
@@ -432,7 +437,7 @@ export function LogDetailScreen() {
           marginBottom: 8,
           fontFamily: headingFamily,
         }} numberOfLines={3}>
-          {log.movie_title}
+          {log.movie}
         </Text>
 
         {/* Rating + date */}
@@ -454,12 +459,12 @@ export function LogDetailScreen() {
               paddingVertical: 10,
               borderRadius: 10,
               borderWidth: 1,
-              borderColor: log.is_liked ? theme.accent : theme.divider,
-              backgroundColor: log.is_liked ? theme.accent + "22" : "transparent",
+              borderColor: log.liked_by_caller ? theme.accent : theme.divider,
+              backgroundColor: log.liked_by_caller ? theme.accent + "22" : "transparent",
             }}
           >
-            <Heart size={16} color={log.is_liked ? theme.accent : theme.text} weight={log.is_liked ? "fill" : "regular"} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: log.is_liked ? theme.accent : theme.text }}>
+            <Heart size={16} color={log.liked_by_caller ? theme.accent : theme.text} weight={log.liked_by_caller ? "fill" : "regular"} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text }}>
               {log.like_count} {log.like_count === 1 ? "like" : "likes"}
             </Text>
           </Pressable>
@@ -501,11 +506,10 @@ export function LogDetailScreen() {
 
         {/* Meta cards */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-          <MetaCard label="Venue" value={log.venue?.name} theme={theme} />
-          <MetaCard label="Screen" value={log.screen_number ? `Screen ${log.screen_number}` : undefined} theme={theme} />
-          <MetaCard label="Seat" value={log.seat} theme={theme} />
-          {log.screening_started_at && <MetaCard label="Started" value={fmtTime(log.screening_started_at)} theme={theme} />}
-          {log.arrived_at && <MetaCard label="Arrived" value={fmtTime(log.arrived_at)} theme={theme} />}
+          <MetaCard label="Venue" value={log.theater} theme={theme} />
+          <MetaCard label="Screen" value={log.screen} theme={theme} />
+          <MetaCard label="Seats" value={log.seats?.length ? log.seats.join(", ") : undefined} theme={theme} />
+          <MetaCard label="Screening" value={screeningStartLabel(log.screening_start_status) ?? undefined} theme={theme} />
           <MetaCard label="Punctuality" value={punctualityLabel(log.arrival_status) ?? undefined} theme={theme} />
         </View>
 
@@ -524,9 +528,9 @@ export function LogDetailScreen() {
         {/* Divider */}
         <View style={{ height: 1, backgroundColor: theme.divider, marginBottom: 20 }} />
 
-        {/* Comments */}
+        {/* Comments — no comment_count field on MovieLog; real loaded-list count */}
         <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
-          Comments ({log.comment_count})
+          Comments ({comments.length})
         </Text>
 
         {/* Compose */}

@@ -26,16 +26,18 @@ export function useAddComment(logId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      content,
+      text,
       parent_comment_id,
     }: {
-      content: string;
+      text: string;
       parent_comment_id?: string;
     }) => {
       if (DEMO_MODE) return;
+      // Body field is `text` — CommentInput (backend/app/schemas/
+      // comments.py) has no `content` field at all.
       await api.post("/comments", {
         movie_log_id: logId,
-        content,
+        text,
         parent_comment_id,
       });
     },

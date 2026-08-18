@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { MOCK_MOVIES, MOCK_VENUES } from "../lib/mockData";
-import type { MovieSearchResult, Venue } from "../types";
+import type { MovieSearchResult, Theatre, TheatreMatchCandidate } from "../types";
 
 /**
  * TMDB movie catalog search.
@@ -29,22 +29,26 @@ export function useMovieSearch(q: string) {
 }
 
 /**
- * Venue search / list.
- * Backend: GET /api/v1/venues  ?q=...
+ * Venue search — trigram "did you mean" match over our own theatres
+ * directory, free (no Google Places call). There is no GET /venues
+ * list/search endpoint at all; discovery is only via this match RPC or
+ * POST /venues/theatres/search-places (Google Places autocomplete,
+ * billed server-side, for picking a brand-new theatre to create).
+ * Backend: POST /api/v1/venues/theatres/match  body: { query }
  */
 export function useVenueSearch(q?: string) {
   return useQuery({
     queryKey: ["search", "venues", q],
-    queryFn: async () => {
+    queryFn: async (): Promise<TheatreMatchCandidate[]> => {
       if (DEMO_MODE) {
-        return q
-          ? MOCK_VENUES.filter((v) =>
-              v.name.toLowerCase().includes((q ?? "").toLowerCase())
-            )
+        const matches = q
+          ? MOCK_VENUES.filter((v) => v.name.toLowerCase().includes((q ?? "").toLowerCase()))
           : MOCK_VENUES;
+        return matches.map((v) => ({ id: v.id, name: v.name, city: v.city, similarity: 1 }));
       }
-      const { data } = await api.get<Venue[]>("/venues", {
-        params: q ? { q } : undefined,
+      if (!q || q.trim().length < 3) return [];
+      const { data } = await api.post<TheatreMatchCandidate[]>("/venues/theatres/match", {
+        query: q,
       });
       return data;
     },

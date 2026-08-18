@@ -159,7 +159,7 @@ export function LibraryScreen() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 18 } as React.CSSProperties}>
             {shown.map((log) => (
               <div key={log.id} className="tapc gridcard lift" onClick={() => open(log.id)}>
-                <Poster title={log.movie_title} style={{ aspectRatio: "2/3" }}>
+                <Poster title={log.movie ?? "Untitled"} style={{ aspectRatio: "2/3" }}>
                   <div
                     style={{
                       position: "absolute", top: 8, right: 8,
@@ -174,16 +174,16 @@ export function LibraryScreen() {
 
                   <div className="ov" style={{ padding: 12 } as React.CSSProperties}>
                     <div style={{ fontFamily: heading, fontSize: 15, color: "#fff" } as React.CSSProperties}>
-                      {log.movie_title}
+                      {log.movie}
                     </div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
-                      {log.venue?.name ?? "—"} · {fmtShort(log.created_at)}
+                      {log.theater ?? "—"} · {fmtShort(log.created_at)}
                     </div>
                   </div>
                 </Poster>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
-                  <span style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie_title}</span>
+                  <span style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
                   {log.format ? (
                     <span className="tag tag-neutral" style={{ fontSize: 10, padding: "1px 6px" } as React.CSSProperties}>
                       {log.format}
@@ -202,17 +202,17 @@ export function LibraryScreen() {
                 style={{ flexDirection: "row", gap: 12, alignItems: "stretch", padding: 10 } as React.CSSProperties}
                 onClick={() => open(log.id)}
               >
-                <Poster title={log.movie_title} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
+                <Poster title={log.movie ?? "Untitled"} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8 } as React.CSSProperties}>
-                    <div style={{ fontFamily: heading, fontSize: 16 } as React.CSSProperties}>{log.movie_title}</div>
+                    <div style={{ fontFamily: heading, fontSize: 16 } as React.CSSProperties}>{log.movie}</div>
                     <span style={{ fontSize: 12, color: theme.accent, whiteSpace: "nowrap" } as React.CSSProperties}>
                       <Icon name="star" weight="fill" size={11} /> {(log.rating ?? 0).toFixed(1)}
                     </span>
                   </div>
                   <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
                     <Icon name="map-pin" size={12} />
-                    {log.venue?.name ?? "—"}
+                    {log.theater ?? "—"}
                   </div>
                   <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
                     <Icon name="calendar-blank" size={12} />
@@ -326,7 +326,7 @@ export function LibraryScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
           {shown.map((log) => (
             <Pressable key={log.id} onPress={() => open(log.id)} style={{ width: "47.5%" }}>
-              <Poster title={log.movie_title} style={{ width: "100%", aspectRatio: 2 / 3 }}>
+              <Poster title={log.movie ?? "Untitled"} style={{ width: "100%", aspectRatio: 2 / 3 }}>
                 <View
                   style={{
                     position: "absolute", top: 8, right: 8,
@@ -350,7 +350,7 @@ export function LibraryScreen() {
                       textShadowRadius: 8,
                     }}
                   >
-                    {log.movie_title}
+                    {log.movie}
                   </Text>
                 </View>
               </Poster>
@@ -377,17 +377,17 @@ export function LibraryScreen() {
                 borderRadius: 8, backgroundColor: theme.surface,
               }}
             >
-              <Poster title={log.movie_title} style={{ width: 56, aspectRatio: 2 / 3 }} />
+              <Poster title={log.movie ?? "Untitled"} style={{ width: 56, aspectRatio: 2 / 3 }} />
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
                   <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: 16, color: theme.text }}>
-                    {log.movie_title}
+                    {log.movie}
                   </Text>
                   <Text style={{ fontSize: 12, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Icon name="map-pin" size={12} color={muted} />
-                  <Text style={{ fontSize: 12, color: muted }}>{log.venue?.name ?? "—"}</Text>
+                  <Text style={{ fontSize: 12, color: muted }}>{log.theater ?? "—"}</Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Icon name="calendar-blank" size={12} color={muted} />

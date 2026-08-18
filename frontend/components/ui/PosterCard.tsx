@@ -43,10 +43,18 @@ function hslToHex(h: number, s: number, l: number): string {
 
 export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
   const { theme } = useTheme();
-  // movie_title can be null/undefined despite its required-string type —
-  // hueFromTitle guards that (see LogDetailScreen/FeedScreen for the same fix)
-  const hue = hueFromTitle(log.movie_title);
+  // `movie` can be null/undefined (a log doesn't strictly require a title
+  // server-side... actually it does, but defensive here too, matching
+  // LogDetailScreen/FeedScreen's same guard) — hueFromTitle handles it.
+  const hue = hueFromTitle(log.movie);
   const h = Math.round((width ?? 120) * 1.5);
+  // No poster image support yet — a log's `movie_id` links to the optional
+  // TMDB-backed catalog (schemas/movies.py's Movie.poster_path), but that
+  // catalog row isn't embedded in the log response, so resolving a real
+  // poster here would need a separate GET /movies/{movie_id} per card.
+  // Always falls back to the gradient for now; a real fix is a follow-up,
+  // not part of this drift-correction pass.
+  const posterUrl: string | undefined = undefined;
 
   // ── Web ────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -62,8 +70,8 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
           className="poster"
           style={{
             aspectRatio: "2/3",
-            background: log.movie_poster_url
-              ? `url(${log.movie_poster_url}) center/cover no-repeat`
+            background: posterUrl
+              ? `url(${posterUrl}) center/cover no-repeat`
               : grad,
           } as React.CSSProperties}
         >
@@ -83,11 +91,11 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
           {/* Hover overlay */}
           <div className="ov">
             <div style={{ fontWeight: 600, fontSize: 13, color: "#fff", lineHeight: 1.3 } as React.CSSProperties}>
-              {log.movie_title}
+              {log.movie}
             </div>
-            {(log.venue?.name || log.created_at) && (
+            {(log.theater || log.created_at) && (
               <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", marginTop: 3 } as React.CSSProperties}>
-                {[log.venue?.name, new Date(log.created_at).getFullYear()]
+                {[log.theater, new Date(log.created_at).getFullYear()]
                   .filter(Boolean).join(" · ")}
               </div>
             )}
@@ -97,7 +105,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
         {/* Below poster: title + format */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 } as React.CSSProperties}>
           <span style={{ fontSize: 13, color: theme.text, fontWeight: 500, lineHeight: 1.3, flex: 1 } as React.CSSProperties} className="tapc">
-            {log.movie_title}
+            {log.movie}
           </span>
           {log.format && (
             <span className="tag tag-neutral" style={{ flexShrink: 0 } as React.CSSProperties}>
@@ -120,8 +128,8 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
     >
       {/* Poster */}
       <View style={[styles.poster, { width, height: h }]}>
-        {log.movie_poster_url ? (
-          <Image source={{ uri: log.movie_poster_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {posterUrl ? (
+          <Image source={{ uri: posterUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <LinearGradient colors={[c1, c2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
         )}
@@ -141,10 +149,10 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
           end={{ x: 0, y: 1 }}
           pointerEvents="none"
         >
-          <Text style={styles.overlayTitle} numberOfLines={2}>{log.movie_title}</Text>
-          {(log.venue?.name || log.created_at) && (
+          <Text style={styles.overlayTitle} numberOfLines={2}>{log.movie}</Text>
+          {(log.theater || log.created_at) && (
             <Text style={styles.overlayMeta}>
-              {[log.venue?.name, new Date(log.created_at).getFullYear()].filter(Boolean).join(" · ")}
+              {[log.theater, new Date(log.created_at).getFullYear()].filter(Boolean).join(" · ")}
             </Text>
           )}
         </LinearGradient>
@@ -152,7 +160,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 
       {/* Title + format below poster */}
       <View style={styles.footer}>
-        <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{log.movie_title}</Text>
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{log.movie}</Text>
         {log.format && (
           <View style={[styles.format, { backgroundColor: theme.neutral800 }]}>
             <Text style={[styles.formatText, { color: theme.neutral100 }]}>{log.format}</Text>

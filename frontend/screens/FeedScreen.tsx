@@ -35,8 +35,11 @@ function FeedCard({ log }: { log: MovieLog }) {
   const { theme } = useTheme();
   const router = useRouter();
   const likeLog = useLikeLog();
-  // movie_title can be null/undefined — hueFromTitle guards that (see LogDetailScreen)
-  const hue = hueFromTitle(log.movie_title);
+  // `movie` can be null/undefined — hueFromTitle guards that (see LogDetailScreen)
+  const hue = hueFromTitle(log.movie);
+  // No poster image support yet — see PosterCard.tsx's own note on why
+  // (a log's movie_id catalog row isn't embedded in the response).
+  const posterUrl: string | undefined = undefined;
 
   if (Platform.OS === "web") {
     return (
@@ -51,8 +54,8 @@ function FeedCard({ log }: { log: MovieLog }) {
             flexShrink: 0,
             overflow: "hidden",
             cursor: "pointer",
-            background: log.movie_poster_url
-              ? `url(${log.movie_poster_url}) center/cover`
+            background: posterUrl
+              ? `url(${posterUrl}) center/cover`
               : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
           } as React.CSSProperties}
         />
@@ -61,10 +64,10 @@ function FeedCard({ log }: { log: MovieLog }) {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 } as React.CSSProperties}>
           {/* User row */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
-            <Avatar name={log.user?.display_name ?? log.user?.username ?? "?"} uri={log.user?.avatar_url} size="sm" />
+            <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
             <div>
               <span style={{ fontSize: 13, fontWeight: 700, color: theme.text } as React.CSSProperties}>
-                {log.user?.display_name ?? log.user?.username ?? "User"}
+                {log.display_name ?? log.username ?? "User"}
               </span>
               <span style={{ fontSize: 12, color: `${theme.text}55`, marginLeft: 6 } as React.CSSProperties}>logged</span>
             </div>
@@ -81,7 +84,7 @@ function FeedCard({ log }: { log: MovieLog }) {
             style={{ fontSize: 15, fontWeight: 700, color: theme.text, cursor: "pointer", lineHeight: 1.3 } as React.CSSProperties}
             className="tapc"
           >
-            {log.movie_title}
+            {log.movie}
           </div>
 
           {/* Rating + format */}
@@ -110,19 +113,21 @@ function FeedCard({ log }: { log: MovieLog }) {
           <div style={{ display: "flex", gap: 12, marginTop: "auto" } as React.CSSProperties}>
             <button
               className={`btn btn-ghost`}
-              onClick={() => likeLog.mutate({ logId: log.id, liked: log.is_liked })}
-              style={{ fontSize: 12, padding: "4px 0", color: log.is_liked ? theme.accent : `${theme.text}66` } as React.CSSProperties}
+              onClick={() => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller })}
+              style={{ fontSize: 12, padding: "4px 0", color: log.liked_by_caller ? theme.accent : `${theme.text}66` } as React.CSSProperties}
             >
-              <Heart size={13} weight={log.is_liked ? "fill" : "regular"} color={log.is_liked ? theme.accent : `${theme.text}66`} />
+              <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
               {log.like_count}
             </button>
+            {/* No per-log comment count exists on the backend (only like_count
+                is denormalized onto movie_logs) — this is just a "view
+                comments" affordance, not a real counter. */}
             <button
               className="btn btn-ghost"
               onClick={() => router.push(`/(app)/log/${log.id}` as any)}
               style={{ fontSize: 12, padding: "4px 0", color: `${theme.text}66` } as React.CSSProperties}
             >
               <ChatCircle size={13} color={`${theme.text}66`} />
-              {log.comment_count}
             </button>
           </div>
         </div>
@@ -152,8 +157,8 @@ function FeedCard({ log }: { log: MovieLog }) {
         backgroundColor: theme.neutral800,
         flexShrink: 0,
       }}>
-        {log.movie_poster_url ? (
-          <Image source={{ uri: log.movie_poster_url }} style={{ width: 64, height: 96 }} resizeMode="cover" />
+        {posterUrl ? (
+          <Image source={{ uri: posterUrl }} style={{ width: 64, height: 96 }} resizeMode="cover" />
         ) : (
           <Text style={{ fontSize: 20, textAlign: "center", lineHeight: 96 }}>🎬</Text>
         )}
@@ -163,15 +168,15 @@ function FeedCard({ log }: { log: MovieLog }) {
       <View style={{ flex: 1, gap: 4 }}>
         {/* User row */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Avatar name={log.user?.display_name ?? log.user?.username ?? "?"} uri={log.user?.avatar_url} size="sm" />
+          <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
           <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }} numberOfLines={1}>
-            {log.user?.display_name ?? log.user?.username ?? "User"}
+            {log.display_name ?? log.username ?? "User"}
           </Text>
         </View>
 
         {/* Title */}
         <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text }} numberOfLines={2}>
-          {log.movie_title}
+          {log.movie}
         </Text>
 
         {/* Rating + format */}
@@ -194,15 +199,15 @@ function FeedCard({ log }: { log: MovieLog }) {
         {/* Actions */}
         <View style={{ flexDirection: "row", gap: 14, marginTop: 2 }}>
           <Pressable
-            onPress={(e) => { e.stopPropagation?.(); likeLog.mutate({ logId: log.id, liked: log.is_liked }); }}
+            onPress={(e) => { e.stopPropagation?.(); likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller }); }}
             style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
           >
-            <Heart size={13} weight={log.is_liked ? "fill" : "regular"} color={log.is_liked ? theme.accent : `${theme.text}66`} />
-            <Text style={{ fontSize: 12, color: log.is_liked ? theme.accent : `${theme.text}66` }}>{log.like_count}</Text>
+            <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
+            <Text style={{ fontSize: 12, color: log.liked_by_caller ? theme.accent : `${theme.text}66` }}>{log.like_count}</Text>
           </Pressable>
+          {/* No per-log comment count on the backend — icon-only affordance. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <ChatCircle size={13} color={`${theme.text}66`} />
-            <Text style={{ fontSize: 12, color: `${theme.text}66` }}>{log.comment_count}</Text>
           </View>
         </View>
       </View>
