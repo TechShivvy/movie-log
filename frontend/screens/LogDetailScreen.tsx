@@ -50,9 +50,11 @@ import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
 import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
 import { useVenueRating } from "../hooks/useVenueRating";
+import { useMovie } from "../hooks/useSearch";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { hueFromTitle } from "../components/ui/Poster";
+import { tmdbPosterUrl } from "../lib/tmdb";
 import type { Comment, MovieLog } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -313,6 +315,10 @@ export function LogDetailScreen() {
   const deleteLog = useDeleteLog();
   const likeLog = useLikeLog();
   const venueRating = useVenueRating(id ?? "");
+  // log isn't guaranteed loaded yet here (still before the isLoading/error
+  // early-returns below) — useMovie's own `enabled: !!movieId` check
+  // handles that, same pattern as venueRating above.
+  const { data: movieCatalog } = useMovie(log?.movie_id);
   const { data: comments = [] } = useComments(id ?? "");
   const addComment = useAddComment(id ?? "");
 
@@ -395,8 +401,11 @@ export function LogDetailScreen() {
   // (e.g. a log created without a resolved title), which crashed Array.from
   // with "undefined is not iterable". hueFromTitle already guards this.
   const hue = hueFromTitle(log.movie);
-  // No poster image support yet — see PosterCard.tsx's own note on why.
-  const posterUrl: string | undefined = undefined;
+  // The log only carries movie_id, not a poster — resolved from the
+  // catalog entry it points at. Every log created before movie_id got
+  // wired up in LogFormScreen has none, so this stays a gradient for
+  // those regardless — nothing to resolve, not a bug.
+  const posterUrl = tmdbPosterUrl(movieCatalog?.poster_path, "w500");
 
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {

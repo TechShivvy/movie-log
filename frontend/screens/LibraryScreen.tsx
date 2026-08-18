@@ -42,11 +42,27 @@ import {
 import { useRouter } from "expo-router";
 import { useTheme } from "../hooks/useTheme";
 import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useMovie } from "../hooks/useSearch";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
-import { Poster } from "../components/ui/Poster";
+import { Poster, type Poster as PosterType } from "../components/ui/Poster";
+import { tmdbPosterUrl } from "../lib/tmdb";
 import { fontFamily } from "../constants/fonts";
 import type { MovieLog } from "../types";
+
+/**
+ * Every card's poster used to hard-code the hue-gradient placeholder, even
+ * for a log whose movie_id links to a catalog entry with real artwork —
+ * nothing here ever looked the artwork up. Each card needs its own
+ * useMovie() call (React Query dedupes by movie_id, so five logs for the
+ * same film cost one fetch), which means each poster needs to be its own
+ * component — a hook can't run inside the .map() callbacks below directly.
+ * Forwards every prop Poster itself takes; only adds the lookup.
+ */
+function LogPoster({ log, ...rest }: { log: MovieLog } & Omit<React.ComponentProps<typeof PosterType>, "title" | "imageUrl">) {
+  const { data: movie } = useMovie(log.movie_id);
+  return <Poster title={log.movie ?? "Untitled"} imageUrl={tmdbPosterUrl(movie?.poster_path, "w342")} {...rest} />;
+}
 
 // libFilters from the design, verbatim — "All" is tag-accent, rest tag-neutral
 const FILTERS = ["All", "IMAX", "This year", "5 stars", "FDFS", "Archived"] as const;
@@ -228,7 +244,7 @@ export function LibraryScreen() {
                 onClick={() => open(log.id)}
                 onKeyDown={onCardKey(() => open(log.id))}
               >
-                <Poster title={log.movie ?? "Untitled"} style={{ aspectRatio: "2/3" }}>
+                <LogPoster log={log} style={{ aspectRatio: "2/3" }}>
                   <div
                     style={{
                       position: "absolute", top: 8, right: 8,
@@ -249,7 +265,7 @@ export function LibraryScreen() {
                       {log.theater ?? "—"} · {fmtLogDate(log)}
                     </div>
                   </div>
-                </Poster>
+                </LogPoster>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
                   {/* .ov (above) is always visible below tablet width now —
@@ -283,7 +299,7 @@ export function LibraryScreen() {
                 onClick={() => open(log.id)}
                 onKeyDown={onCardKey(() => open(log.id))}
               >
-                <Poster title={log.movie ?? "Untitled"} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
+                <LogPoster log={log} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8 } as React.CSSProperties}>
                     <div style={{ fontFamily: heading, fontSize: 16 } as React.CSSProperties}>{log.movie}</div>
@@ -409,7 +425,7 @@ export function LibraryScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
           {shown.map((log) => (
             <Pressable key={log.id} onPress={() => open(log.id)} style={{ width: "47.5%" }}>
-              <Poster title={log.movie ?? "Untitled"} style={{ width: "100%", aspectRatio: 2 / 3 }}>
+              <LogPoster log={log} style={{ width: "100%", aspectRatio: 2 / 3 }}>
                 <View
                   style={{
                     position: "absolute", top: 8, right: 8,
@@ -436,7 +452,7 @@ export function LibraryScreen() {
                     {log.movie}
                   </Text>
                 </View>
-              </Poster>
+              </LogPoster>
 
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
                 <Text style={{ fontSize: 11, color: muted }}>{fmtLogDate(log)}</Text>
@@ -460,7 +476,7 @@ export function LibraryScreen() {
                 borderRadius: 8, backgroundColor: theme.surface,
               }}
             >
-              <Poster title={log.movie ?? "Untitled"} style={{ width: 56, aspectRatio: 2 / 3 }} />
+              <LogPoster log={log} style={{ width: 56, aspectRatio: 2 / 3 }} />
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
                   <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: 16, color: theme.text }}>

@@ -14,7 +14,7 @@
  * artwork, matching the design's per-item posterStyle.
  */
 import React from "react";
-import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import { Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Typed loosely on purpose: MovieLog.movie is optional (a title that failed
@@ -34,6 +34,15 @@ export function posterColors(hue: number, dark = true): [string, string] {
 
 interface PosterProps {
   title: string;
+  /**
+   * A real poster image (built via lib/tmdb.ts's tmdbPosterUrl from a
+   * linked Movie's poster_path). Every caller of this component always
+   * rendered the hue-gradient placeholder, even for a log whose movie_id
+   * pointed at a catalog entry with real artwork — this prop was simply
+   * never plumbed through until now. Falls back to the gradient when
+   * absent (no movie_id link, catalog entry has no poster, still loading).
+   */
+  imageUrl?: string;
   /** Overlays (star badge, hover overlay, title plate). */
   children?: React.ReactNode;
   /** Extra styles — width, aspectRatio, flex, etc. */
@@ -43,7 +52,7 @@ interface PosterProps {
   onClick?: () => void;
 }
 
-export function Poster({ title, children, style, className, dark = true, onClick }: PosterProps) {
+export function Poster({ title, imageUrl, children, style, className, dark = true, onClick }: PosterProps) {
   const hue = hueFromTitle(title);
   const [c1, c2] = posterColors(hue, dark);
 
@@ -53,8 +62,12 @@ export function Poster({ title, children, style, className, dark = true, onClick
         className={["poster", className].filter(Boolean).join(" ")}
         onClick={onClick}
         style={{
-          // 155deg in CSS terms
-          background: `linear-gradient(155deg, ${c1}, ${c2})`,
+          // 155deg in CSS terms. Real artwork wins outright when present —
+          // no need to layer it over the gradient, a poster image already
+          // fills the frame edge to edge same as the gradient did.
+          background: imageUrl
+            ? `url("${imageUrl}") center/cover no-repeat`
+            : `linear-gradient(155deg, ${c1}, ${c2})`,
           ...(style as React.CSSProperties),
         }}
       >
@@ -65,13 +78,17 @@ export function Poster({ title, children, style, className, dark = true, onClick
 
   return (
     <View style={[styles.poster, style]}>
-      <LinearGradient
-        colors={[c1, c2]}
-        // 155deg ≈ down-and-slightly-left
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <LinearGradient
+          colors={[c1, c2]}
+          // 155deg ≈ down-and-slightly-left
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {children}
     </View>
   );
