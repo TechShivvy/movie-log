@@ -285,7 +285,11 @@ export function FeedScreen() {
   // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1080, margin: "0 auto" } as React.CSSProperties}>
+      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div
+         for the reference pattern. Without it this shrink-wrapped to
+         content width instead of filling out to the cap; same fix applied
+         across every other screen below this maxWidth+margin:auto shape. */
+      <div style={{ padding: "28px 32px 40px", maxWidth: 1080, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Header */}
         <h1 style={{
           fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 24px",

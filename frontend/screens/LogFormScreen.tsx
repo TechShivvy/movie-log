@@ -488,7 +488,12 @@ export function LogFormScreen() {
   // ── Web layout ──────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1000, margin: "0 auto" } as React.CSSProperties}>
+      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
+         same shrink-wrap-instead-of-filling bug as every other screen
+         below this maxWidth+margin:auto shape. Less visible here since the
+         two-column form content is wide enough to mask it, but still
+         narrower than the intended 1000px cap without this. */
+      <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Header row */}
         <div style={{
           display: "flex",

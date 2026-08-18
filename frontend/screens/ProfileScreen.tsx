@@ -79,7 +79,14 @@ export function ProfileScreen() {
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ maxWidth: 1000, margin: "0 auto" } as React.CSSProperties}>
+      // width:"100%" alongside maxWidth: without it this div shrink-wrapped
+      // to its content's width instead of filling out to the 1000px cap —
+      // the "You"/"@you" name block and the Settings/Edit profile buttons,
+      // meant to sit at opposite ends of a wide space-between row, ended up
+      // crushed together on the left with barely a gap. LibraryScreen's
+      // equivalent root div already carries width:"100%" for the same
+      // reason; this one didn't.
+      <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Hero banner */}
         <div style={{
           height: 160,

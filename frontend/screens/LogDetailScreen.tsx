@@ -196,7 +196,10 @@ export function LogDetailScreen() {
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ padding: "24px 32px 40px", maxWidth: 980, margin: "0 auto" } as React.CSSProperties}>
+      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
+         same shrink-wrap-instead-of-filling bug as every other screen
+         below this maxWidth+margin:auto shape. */
+      <div style={{ padding: "24px 32px 40px", maxWidth: 980, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Back btn */}
         <button
           className="btn btn-ghost"

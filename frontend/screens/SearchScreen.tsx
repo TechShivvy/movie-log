@@ -50,7 +50,10 @@ export function SearchScreen() {
   // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 820, margin: "0 auto" } as React.CSSProperties}>
+      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
+         same shrink-wrap-instead-of-filling bug as every other screen
+         below this maxWidth+margin:auto shape. */
+      <div style={{ padding: "28px 32px 40px", maxWidth: 820, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         <h1 style={{ fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 20px", letterSpacing: -0.5 } as React.CSSProperties}>
           Search
         </h1>
