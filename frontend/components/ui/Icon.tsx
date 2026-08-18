@@ -16,22 +16,23 @@
 import React from "react";
 import { Platform } from "react-native";
 import {
-  Armchair, BatteryHigh, Bell, BookmarkSimple, Brain, CalendarBlank,
+  Armchair, ArrowClockwise, BatteryHigh, Bell, BookmarkSimple, Brain, CalendarBlank,
   CameraPlus, CaretLeft, CaretRight, CellSignalFull, ChartBar, ChatCircle,
   CheckCircle, CircleNotch, Clock, Database, DeviceMobileCamera, DotsThree,
-  DownloadSimple, FilmSlate, FilmStrip, Flag, FloppyDisk, GearSix, Globe,
+  DownloadSimple, Eye, EyeSlash, FilmSlate, FilmStrip, Flag, FloppyDisk, GearSix, Globe,
   GoogleLogo, Heart, Lock, LockKeyOpen, LockSimple, MagicWand, MagnifyingGlass,
   MapPin, MapTrifold, Monitor, Note, Palette, PaperPlaneTilt, PencilSimple,
   Plus, PlusCircle, Popcorn, ProjectorScreen, Robot, Rows, Rss, ShareNetwork,
   SidebarSimple, SignIn, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
   Ticket, Timer, Trash, Upload, UploadSimple, User, UserPlus, Users, Warning,
-  WifiHigh, WifiSlash, X,
+  WarningCircle, WifiHigh, WifiSlash, X,
 } from "phosphor-react-native";
 
 export type IconWeight = "regular" | "fill" | "bold";
 
 const NATIVE = {
   "armchair": Armchair,
+  "arrow-clockwise": ArrowClockwise,
   "battery-high": BatteryHigh,
   "bell": Bell,
   "bookmark-simple": BookmarkSimple,
@@ -50,6 +51,8 @@ const NATIVE = {
   "device-mobile-camera": DeviceMobileCamera,
   "dots-three": DotsThree,
   "download-simple": DownloadSimple,
+  "eye": Eye,
+  "eye-slash": EyeSlash,
   "film-slate": FilmSlate,
   "film-strip": FilmStrip,
   "flag": Flag,
@@ -94,6 +97,7 @@ const NATIVE = {
   "user-plus": UserPlus,
   "users": Users,
   "warning": Warning,
+  "warning-circle": WarningCircle,
   "wifi-high": WifiHigh,
   "wifi-slash": WifiSlash,
   "x": X,

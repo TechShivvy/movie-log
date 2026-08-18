@@ -20,7 +20,14 @@ interface InputProps extends TextInputProps {
   error?: string;
 }
 
-export function Input({ label, error, style, multiline, ...rest }: InputProps) {
+// forwardRef so a caller can chain focus (email field's onSubmitEditing →
+// password field) the way a plain TextInput ref normally would — a bare
+// function component silently drops any `ref` passed to it and logs a
+// dev warning, which would make that chaining a no-op.
+export const Input = React.forwardRef<TextInput, InputProps>(function Input(
+  { label, error, style, multiline, ...rest },
+  ref,
+) {
   const { theme } = useTheme();
   const [focused, setFocused] = useState(false);
 
@@ -56,6 +63,7 @@ export function Input({ label, error, style, multiline, ...rest }: InputProps) {
         <Text style={[styles.label, { color: `${theme.text}b3` }]}>{label}</Text>
       ) : null}
       <TextInput
+        ref={ref}
         multiline={multiline}
         placeholderTextColor={`${theme.text}61`}
         onFocus={() => setFocused(true)}
@@ -79,7 +87,7 @@ export function Input({ label, error, style, multiline, ...rest }: InputProps) {
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper:   { gap: 0 },

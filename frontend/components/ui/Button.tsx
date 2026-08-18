@@ -27,10 +27,17 @@ interface ButtonProps {
   block?: boolean;
   style?: ViewStyle | any;
   children?: React.ReactNode;
+  /**
+   * Web only. A bare <button> defaults to type="submit" when it's inside a
+   * <form> — every Button rendered in a form would trigger that form's
+   * onSubmit on click, not just the one meant to. Defaults to "button" so
+   * opting into submit is explicit.
+   */
+  type?: "button" | "submit";
 }
 
 export function Button({
-  onPress, label, variant = "primary", loading, disabled, block, style, children,
+  onPress, label, variant = "primary", loading, disabled, block, style, children, type = "button",
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDisabled = disabled || loading;
@@ -40,6 +47,7 @@ export function Button({
     const classes = ["btn", `btn-${variant}`, block ? "btn-block" : ""].filter(Boolean).join(" ");
     return (
       <button
+        type={type}
         className={classes}
         onClick={onPress}
         disabled={isDisabled}

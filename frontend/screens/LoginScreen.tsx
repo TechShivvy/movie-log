@@ -20,6 +20,14 @@
  *   footer      margin-top:auto; center; 13px; padding-top:30px
  *               "New here? " + accent "Create an account"
  *
+ * "Create an account" used to be inert text — no route, no handler, clicking
+ * it did nothing. There's still no dedicated signup screen or route; instead
+ * the form itself toggles between sign-in and sign-up mode (`mode` state
+ * below), keeping the single centred layout the design specifies rather than
+ * adding a second (auth) index route (see app/(auth)/_layout.tsx's own
+ * comment about the / path collision between (auth) and (app)'s index
+ * routes — one more competing index route was the wrong direction).
+ *
  * ── OAuth ────────────────────────────────────────────────────────────────────
  * Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
  * must include ALL of:
@@ -34,11 +42,10 @@
  * silently falls back to the Site URL — the cause of landing on :3000.
  * Full explanation + the native-sign-in alternative: docs/mobile-oauth.md
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   Text,
   TextInput,
@@ -52,6 +59,8 @@ import { completeAuthFromUrl } from "../lib/authCallback";
 import { useTheme } from "../hooks/useTheme";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import { fontFamily } from "../constants/fonts";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -64,16 +73,34 @@ function getRedirectUrl(): string {
   return AuthSession.makeRedirectUri({ scheme: "cinelog", path: "auth/callback" });
 }
 
+type Mode = "signin" | "signup";
+// Which single action is in flight, so the busy button can say what it's
+// doing ("Signing in…") instead of every button on the screen dimming
+// identically with no way to tell which one is actually running.
+type Action = null | "password" | "signup" | "magic" | "google";
+
 export function LoginScreen() {
   const { theme, fontConfig } = useTheme();
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [action, setAction] = useState<Action>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const passwordRef = useRef<TextInput>(null);
 
   const headingFamily = fontFamily(fontConfig, "heading", 600);
   const muted = `${theme.text}8c`; // .text-muted ≈ text 55%
+  const busy = action !== null;
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setError("");
+    setMessage("");
+    setConfirmPassword("");
+  }
 
   // Fallback deep-link listener: on Android, Chrome Custom Tabs does not always
   // fire openAuthSessionAsync's callback, so catch the redirect here too.
@@ -91,13 +118,13 @@ export function LoginScreen() {
    * double-spending the single-use PKCE code.
    */
   async function handleRedirect(url: string): Promise<boolean> {
-    setLoading(true);
+    setAction("google");
     try {
       const result = await completeAuthFromUrl(url);
       if (result.status === "error") setError(result.message);
       return result.status === "signed-in";
     } finally {
-      setLoading(false);
+      setAction(null);
     }
   }
 
@@ -106,7 +133,7 @@ export function LoginScreen() {
       setError("Enter your email and password");
       return;
     }
-    setLoading(true);
+    setAction("password");
     setError("");
     try {
       const { error: err } = await supabase.auth.signInWithPassword({
@@ -117,17 +144,57 @@ export function LoginScreen() {
     } catch (e: any) {
       setError(e.message ?? "Sign-in failed");
     } finally {
-      setLoading(false);
+      setAction(null);
+    }
+  }
+
+  async function signUp() {
+    if (!email.trim() || !password) {
+      setError("Enter your email and password");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords don't match");
+      return;
+    }
+    setAction("signup");
+    setError("");
+    setMessage("");
+    try {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: getRedirectUrl() },
+      });
+      if (err) throw err;
+      // With email confirmations on (the common Supabase default), signUp
+      // returns a user but no session — the account exists, but isn't
+      // signed in yet. Without this branch the screen would just sit there
+      // looking like nothing happened.
+      if (!data.session) {
+        setMessage("Check your email to confirm your account, then sign in.");
+        switchMode("signin");
+      }
+    } catch (e: any) {
+      setError(e.message ?? "Sign-up failed");
+    } finally {
+      setAction(null);
     }
   }
 
   async function signInGoogle() {
-    setLoading(true);
+    setAction("google");
     setError("");
     try {
       const redirectTo = getRedirectUrl();
       // Compare this against the Supabase Redirect URLs list when debugging.
-      console.log("[CineLog OAuth] redirect_to =", redirectTo);
+      // __DEV__-gated: this ran unconditionally in production before, which
+      // put the redirect URI in every user's browser console.
+      if (__DEV__) console.log("[CineLog OAuth] redirect_to =", redirectTo);
 
       const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -152,7 +219,7 @@ export function LoginScreen() {
     } catch (e: any) {
       setError(e.message ?? "Sign-in failed");
     } finally {
-      setLoading(false);
+      setAction(null);
     }
   }
 
@@ -161,7 +228,7 @@ export function LoginScreen() {
       setError("Enter your email");
       return;
     }
-    setLoading(true);
+    setAction("magic");
     setError("");
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
@@ -173,8 +240,13 @@ export function LoginScreen() {
     } catch (e: any) {
       setError(e.message ?? "Failed to send link");
     } finally {
-      setLoading(false);
+      setAction(null);
     }
+  }
+
+  function submit() {
+    if (mode === "signin") void signInPassword();
+    else void signUp();
   }
 
   // ── Web ─────────────────────────────────────────────────────────────────────
@@ -237,8 +309,14 @@ export function LoginScreen() {
             </div>
           </div>
 
-          {/* Form */}
-          <div style={{ marginTop: 44, display: "flex", flexDirection: "column", gap: 16 } as React.CSSProperties}>
+          {/* Form — a real <form> so Enter submits and the browser's own
+              password manager can recognise and offer to save credentials,
+              instead of the previous loose <input>s with hand-wired
+              onKeyDown Enter handlers. */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); submit(); }}
+            style={{ marginTop: 44, display: "flex", flexDirection: "column", gap: 16 } as React.CSSProperties}
+          >
             <div className="field">
               <label>Email address</label>
               <input
@@ -248,54 +326,118 @@ export function LoginScreen() {
                 placeholder="you@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }}
               />
             </div>
 
             <div className="field">
               <label>Password</label>
-              <input
-                className="input"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }}
+              <div style={{ position: "relative" } as React.CSSProperties}>
+                <input
+                  className="input"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  style={{ paddingRight: 34 } as React.CSSProperties}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((s) => !s)}
+                  style={{
+                    position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                    border: "none", background: "transparent", cursor: "pointer", padding: 4,
+                  } as React.CSSProperties}
+                >
+                  <Icon name={showPassword ? "eye-slash" : "eye"} size={16} color={muted} />
+                </button>
+              </div>
+            </div>
+
+            {mode === "signup" ? (
+              <div className="field">
+                <label>Confirm password</label>
+                <input
+                  className="input"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+            ) : null}
+
+            {mode === "signin" ? (
+              <>
+                {/* type="submit": the only button in this form that should
+                    respond to Enter / the form's onSubmit. Every other
+                    button below is type="button" (Button.tsx's default) so
+                    it only fires its own onClick. */}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  block
+                  loading={action === "password"}
+                  disabled={busy}
+                  label={action === "password" ? "Signing in…" : "Sign in"}
+                />
+
+                <Button
+                  variant="secondary"
+                  block
+                  loading={action === "magic"}
+                  disabled={busy}
+                  label={action === "magic" ? "Sending link…" : "Send magic link"}
+                  onPress={sendMagicLink}
+                />
+
+                {/* OR divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" } as React.CSSProperties}>
+                  <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
+                  <span className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
+                </div>
+
+                <Button
+                  variant="secondary"
+                  block
+                  loading={action === "google"}
+                  disabled={busy}
+                  label={action === "google" ? "Opening Google…" : "Continue with Google"}
+                  onPress={signInGoogle}
+                />
+              </>
+            ) : (
+              <Button
+                type="submit"
+                variant="primary"
+                block
+                loading={action === "signup"}
+                disabled={busy}
+                label={action === "signup" ? "Creating account…" : "Create account"}
               />
-            </div>
+            )}
+          </form>
 
-            <button className="btn btn-primary btn-block" onClick={signInPassword} disabled={loading}>
-              <Icon name={loading ? "circle-notch" : "sign-in"} size={16} />
-              Sign in
-            </button>
-
-            <button className="btn btn-secondary btn-block" onClick={sendMagicLink} disabled={loading}>
-              <Icon name="magic-wand" size={16} />
-              Send magic link
-            </button>
-
-            {/* OR divider */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" } as React.CSSProperties}>
-              <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
-              <span className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>OR</span>
-              <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
-            </div>
-
-            <button className="btn btn-secondary btn-block" onClick={signInGoogle} disabled={loading}>
-              <Icon name="google-logo" size={16} />
-              Continue with Google
-            </button>
-
-            {message ? <p style={{ color: theme.accent, fontSize: 13, margin: 0 } as React.CSSProperties}>{message}</p> : null}
-            {error ? <p style={{ color: theme.error, fontSize: 13, margin: 0 } as React.CSSProperties}>{error}</p> : null}
-          </div>
+          {message ? <p role="status" style={{ color: theme.accent, fontSize: 13, margin: "12px 0 0" } as React.CSSProperties}>{message}</p> : null}
+          {error ? <p role="alert" style={{ color: theme.error, fontSize: 13, margin: "12px 0 0" } as React.CSSProperties}>{error}</p> : null}
 
           {/* Footer pinned to bottom */}
           <div
             className="text-muted"
             style={{ marginTop: "auto", textAlign: "center", fontSize: 13, paddingTop: 30 } as React.CSSProperties}
           >
-            New here? <span style={{ color: theme.accent, cursor: "pointer" } as React.CSSProperties}>Create an account</span>
+            {mode === "signin" ? (
+              <>New here? <span
+                style={{ color: theme.accent, cursor: "pointer" } as React.CSSProperties}
+                onClick={() => switchMode("signup")}
+              >Create an account</span></>
+            ) : (
+              <>Already have an account? <span
+                style={{ color: theme.accent, cursor: "pointer" } as React.CSSProperties}
+                onClick={() => switchMode("signin")}
+              >Sign in</span></>
+            )}
           </div>
         </div>
       </div>
@@ -344,99 +486,119 @@ export function LoginScreen() {
 
           {/* Form */}
           <View style={{ marginTop: 44, gap: 16 }}>
-            <View>
-              <Text style={{ fontSize: 12, marginBottom: 5, color: `${theme.text}b3` }}>Email address</Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="you@email.com"
-                placeholderTextColor={`${theme.text}55`}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                style={{
-                  minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, fontSize: 14,
-                  color: theme.text, backgroundColor: theme.surface,
-                  borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
-                }}
+            <Input
+              label="Email address"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@email.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+            />
+
+            <Input
+              ref={passwordRef as any}
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              returnKeyType={mode === "signin" ? "go" : "next"}
+              onSubmitEditing={() => (mode === "signin" ? submit() : undefined)}
+            />
+
+            {mode === "signup" ? (
+              <Input
+                label="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                returnKeyType="go"
+                onSubmitEditing={submit}
               />
-            </View>
+            ) : null}
 
-            <View>
-              <Text style={{ fontSize: 12, marginBottom: 5, color: `${theme.text}b3` }}>Password</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="current-password"
-                style={{
-                  minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, fontSize: 14,
-                  color: theme.text, backgroundColor: theme.surface,
-                  borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
-                }}
+            <Button
+              variant="ghost"
+              label={showPassword ? "Hide password" : "Show password"}
+              onPress={() => setShowPassword((s) => !s)}
+            />
+
+            {mode === "signin" ? (
+              <>
+                <Button
+                  variant="primary"
+                  block
+                  loading={action === "password"}
+                  disabled={busy}
+                  label={action === "password" ? "Signing in…" : "Sign in"}
+                  onPress={signInPassword}
+                />
+
+                <Button
+                  variant="secondary"
+                  block
+                  loading={action === "magic"}
+                  disabled={busy}
+                  label={action === "magic" ? "Sending link…" : "Send magic link"}
+                  onPress={sendMagicLink}
+                />
+
+                {/* OR divider */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
+                  <Text style={{ fontSize: 11, color: muted }}>OR</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
+                </View>
+
+                <Button
+                  variant="secondary"
+                  block
+                  loading={action === "google"}
+                  disabled={busy}
+                  label={action === "google" ? "Opening Google…" : "Continue with Google"}
+                  onPress={signInGoogle}
+                />
+              </>
+            ) : (
+              <Button
+                variant="primary"
+                block
+                loading={action === "signup"}
+                disabled={busy}
+                label={action === "signup" ? "Creating account…" : "Create account"}
+                onPress={signUp}
               />
-            </View>
+            )}
 
-            {/* btn-primary btn-block */}
-            <Pressable
-              onPress={signInPassword}
-              disabled={loading}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
-                borderRadius: 8, borderWidth: 1, borderColor: theme.accent,
-                opacity: loading ? 0.45 : 1,
-              }}
-            >
-              <Icon name={loading ? "circle-notch" : "sign-in"} size={16} color={theme.accent} />
-              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.accent }}>Sign in</Text>
-            </Pressable>
-
-            {/* btn-secondary btn-block */}
-            <Pressable
-              onPress={sendMagicLink}
-              disabled={loading}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
-                borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
-                opacity: loading ? 0.45 : 1,
-              }}
-            >
-              <Icon name="magic-wand" size={16} color={theme.text} />
-              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Send magic link</Text>
-            </Pressable>
-
-            {/* OR divider */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-              <Text style={{ fontSize: 11, color: muted }}>OR</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-            </View>
-
-            <Pressable
-              onPress={signInGoogle}
-              disabled={loading}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-                minHeight: 36, paddingVertical: 5.6, paddingHorizontal: 10,
-                borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
-                opacity: loading ? 0.45 : 1,
-              }}
-            >
-              <Icon name="google-logo" size={16} color={theme.text} />
-              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Continue with Google</Text>
-            </Pressable>
-
-            {message ? <Text style={{ color: theme.accent, fontSize: 13 }}>{message}</Text> : null}
-            {error ? <Text style={{ color: theme.error, fontSize: 13 }}>{error}</Text> : null}
+            {message ? (
+              <Text accessibilityLiveRegion="polite" style={{ color: theme.accent, fontSize: 13 }}>{message}</Text>
+            ) : null}
+            {error ? (
+              <Text accessibilityLiveRegion="assertive" style={{ color: theme.error, fontSize: 13 }}>{error}</Text>
+            ) : null}
           </View>
 
           {/* Footer pinned to bottom (margin-top:auto) */}
           <View style={{ marginTop: "auto", paddingTop: 30, alignItems: "center" }}>
-            <Text style={{ fontSize: 13, color: muted }}>
-              New here? <Text style={{ color: theme.accent }}>Create an account</Text>
-            </Text>
+            {mode === "signin" ? (
+              <Text style={{ fontSize: 13, color: muted }}>
+                New here?{" "}
+                <Text style={{ color: theme.accent }} onPress={() => switchMode("signup")}>
+                  Create an account
+                </Text>
+              </Text>
+            ) : (
+              <Text style={{ fontSize: 13, color: muted }}>
+                Already have an account?{" "}
+                <Text style={{ color: theme.accent }} onPress={() => switchMode("signin")}>
+                  Sign in
+                </Text>
+              </Text>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
