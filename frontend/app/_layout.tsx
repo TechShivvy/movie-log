@@ -18,10 +18,31 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { ThemeProvider } from "../context/ThemeContext";
 import { AuthProvider } from "../context/AuthContext";
+import { useTheme } from "../hooks/useTheme";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
+
+/**
+ * react-native-screens gives every Stack.Screen its own opaque background
+ * (white by default) unless contentStyle says otherwise. Without this, each
+ * pushed screen painted over our dark theme.bg, and the light theme.text
+ * used throughout the app read as near-invisible on that white ground —
+ * visible as "washed out" headings/labels on every screen except the very
+ * first one rendered. Needs useTheme(), so it has to live inside ThemeProvider.
+ */
+function ThemedStack() {
+  const { theme } = useTheme();
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(app)" />
+      {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   // Native has no webfonts — the TTFs bundled by @expo-google-fonts must be
@@ -49,12 +70,7 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <StatusBar style="light" />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(app)" />
-              {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
-              <Stack.Screen name="auth" options={{ headerShown: false }} />
-            </Stack>
+            <ThemedStack />
           </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>

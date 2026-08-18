@@ -76,7 +76,13 @@ export default function AppLayout() {
     return <Redirect href="/(auth)" />;
   }
 
-  const stack = <Stack screenOptions={{ headerShown: false }} />;
+  // contentStyle is required — see the comment on ThemedStack in app/_layout.tsx.
+  // Every screen under (app) (Settings, Feed, Profile, …) is a separate
+  // Stack.Screen; without this each one painted its own opaque white
+  // background over MobileLayout's dark theme.bg.
+  const stack = (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
+  );
 
   if (Platform.OS === "web") {
     return <WebLayout>{stack}</WebLayout>;

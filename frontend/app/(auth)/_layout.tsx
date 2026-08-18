@@ -18,7 +18,15 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Same react-native-screens fix as (app)/_layout.tsx — without this,
+        // "callback" (pushed on top of "index") gets its own opaque white
+        // background by default.
+        contentStyle: { backgroundColor: "#0b1326" },
+      }}
+    >
       <Stack.Screen name="index" />
       <Stack.Screen name="callback" />
     </Stack>

@@ -73,7 +73,6 @@ export function LibraryScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("All");
   const [mode, setMode] = useState<"grid" | "list">("grid");
-  const [showPwa, setShowPwa] = useState(true);
 
   const { data: logs = [], isLoading } = useMovieLogs({
     archived: filter === "Archived",
@@ -236,37 +235,19 @@ export function LibraryScreen() {
   }
 
   // ── Native ──────────────────────────────────────────────────────────────────
+  // No PWA install banner here: this branch only renders when Platform.OS
+  // !== "web" — i.e. the actual compiled/Expo Go app, which is by definition
+  // already "installed". The design's mobile mockup shows this banner because
+  // it depicts the mobile-WEB experience (a phone-width browser tab prompting
+  // "add to home screen"); that belongs behind a `Platform.OS === "web"` +
+  // beforeinstallprompt check, the same guard TopBar's "Install app" button
+  // already uses, never in the native branch.
   return (
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
     >
-      {showPwa && (
-        <View
-          style={{
-            flexDirection: "row", alignItems: "center", gap: 10, padding: 11,
-            borderRadius: 8, marginBottom: 16,
-            borderWidth: 1, borderColor: theme.divider,
-            backgroundColor: `${theme.surface}b8`, // .glass ≈ surface 72%
-          }}
-        >
-          <Icon name="device-mobile-camera" size={22} color={theme.accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontFamily: heading, color: theme.text }}>Install CineLog</Text>
-            <Text style={{ fontSize: 11, color: muted }}>Add to home screen — works offline.</Text>
-          </View>
-          <Pressable
-            onPress={() => setShowPwa(false)}
-            style={{ borderWidth: 1, borderColor: theme.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}
-          >
-            <Text style={{ fontSize: 12, color: theme.accent, fontFamily: heading }}>Install</Text>
-          </Pressable>
-          <Pressable onPress={() => setShowPwa(false)} hitSlop={8}>
-            <Icon name="x" size={16} color={muted} />
-          </Pressable>
-        </View>
-      )}
 
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
