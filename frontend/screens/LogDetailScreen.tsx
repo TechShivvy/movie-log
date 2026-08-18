@@ -14,6 +14,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Platform,
   Pressable,
@@ -29,17 +30,30 @@ import {
   Archive,
   PencilSimple,
   ArrowLeft,
-  ChatCircle,
   Robot,
+  Trash,
+  Translate,
+  SealCheck,
+  CurrencyDollar,
+  Receipt,
+  Star,
+  MapPin,
+  ProjectorScreen,
+  Armchair,
+  Clock,
+  Timer,
+  Flag,
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { fontFamily } from "../constants/fonts";
-import { useMovieLog, useArchiveLog } from "../hooks/useMovieLogs";
+import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
 import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
+import { useVenueRating } from "../hooks/useVenueRating";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { hueFromTitle } from "../components/ui/Poster";
-import type { Comment } from "../types";
+import type { Comment, MovieLog } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,8 +68,27 @@ function fmtShort(iso: string) {
     year: "numeric", month: "short", day: "numeric",
   });
 }
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+// The date next to the title used to be fmtShort(log.created_at) — when
+// the row was logged, not when the film was actually watched. watched_date
+// was never read anywhere in this file. Falls back to created_at only when
+// watched_date itself is missing (an older/incomplete row) — this is the
+// one date on the screen that always needs a value to anchor the entry, so
+// it doesn't follow the hide-if-empty rule the meta rows below it do.
+function fmtWatched(log: MovieLog): string {
+  const dateStr = new Date(log.watched_date ?? log.created_at).toLocaleDateString("en-US", {
+    year: "numeric", month: "short", day: "numeric",
+  });
+  if (!log.watched_time) return dateStr;
+  // watched_date ("YYYY-MM-DD") and watched_time ("HH:MM") are two separate
+  // plain fields with no timezone math tying them together — timezone_abbrv
+  // is print-only context from the ticket (e.g. "IST"), not something to
+  // convert through. Formatting watched_time via a throwaway Date just for
+  // its 12-hour-clock/AM-PM rendering, not treating it as a real instant.
+  const [h, m] = log.watched_time.split(":");
+  const t = new Date();
+  t.setHours(Number(h), Number(m), 0, 0);
+  const timeStr = t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${dateStr} · ${timeStr}${log.timezone_abbrv ? " " + log.timezone_abbrv : ""}`;
 }
 function punctualityLabel(s?: string) {
   return s === "early" ? "🟢 Arrived Early" : s === "on_time" ? "🟡 On Time" : s === "late" ? "🔴 Late" : null;
@@ -63,6 +96,10 @@ function punctualityLabel(s?: string) {
 function screeningStartLabel(s?: string) {
   return s === "early" ? "Started Early" : s === "on_time" ? "Started On Time"
     : s === "delayed" ? "Delayed" : s === "cancelled" ? "Cancelled" : null;
+}
+function fmtPrice(price?: number, currency?: string): string | undefined {
+  if (price == null) return undefined;
+  return currency ? `${currency} ${price.toFixed(2)}` : price.toFixed(2);
 }
 // LogVisibility is "private" | "anonymous" | "public" — no "followers_only"
 // (that's the distinct account-level AccountVisibility).
@@ -111,27 +148,145 @@ function CommentItem({
   );
 }
 
-// ─── MetaCard ─────────────────────────────────────────────────────────────────
+// ─── Meta list ────────────────────────────────────────────────────────────────
+// Used to be 6 individually-bordered cards in a 3-column grid — every field,
+// present or not, got its own box. Rebuilt as rows inside one shared
+// container: less boxy, and each row hides outright when its value is
+// empty (per the "hide, don't show a dash" choice) rather than leaving a
+// gap in the grid.
 
-function MetaCard({ label, value, theme }: { label: string; value?: string | null; theme: any }) {
-  if (!value) return null;
+interface MetaRowData {
+  // phosphor-react-native's icon components all share this same call
+  // signature (size/color/weight), close enough to treat interchangeably
+  // here without importing each one's own prop type.
+  Icon: React.ComponentType<{ size?: number; color?: string }>;
+  label: string;
+  value?: string | null;
+}
+
+function buildMetaRows(log: MovieLog): MetaRowData[] {
+  return [
+    { Icon: MapPin, label: "Venue", value: log.theater },
+    { Icon: ProjectorScreen, label: "Screen", value: log.screen },
+    { Icon: Armchair, label: "Seats", value: log.seats?.length ? log.seats.join(", ") : undefined },
+    { Icon: Translate, label: "Language", value: log.language },
+    { Icon: SealCheck, label: "Certificate", value: log.certificate },
+    { Icon: CurrencyDollar, label: "Price", value: fmtPrice(log.price, log.currency) },
+    { Icon: Receipt, label: "Booking ref", value: log.booking_ref },
+    { Icon: Flag, label: "Screening", value: screeningStartLabel(log.screening_start_status) ?? undefined },
+    { Icon: Timer, label: "Punctuality", value: punctualityLabel(log.arrival_status) ?? undefined },
+    // Always present (created_at is required on MovieLog) — the one row
+    // here that isn't subject to the hide-if-empty rule.
+    { Icon: Clock, label: "Logged", value: fmtShort(log.created_at) },
+  ];
+}
+
+function WebMetaList({ rows }: { rows: MetaRowData[] }) {
+  const { theme } = useTheme();
+  const visible = rows.filter((r) => r.value);
+  if (!visible.length) return null;
   return (
-    <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 14, flex: 1, minWidth: 130 }}>
-      <Text style={{ fontSize: 11, fontWeight: "600", color: `${theme.text}66`, textTransform: "uppercase", marginBottom: 4 }}>{label}</Text>
-      <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{value}</Text>
+    <div className="card" style={{ padding: 0, marginBottom: 24, overflow: "hidden" } as React.CSSProperties}>
+      {visible.map((r, i) => (
+        <div
+          key={r.label}
+          style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "11px 16px",
+            borderBottom: i < visible.length - 1 ? `1px solid ${theme.divider}` : "none",
+          } as React.CSSProperties}
+        >
+          <r.Icon size={16} color={`${theme.text}88`} />
+          <span style={{ fontSize: 12, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
+          <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{r.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetaList({ rows, theme }: { rows: MetaRowData[]; theme: any }) {
+  const visible = rows.filter((r) => r.value);
+  if (!visible.length) return null;
+  return (
+    <View style={{ backgroundColor: theme.surface, borderRadius: 12, marginBottom: 20, overflow: "hidden" }}>
+      {visible.map((r, i) => (
+        <View
+          key={r.label}
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 10,
+            paddingVertical: 11, paddingHorizontal: 14,
+            borderBottomWidth: i < visible.length - 1 ? 1 : 0,
+            borderBottomColor: theme.divider,
+          }}
+        >
+          <r.Icon size={16} color={`${theme.text}88`} />
+          <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, flex: 1 }}>{r.value}</Text>
+        </View>
+      ))}
     </View>
   );
 }
 
-// ─── Web Meta Card ────────────────────────────────────────────────────────────
+// ─── Venue ratings ──────────────────────────────────────────────────────────
+// Screen/speaker/AC/seat, half-star 0.5-5.0 each, from useVenueRating (see
+// that hook for why this reads from an account-export cache rather than a
+// dedicated endpoint). The whole section hides if the log has none of the
+// four set, same hide-if-empty rule as the meta rows above.
 
-function WebMetaCard({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
+const VENUE_RATING_ROWS: { key: "screen_rating" | "speaker_rating" | "ac_rating" | "seat_rating"; label: string }[] = [
+  { key: "screen_rating", label: "Screen" },
+  { key: "speaker_rating", label: "Speakers" },
+  { key: "ac_rating", label: "AC" },
+  { key: "seat_rating", label: "Seats" },
+];
+
+function WebVenueRatings({ rating }: { rating?: { screen_rating?: number; speaker_rating?: number; ac_rating?: number; seat_rating?: number } }) {
+  const { theme } = useTheme();
+  const rows = VENUE_RATING_ROWS.filter((r) => rating?.[r.key] != null);
+  if (!rows.length) return null;
   return (
-    <div className="card" style={{ flex: 1, minWidth: 130 } as React.CSSProperties}>
-      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.5, textTransform: "uppercase", marginBottom: 4 } as React.CSSProperties}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{value}</div>
+    <div className="card" style={{ padding: 0, marginBottom: 24, overflow: "hidden" } as React.CSSProperties}>
+      {rows.map((r, i) => (
+        <div
+          key={r.key}
+          style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "11px 16px",
+            borderBottom: i < rows.length - 1 ? `1px solid ${theme.divider}` : "none",
+          } as React.CSSProperties}
+        >
+          <span style={{ fontSize: 12, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
+          <Star size={13} weight="fill" color={theme.accent} />
+          <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{rating![r.key]!.toFixed(1)}</span>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function VenueRatings({ rating, theme }: { rating?: { screen_rating?: number; speaker_rating?: number; ac_rating?: number; seat_rating?: number }; theme: any }) {
+  const rows = VENUE_RATING_ROWS.filter((r) => rating?.[r.key] != null);
+  if (!rows.length) return null;
+  return (
+    <View style={{ backgroundColor: theme.surface, borderRadius: 12, marginBottom: 20, overflow: "hidden" }}>
+      {rows.map((r, i) => (
+        <View
+          key={r.key}
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 10,
+            paddingVertical: 11, paddingHorizontal: 14,
+            borderBottomWidth: i < rows.length - 1 ? 1 : 0,
+            borderBottomColor: theme.divider,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
+          <Star size={13} weight="fill" color={theme.accent} />
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{rating![r.key]!.toFixed(1)}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -139,6 +294,15 @@ function WebMetaCard({ label, value }: { label: string; value?: string | null })
 
 export function LogDetailScreen() {
   const { theme, fontConfig } = useTheme();
+  // The web branch below is a fixed 280px-poster + flex-1-content row —
+  // never checked viewport width at all, so at phone width it didn't
+  // reflow, it just overflowed sideways past the screen edge (confirmed:
+  // at 392px the content column rendered ~110px wide, clipped, with the
+  // rest of it off-screen to the right). (app)/_layout.tsx's shell already
+  // swaps Sidebar for TabBar under 768px; this screen's own two-column
+  // layout needed the same width check, just applied to its own markup
+  // instead of the shell.
+  const { isMobile } = useBreakpoint();
   // Web → CSS family stack; native → the registered TTF family (e.g. Sora_700Bold)
   const headingFamily = fontFamily(fontConfig, "heading", 700);
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -146,12 +310,15 @@ export function LogDetailScreen() {
 
   const { data: log, isLoading, error } = useMovieLog(id ?? "");
   const archiveLog = useArchiveLog();
+  const deleteLog = useDeleteLog();
   const likeLog = useLikeLog();
+  const venueRating = useVenueRating(id ?? "");
   const { data: comments = [] } = useComments(id ?? "");
   const addComment = useAddComment(id ?? "");
 
   const [commentText, setCommentText] = useState("");
   const [replyTo, setReplyTo] = useState<{ username: string; commentId: string } | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (isLoading) {
     return (
@@ -174,6 +341,44 @@ export function LogDetailScreen() {
   const vcol = visColor(log.visibility);
   const handleLike = () => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller });
   const handleArchive = () => archiveLog.mutate({ id: log.id, archive: !log.is_archived });
+  // router.back() alone strands a user with nowhere to go if this screen
+  // was opened directly (a deep link, a shared URL, a fresh tab) rather
+  // than navigated to from within the app — there's no history to go back
+  // to. canGoBack() is the documented way to tell the two cases apart.
+  const goBackOrHome = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  // No confirmation dialog existed anywhere for Delete — it wasn't even
+  // reachable in the UI before this pass despite DELETE /movie-logs/{id}
+  // being a real, working endpoint. Native uses Alert.alert, the same
+  // pattern SettingsScreen's own delete-account already uses; web uses the
+  // app's existing .dialog-backdrop/.dialog classes (designCss.ts), not a
+  // new one.
+  //
+  // Deliberately mutateAsync + await, not mutate(id, {onSuccess}) — the
+  // per-call onSuccess never actually fired in testing (confirmed via a
+  // debug log that never printed, even though the DELETE itself reliably
+  // reached the backend every time). useDeleteLog's own hook-level
+  // onSuccess invalidates this exact log's query, which this component
+  // re-renders in response to before the per-call callback's turn comes
+  // up — a plain await sidesteps that ordering question entirely instead
+  // of relying on exactly when React Query decides to run which callback.
+  const doDelete = async () => {
+    await deleteLog.mutateAsync(log.id);
+    goBackOrHome();
+  };
+  const handleDelete = () => {
+    if (Platform.OS === "web") {
+      setConfirmingDelete(true);
+      return;
+    }
+    Alert.alert("Delete this log?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => { void doDelete(); } },
+    ]);
+  };
+  const confirmDelete = () => {
+    setConfirmingDelete(false);
+    void doDelete();
+  };
   const handleReply = (username: string, commentId: string) => {
     setReplyTo({ username, commentId });
     setCommentText(`@${username} `);
@@ -210,10 +415,34 @@ export function LogDetailScreen() {
           Back
         </button>
 
-        {/* Two-column */}
-        <div style={{ display: "flex", gap: 32, alignItems: "flex-start" } as React.CSSProperties}>
-          {/* Poster column — 280px */}
-          <div style={{ width: 280, flexShrink: 0 } as React.CSSProperties}>
+        {confirmingDelete && (
+          <div className="dialog-backdrop" onClick={() => setConfirmingDelete(false)}>
+            <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 340 } as React.CSSProperties}>
+              <div className="dialog-title">Delete this log?</div>
+              <div className="dialog-body">This can't be undone.</div>
+              <div className="dialog-actions">
+                <button className="btn btn-secondary" onClick={() => setConfirmingDelete(false)}>Cancel</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ color: "#EF4444", borderColor: "#EF4444" } as React.CSSProperties}
+                  onClick={confirmDelete}
+                  disabled={deleteLog.isPending}
+                >
+                  {deleteLog.isPending ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Two-column on desktop/tablet; stacked, poster on top, below 768px. */}
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 20 : 32, alignItems: isMobile ? "stretch" : "flex-start" } as React.CSSProperties}>
+          {/* Poster column — fixed 280px at tablet+; full width, capped so
+              the 2:3 poster doesn't stretch edge-to-edge, when stacked.
+              Only the social action (Like) lives here now — Edit/Archive/
+              Delete moved to the content column's header row, next to the
+              title they act on rather than under the poster image. */}
+          <div style={isMobile ? { width: "100%", maxWidth: 280, margin: "0 auto" } as React.CSSProperties : { width: 280, flexShrink: 0 } as React.CSSProperties}>
             <div style={{
               aspectRatio: "2/3",
               borderRadius: 12,
@@ -223,55 +452,77 @@ export function LogDetailScreen() {
                 : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
             } as React.CSSProperties} />
 
-            {/* Like + Edit row below poster */}
-            <div style={{ display: "flex", gap: 8, marginTop: 12 } as React.CSSProperties}>
-              <button
-                className={`btn ${log.liked_by_caller ? "btn-primary" : "btn-secondary"}`}
-                onClick={handleLike}
-                style={{ flex: 1 } as React.CSSProperties}
-              >
-                <Heart size={14} weight={log.liked_by_caller ? "fill" : "regular"} />
-                {log.like_count} {log.like_count === 1 ? "like" : "likes"}
-              </button>
-              <button
-                className="btn btn-secondary"
-                onClick={() => router.push(`/log/new?edit=${log.id}` as never)}
-              >
-                <PencilSimple size={14} />
-                Edit
-              </button>
-            </div>
-
-            {/* Archive btn */}
             <button
-              className="btn btn-ghost btn-block"
-              onClick={handleArchive}
-              style={{ marginTop: 8 } as React.CSSProperties}
+              className={`btn btn-block ${log.liked_by_caller ? "btn-primary" : "btn-secondary"}`}
+              onClick={handleLike}
+              style={{ marginTop: 12 } as React.CSSProperties}
             >
-              <Archive size={14} />
-              {log.is_archived ? "Unarchive" : "Archive"}
+              <Heart size={14} weight={log.liked_by_caller ? "fill" : "regular"} />
+              {log.like_count} {log.like_count === 1 ? "like" : "likes"}
             </button>
           </div>
 
           {/* Content column */}
           <div style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
-            {/* Tags row */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 } as React.CSSProperties}>
-              <span className="tag" style={{ backgroundColor: vcol + "22", color: vcol } as React.CSSProperties}>
-                {log.visibility.replace("_", " ")}
-              </span>
-              {log.is_fdfs && <span className="tag tag-accent">FDFS 🎟️</span>}
-              {log.format && <span className="tag tag-neutral">{log.format}</span>}
-              {(log.extraction_provider || log.extraction_model) && (
-                <span className="tag" style={{ backgroundColor: theme.surface, color: theme.accent, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
-                  <Robot size={11} color={theme.accent} />
-                  {[log.extraction_provider, log.extraction_model].filter(Boolean).join(" · ")}
+            {/* Tags (left) + owner actions (right) */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 } as React.CSSProperties}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 } as React.CSSProperties}>
+                <span className="tag" style={{ backgroundColor: vcol + "22", color: vcol } as React.CSSProperties}>
+                  {log.visibility.replace("_", " ")}
                 </span>
-              )}
-              {/* No direct ticket link — ticket_image_path is a Supabase
-                  Storage path, not a public URL; resolving it to a viewable
-                  link needs a signed-URL fetch, out of scope for this pass
-                  (same deferred-work class as the poster image). */}
+                {log.is_fdfs && <span className="tag tag-accent">FDFS 🎟️</span>}
+                {/* is_fdfs implies is_first_day server-side (schemas/movie_logs.py's
+                    _fdfs_implies_first_day) — showing both tags when both are
+                    true would just repeat "opening day" twice. */}
+                {log.is_first_day && !log.is_fdfs && <span className="tag tag-accent">Opening Day</span>}
+                {log.favorite_position != null && (
+                  <span className="tag" style={{ backgroundColor: theme.accent800, color: theme.accent100, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
+                    <Star size={11} weight="fill" color={theme.accent100} />
+                    Favorite
+                  </span>
+                )}
+                {log.format && <span className="tag tag-neutral">{log.format}</span>}
+                {(log.extraction_provider || log.extraction_model) && (
+                  <span className="tag" style={{ backgroundColor: theme.surface, color: theme.accent, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
+                    <Robot size={11} color={theme.accent} />
+                    {[log.extraction_provider, log.extraction_model].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+                {/* No direct ticket link — ticket_image_path is a Supabase
+                    Storage path, not a public URL; resolving it to a viewable
+                    link needs a signed-URL fetch, out of scope for this pass
+                    (same deferred-work class as the poster image). */}
+              </div>
+
+              {/* Edit/Archive/Delete — compact icon buttons, grouped as
+                  "manage this entry" separate from the social Like action
+                  by the poster. Delete never existed in this UI before,
+                  despite DELETE /movie-logs/{id} being a real endpoint. */}
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 } as React.CSSProperties}>
+                <button
+                  className="btn btn-icon btn-secondary"
+                  title="Edit"
+                  onClick={() => router.push(`/log/new?edit=${log.id}` as never)}
+                >
+                  <PencilSimple size={16} />
+                </button>
+                <button
+                  className="btn btn-icon btn-secondary"
+                  title={log.is_archived ? "Unarchive" : "Archive"}
+                  onClick={handleArchive}
+                  style={log.is_archived ? { color: theme.accent, borderColor: theme.accent } as React.CSSProperties : undefined}
+                >
+                  <Archive size={16} weight={log.is_archived ? "fill" : "regular"} />
+                </button>
+                <button
+                  className="btn btn-icon btn-secondary"
+                  title="Delete"
+                  onClick={handleDelete}
+                  style={{ color: "#EF4444" } as React.CSSProperties}
+                >
+                  <Trash size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Title */}
@@ -287,29 +538,19 @@ export function LogDetailScreen() {
               {log.movie}
             </h1>
 
-            {/* Stars + date */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } as React.CSSProperties}>
+            {/* Stars + watched date (was created_at — when the row was
+                logged, not when the film was watched; watched_date was
+                never read anywhere in this file before) */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" } as React.CSSProperties}>
               <StarRating value={log.rating ?? 0} onChange={() => {}} readonly />
-              <span style={{ fontSize: 13, opacity: 0.6, color: theme.text } as React.CSSProperties}>{fmtShort(log.created_at)}</span>
+              <span style={{ fontSize: 13, opacity: 0.6, color: theme.text } as React.CSSProperties}>{fmtWatched(log)}</span>
               {log.edited_at && (
                 <span className="tag tag-neutral" style={{ fontSize: 11 } as React.CSSProperties}>edited</span>
               )}
             </div>
 
-            {/* Meta grid — 3-col */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 10,
-              marginBottom: 24,
-            } as React.CSSProperties}>
-              <WebMetaCard label="Venue" value={log.theater} />
-              <WebMetaCard label="Screen" value={log.screen} />
-              <WebMetaCard label="Seats" value={log.seats?.length ? log.seats.join(", ") : undefined} />
-              <WebMetaCard label="Screening" value={screeningStartLabel(log.screening_start_status) ?? undefined} />
-              <WebMetaCard label="Punctuality" value={punctualityLabel(log.arrival_status) ?? undefined} />
-              <WebMetaCard label="Logged" value={log.created_at ? fmtShort(log.created_at) : undefined} />
-            </div>
+            <WebMetaList rows={buildMetaRows(log)} />
+            <WebVenueRatings rating={venueRating} />
 
             {/* Notes */}
             {log.notes && (
@@ -425,6 +666,19 @@ export function LogDetailScreen() {
               <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>FDFS 🎟️</Text>
             </View>
           )}
+          {/* is_fdfs implies is_first_day server-side — showing both would
+              just repeat "opening day" twice. */}
+          {log.is_first_day && !log.is_fdfs && (
+            <View style={{ backgroundColor: theme.accent800, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+              <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>Opening Day</Text>
+            </View>
+          )}
+          {log.favorite_position != null && (
+            <View style={{ backgroundColor: theme.accent800, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+              <Star size={11} weight="fill" color={theme.accent100} />
+              <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>Favorite</Text>
+            </View>
+          )}
           {log.format && (
             <View style={{ backgroundColor: theme.neutral800, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
               <Text style={{ color: theme.neutral100, fontSize: 11, fontWeight: "700" }}>{log.format}</Text>
@@ -443,13 +697,16 @@ export function LogDetailScreen() {
           {log.movie}
         </Text>
 
-        {/* Rating + date */}
+        {/* Rating + watched date (was created_at — when the row was
+            logged, not when the film was watched) */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <StarRating value={log.rating ?? 0} onChange={() => {}} readonly size="small" />
-          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>{fmtShort(log.created_at)}</Text>
+          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>{fmtWatched(log)}</Text>
         </View>
 
-        {/* Like / archive / edit actions */}
+        {/* Like (social, stays prominent) + Edit/Archive/Delete (owner
+            management, compact icon buttons — Delete never existed in this
+            UI before despite the endpoint being real and working). */}
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
           <Pressable
             onPress={handleLike}
@@ -473,48 +730,29 @@ export function LogDetailScreen() {
           </Pressable>
           <Pressable
             onPress={() => router.push(`/log/new?edit=${log.id}` as never)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: theme.divider,
-            }}
+            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider }}
           >
             <PencilSimple size={16} color={theme.text} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>Edit</Text>
           </Pressable>
           <Pressable
             onPress={handleArchive}
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: theme.divider,
+              width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1,
+              borderColor: log.is_archived ? theme.accent : theme.divider,
             }}
           >
             <Archive size={16} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: log.is_archived ? theme.accent : theme.text }}>
-              {log.is_archived ? "Unarchive" : "Archive"}
-            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleDelete}
+            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider }}
+          >
+            <Trash size={16} color="#EF4444" />
           </Pressable>
         </View>
 
-        {/* Meta cards */}
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
-          <MetaCard label="Venue" value={log.theater} theme={theme} />
-          <MetaCard label="Screen" value={log.screen} theme={theme} />
-          <MetaCard label="Seats" value={log.seats?.length ? log.seats.join(", ") : undefined} theme={theme} />
-          <MetaCard label="Screening" value={screeningStartLabel(log.screening_start_status) ?? undefined} theme={theme} />
-          <MetaCard label="Punctuality" value={punctualityLabel(log.arrival_status) ?? undefined} theme={theme} />
-        </View>
+        <MetaList rows={buildMetaRows(log)} theme={theme} />
+        <VenueRatings rating={venueRating} theme={theme} />
 
         {/* Notes */}
         {log.notes && (
