@@ -13,6 +13,7 @@ import React from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
+import { hueFromTitle } from "./Poster";
 import type { MovieLog } from "../../types";
 
 interface PosterCardProps {
@@ -20,11 +21,6 @@ interface PosterCardProps {
   onPress?: () => void;
   /** Native only — web uses CSS grid to control width */
   width?: number;
-}
-
-/** Deterministic hue from movie title */
-function titleHue(title: string): number {
-  return Array.from(title).reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
 }
 
 /** Gradient CSS for web (matches design JS poster() function) */
@@ -47,7 +43,9 @@ function hslToHex(h: number, s: number, l: number): string {
 
 export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
   const { theme } = useTheme();
-  const hue = titleHue(log.movie_title);
+  // movie_title can be null/undefined despite its required-string type —
+  // hueFromTitle guards that (see LogDetailScreen/FeedScreen for the same fix)
+  const hue = hueFromTitle(log.movie_title);
   const h = Math.round((width ?? 120) * 1.5);
 
   // ── Web ────────────────────────────────────────────────────────────────────
