@@ -90,6 +90,26 @@ export const DESIGN_SYSTEM_CSS = `
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* No custom <button> anywhere in the app ever reset the browser's native
+   form-control rendering (appearance:auto by default). Chromium/Windows
+   paints that as a subtle raised bevel — a highlight top-left, a shadow
+   bottom-right — entirely outside CSS's box-shadow/filter (getComputedStyle
+   reports box-shadow:none and filter:none on an affected button; the bevel
+   is native theme-engine paint, not a CSS property). Invisible on a flat
+   single-color .btn, but the sidebar's diagonal two-color theme swatches
+   (Sidebar.tsx's THEMES.map buttons) have no shared class to carry a fix,
+   so every one of them showed a dark smudge dragging off the bottom-right
+   corner — worse on the unselected ones, whose transparent border isn't
+   there to visually compete with it. Same effect, fainter, on every other
+   ad-hoc <button> in the app (segmented-control options, icon buttons):
+   this global reset is deliberately unscoped rather than patched per call
+   site so nothing else surfaces the same smudge later.
+   background/border are also reset to none here for the same reason —
+   appearance:none alone still leaves Chromium's default light ButtonFace
+   background and 1px outset border in place on some platforms, and every
+   custom button already sets its own background/border via .btn or an
+   inline style, so this never removes anything actually wanted. */
+button { appearance: none; -webkit-appearance: none; background: none; border: none; font: inherit; color: inherit; }
 html, body, #root { margin: 0; padding: 0; height: 100%; }
 body {
   background: var(--color-bg); color: var(--color-text);

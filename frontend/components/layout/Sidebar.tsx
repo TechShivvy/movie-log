@@ -32,6 +32,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
+import { ThemeSwatch } from "../ui/ThemeSwatch";
 import { fontFamily } from "../../constants/fonts";
 
 // `badge` was a hardcoded `3` here regardless of any real unread count —
@@ -192,16 +193,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 } as React.CSSProperties}>
                 {THEMES.map((t) => (
-                  <button
+                  <ThemeSwatch
                     key={t.key}
-                    className="tapc"
+                    bg={t.bg}
+                    accent={t.accent}
+                    active={t.key === theme.key}
+                    activeColor={theme.accent}
+                    onPress={() => setTheme(t.key)}
                     title={t.label}
-                    onClick={() => setTheme(t.key)}
-                    style={{
-                      width: 22, height: 22, borderRadius: 6, padding: 0, cursor: "pointer",
-                      border: `2px solid ${t.key === theme.key ? theme.accent : "transparent"}`,
-                      background: `linear-gradient(135deg, ${t.bg} 45%, ${t.accent} 45%)`,
-                    } as React.CSSProperties}
                   />
                 ))}
               </div>
@@ -325,23 +324,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
                 {THEMES.map((t) => (
-                  <Pressable
+                  <ThemeSwatch
                     key={t.key}
+                    bg={t.bg}
+                    accent={t.accent}
+                    active={t.key === theme.key}
+                    activeColor={theme.accent}
                     onPress={() => setTheme(t.key)}
-                    style={{
-                      width: 22, height: 22, borderRadius: 6, overflow: "hidden",
-                      borderWidth: 2,
-                      borderColor: t.key === theme.key ? theme.accent : "transparent",
-                    }}
-                  >
-                    <LinearGradient
-                      colors={[t.bg, t.bg, t.accent, t.accent]}
-                      locations={[0, 0.45, 0.45, 1]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-                  </Pressable>
+                  />
                 ))}
               </View>
             </View>
