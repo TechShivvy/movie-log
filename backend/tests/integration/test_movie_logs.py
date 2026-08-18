@@ -36,6 +36,38 @@ async def test_create_read_update_delete_roundtrip(client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_ticket_url_round_trip_and_scheme_validation(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+
+    created = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Ticket URL Test', 'ticket_url': 'https://in.bookmyshow.com/booking/abc123'},
+    )
+    assert created.status_code == 201
+    assert created.json()['ticket_url'] == 'https://in.bookmyshow.com/booking/abc123'
+    log_id = created.json()['id']
+
+    invalid = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Bad Ticket URL', 'ticket_url': 'not-a-url'},
+    )
+    assert invalid.status_code == 422
+
+    updated = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers,
+        json={'ticket_url': 'https://www.fandango.com/orders/xyz'},
+    )
+    assert updated.status_code == 200
+    assert updated.json()['ticket_url'] == 'https://www.fandango.com/orders/xyz'
+
+    invalid_patch = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers, json={'ticket_url': 'ftp://nope'},
+    )
+    assert invalid_patch.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_a_users_own_log_is_invisible_to_someone_else(client, make_user):
     _, token_a = await make_user()
     _, token_b = await make_user()
@@ -371,3 +403,124 @@ async def test_get_venue_rating_404s_for_someone_elses_log(client, make_user):
 
     as_b = await client.get(f'/api/v1/movie-logs/{log_id}/venue-rating', headers=headers_b)
     assert as_b.status_code == 404  # RLS-scoped, not a leaked 403
+
+
+@pytest.mark.asyncio
+async def test_movie_log_photos_add_list_delete_round_trip(client, make_user):
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photos Test'},
+    )
+    log_id = log.json()['id']
+
+    empty_list = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers)
+    assert empty_list.status_code == 200
+    assert empty_list.json() == []
+
+    first = await client.post(
+        f'/api/v1/movie-logs/{log_id}/photos', headers=headers,
+        json={'storage_path': f'{user_id}/photo1.jpg', 'tag': 'theatre'},
+    )
+    assert first.status_code == 201
+    first_body = first.json()
+    assert first_body['movie_log_id'] == log_id
+    assert first_body['user_id'] == user_id
+    assert first_body['storage_path'] == f'{user_id}/photo1.jpg'
+    assert first_body['tag'] == 'theatre'
+    assert first_body['created_at']
+    photo_id = first_body['id']
+
+    second = await client.post(
+        f'/api/v1/movie-logs/{log_id}/photos', headers=headers,
+        json={'storage_path': f'{user_id}/photo2.jpg', 'tag': 'food'},
+    )
+    assert second.status_code == 201
+
+    listed = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers)
+    assert listed.status_code == 200
+    assert [p['tag'] for p in listed.json()] == ['theatre', 'food']  # oldest first
+
+    deleted = await client.delete(
+        f'/api/v1/movie-logs/{log_id}/photos/{photo_id}', headers=headers,
+    )
+    assert deleted.status_code == 204
+
+    after_delete = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers)
+    assert [p['tag'] for p in after_delete.json()] == ['food']
+
+    # Log itself, and the remaining photo, untouched.
+    log_after = await client.get(f'/api/v1/movie-logs/{log_id}', headers=headers)
+    assert log_after.status_code == 200
+
+    # A second delete of the same photo 404s, doesn't silently no-op.
+    second_delete = await client.delete(
+        f'/api/v1/movie-logs/{log_id}/photos/{photo_id}', headers=headers,
+    )
+    assert second_delete.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_movie_log_photos_max_ten_enforced(client, make_user):
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photo Limit Test'},
+    )
+    log_id = log.json()['id']
+
+    for i in range(10):
+        added = await client.post(
+            f'/api/v1/movie-logs/{log_id}/photos', headers=headers,
+            json={'storage_path': f'{user_id}/photo{i}.jpg', 'tag': 'other'},
+        )
+        assert added.status_code == 201
+
+    eleventh = await client.post(
+        f'/api/v1/movie-logs/{log_id}/photos', headers=headers,
+        json={'storage_path': f'{user_id}/photo10.jpg', 'tag': 'other'},
+    )
+    assert eleventh.status_code == 400
+    assert eleventh.json()['code'] == 'PHOTO_LIMIT_REACHED'
+
+    listed = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers)
+    assert len(listed.json()) == 10  # the rejected 11th never landed
+
+
+@pytest.mark.asyncio
+async def test_movie_log_photos_rejects_path_outside_own_prefix(client, make_user):
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photo Path Test'},
+    )
+    log_id = log.json()['id']
+
+    someone_elses_prefix = await client.post(
+        f'/api/v1/movie-logs/{log_id}/photos', headers=headers,
+        json={'storage_path': 'not-my-user-id/photo.jpg', 'tag': 'other'},
+    )
+    assert someone_elses_prefix.status_code == 400
+    assert someone_elses_prefix.json()['code'] == 'INVALID_IMAGE_PATH'
+
+
+@pytest.mark.asyncio
+async def test_movie_log_photos_404_for_someone_elses_log(client, make_user):
+    user_id_a, token_a = await make_user()
+    _, token_b = await make_user()
+    headers_a = {'Authorization': f'Bearer {token_a}'}
+    headers_b = {'Authorization': f'Bearer {token_b}'}
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers_a, json={'movie': 'Other Users Photos'},
+    )
+    log_id = log.json()['id']
+
+    add_as_b = await client.post(
+        f'/api/v1/movie-logs/{log_id}/photos', headers=headers_b,
+        json={'storage_path': f'{user_id_a}/photo.jpg', 'tag': 'other'},
+    )
+    assert add_as_b.status_code == 404  # RLS-scoped, not a leaked 403
+
+    list_as_b = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers_b)
+    assert list_as_b.status_code == 404

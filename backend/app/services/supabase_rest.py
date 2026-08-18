@@ -306,6 +306,47 @@ async def delete_venue_rating(user_token: str, user_id: str, log_id: str) -> boo
     )
     return bool(response.json())
 
+
+async def list_movie_log_photos(
+    user_token: str, user_id: str, log_id: str
+) -> list[dict[str, Any]]:
+    params = {
+        'movie_log_id': f'eq.{log_id}',
+        'user_id': f'eq.{user_id}',
+        'order': 'created_at.asc',
+    }
+    response = await _request(
+        'GET', '/movie_log_photos', user_token, 'list_movie_log_photos', params=params
+    )
+    return response.json()
+
+
+async def create_movie_log_photo(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
+    response = await _request(
+        'POST',
+        '/movie_log_photos',
+        user_token,
+        'create_movie_log_photo',
+        json=row,
+        prefer='return=representation',
+    )
+    created = response.json()
+    return created[0] if isinstance(created, list) else created
+
+
+async def delete_movie_log_photo(
+    user_token: str, user_id: str, log_id: str, photo_id: str
+) -> bool:
+    params = {
+        'id': f'eq.{photo_id}', 'movie_log_id': f'eq.{log_id}', 'user_id': f'eq.{user_id}',
+    }
+    response = await _request(
+        'DELETE', '/movie_log_photos', user_token, 'delete_movie_log_photo',
+        params=params, prefer='return=representation',
+    )
+    return bool(response.json())
+
+
 async def delete_movie_log(user_token: str, user_id: str, log_id: str) -> bool:
     params = {'id': f'eq.{log_id}', 'user_id': f'eq.{user_id}'}
     response = await _request(

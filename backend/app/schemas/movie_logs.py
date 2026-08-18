@@ -96,6 +96,7 @@ WRITABLE_FIELDS = (
     'notes',
     'rating',
     'ticket_image_path',
+    'ticket_url',
     'theatre_id',
     'screen_id',
     'movie_id',
@@ -130,6 +131,22 @@ def _check_currency(v: Optional[str]) -> Optional[str]:
     return v
 
 
+def _check_ticket_url(v: Optional[str]) -> Optional[str]:
+    """Same http(s)-scheme check schemas/public_profile.py's ProfileLink.url
+    already applies to a user-supplied link — kept file-local here since
+    it's only needed in this one place, matching how most validators in
+    this codebase stay single-file-local (see _validators.py's own
+    docstring for when something graduates to shared)."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not (v.startswith('http://') or v.startswith('https://')):
+        raise ValueError('ticket_url must start with http:// or https://')
+    return v
+
+
 class MovieLogInput(BaseModel):
     """Full create payload. Unknown keys are ignored (e.g. pasted exports)."""
 
@@ -153,6 +170,7 @@ class MovieLogInput(BaseModel):
                 'notes': 'Great sound, comfy seats.',
                 'rating': 4.5,
                 'ticket_image_path': None,
+                'ticket_url': None,
                 'theatre_id': None,
                 'screen_id': None,
                 'visibility': 'private',
@@ -193,6 +211,16 @@ class MovieLogInput(BaseModel):
         default=None, description='Audience rating, 0.5-5 in half-star steps'
     )
     ticket_image_path: Optional[str] = Field(default=None, max_length=512)
+    ticket_url: Optional[str] = Field(
+        default=None, max_length=1000,
+        description='A link to the booking/ticket itself (e.g. a shared '
+        'BookMyShow/Fandango confirmation link) — separate from '
+        'ticket_image_path (a photo), and same always-owner-only treatment: '
+        'a booking link routinely carries an order id or other identifying '
+        "info, so it's excluded from public_movie_log_entries/feed_entries "
+        'the same way ticket_image_path already is, regardless of this '
+        "log's own `visibility`.",
+    )
     theatre_id: Optional[str] = Field(
         default=None, description='FK into public.theatres'
     )
@@ -352,6 +380,11 @@ class MovieLogInput(BaseModel):
     def _check_path(cls, v: Optional[str]) -> Optional[str]:
         return validate_storage_path(v)
 
+    @field_validator('ticket_url')
+    @classmethod
+    def _check_ticket_url_field(cls, v: Optional[str]) -> Optional[str]:
+        return _check_ticket_url(v)
+
     @field_validator('rating')
     @classmethod
     def _check_rating(cls, v: Optional[float]) -> Optional[float]:
@@ -408,6 +441,7 @@ class MovieLogUpdate(BaseModel):
         default=None, description='Audience rating, 0.5-5 in half-star steps'
     )
     ticket_image_path: Optional[str] = Field(default=None, max_length=512)
+    ticket_url: Optional[str] = Field(default=None, max_length=1000)
     theatre_id: Optional[str] = Field(default=None)
     screen_id: Optional[str] = Field(default=None)
     movie_id: Optional[str] = Field(
@@ -486,6 +520,11 @@ class MovieLogUpdate(BaseModel):
     @classmethod
     def _check_path(cls, v: Optional[str]) -> Optional[str]:
         return validate_storage_path(v)
+
+    @field_validator('ticket_url')
+    @classmethod
+    def _check_ticket_url_field(cls, v: Optional[str]) -> Optional[str]:
+        return _check_ticket_url(v)
 
     @field_validator('rating')
     @classmethod
@@ -581,6 +620,75 @@ class VenueRating(BaseModel):
                 'seat_rating': 4.0,
                 'created_at': '2026-08-10T03:31:15.977764+00:00',
                 'updated_at': '2026-08-10T03:31:15.977764+00:00',
+            }
+        },
+    )
+
+
+PhotoTag = Literal['food', 'theatre', 'ambiance', 'outside', 'inside', 'other']
+
+
+class MovieLogPhotoInput(BaseModel):
+    """Body for POST /movie-logs/{id}/photos. `storage_path` must already
+    exist in Supabase Storage under the caller's own prefix — same
+    upload-then-attach flow `ticket_image_path` already uses (see
+    `_enforce_image_prefix` in routers/movie_logs.py), just a separate
+    bucket ('movie-log-photos') and up to 10 rows per log instead of one
+    single column. Not for the ticket photo itself — `tag` has no
+    ticket-equivalent value; that stays PATCH /{id} ticket_image_path,
+    always owner-only regardless of the log's visibility."""
+
+    storage_path: str = Field(..., max_length=512)
+    tag: PhotoTag = Field(
+        description="One of 'food', 'theatre', 'ambiance', 'outside', "
+        "'inside', 'other' — how the frontend categorizes/filters a log's "
+        'photos.'
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'storage_path': '11111111-1111-1111-1111-111111111111/photo1.jpg',
+                'tag': 'theatre',
+            }
+        }
+    )
+
+    @field_validator('storage_path')
+    @classmethod
+    def _check_path(cls, v: str) -> str:
+        checked = validate_storage_path(v)
+        if not checked:
+            raise ValueError('storage_path is required')
+        return checked
+
+
+class MovieLogPhoto(BaseModel):
+    """A stored photo attached to a log, as returned by POST/GET
+    .../photos. Inherits the parent log's visibility for other viewers —
+    a public/anonymous log's photos are visible to everyone, same as its
+    notes/rating/movie fields — deliberately different from
+    ticket_image_path, which stays owner-only regardless of visibility;
+    see the tag CHECK constraint's comment in the movie_log_photos
+    migration for why that split holds."""
+
+    id: str
+    movie_log_id: str
+    user_id: Optional[str] = None
+    storage_path: str
+    tag: PhotoTag
+    created_at: str
+
+    model_config = ConfigDict(
+        extra='ignore',
+        json_schema_extra={
+            'example': {
+                'id': '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+                'movie_log_id': '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+                'user_id': '11111111-1111-1111-1111-111111111111',
+                'storage_path': '11111111-1111-1111-1111-111111111111/photo1.jpg',
+                'tag': 'theatre',
+                'created_at': '2026-08-19T03:31:15.977764+00:00',
             }
         },
     )

@@ -18,6 +18,8 @@ from schemas.movie_logs import (
     FavoritePositionUpdate,
     MovieLog,
     MovieLogInput,
+    MovieLogPhoto,
+    MovieLogPhotoInput,
     MovieLogSearchResult,
     MovieLogUpdate,
     VenueRating,
@@ -34,6 +36,7 @@ router = APIRouter()
 
 _MAX_IMPORT = 500
 _SORT_FIELDS = {'created_at', 'updated_at', 'watched_date', 'movie'}
+_MAX_PHOTOS_PER_LOG = 10
 
 
 def _uid(user_id: str) -> str:
@@ -41,12 +44,12 @@ def _uid(user_id: str) -> str:
     return f'{user_id[:8]}…' if len(user_id) > 8 else user_id
 
 
-def _enforce_image_prefix(user_id: str, path: str | None) -> None:
+def _enforce_image_prefix(user_id: str, path: str | None, field: str = 'ticket_image_path') -> None:
     if path and not path.startswith(f'{user_id}/'):
         raise APIError(
             status.HTTP_400_BAD_REQUEST,
             'INVALID_IMAGE_PATH',
-            "ticket_image_path must live under the user's own storage prefix.",
+            f"{field} must live under the user's own storage prefix.",
         )
 
 
@@ -401,6 +404,120 @@ async def delete_venue_rating(
     if not deleted:
         raise APIError(404, 'NOT_FOUND', 'No venue rating for this log.')
     LOGGER.info('delete_venue_rating user={} log_id={}', _uid(current_user.user_id), log_id)
+
+
+@router.post(
+    '/{log_id}/photos',
+    response_model=MovieLogPhoto,
+    status_code=201,
+    tags=['Movie Logs'],
+    description="Attach one tagged photo to one of the caller's own logs — up "
+    "to 10 per log. Not for the ticket photo itself; that stays PATCH "
+    "/{log_id} ticket_image_path, always owner-only regardless of the log's "
+    "visibility (see the tag values below — none of them means \"ticket\"). "
+    "`storage_path` must already exist in Supabase Storage under the "
+    "caller's own prefix — the client uploads to the 'movie-log-photos' "
+    'bucket first, then calls this to attach it, same two-step flow '
+    'ticket_image_path already uses.',
+    response_description='The stored photo row.',
+    responses=responses['add_movie_log_photo'],
+    operation_id='AddMovieLogPhoto',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def add_movie_log_photo(
+    request: Request,
+    log_id: str,
+    payload: MovieLogPhotoInput,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    # Same ownership-before-write posture as PUT .../venue-rating — avoids
+    # attaching a photo to an orphaned/foreign log if log_id is wrong or
+    # belongs to someone else.
+    log = await supabase_rest.get_movie_log(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if log is None:
+        raise APIError(404, 'NOT_FOUND', 'Movie log not found.')
+
+    _enforce_image_prefix(current_user.user_id, payload.storage_path, field='storage_path')
+
+    existing = await supabase_rest.list_movie_log_photos(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if len(existing) >= _MAX_PHOTOS_PER_LOG:
+        raise APIError(
+            400,
+            'PHOTO_LIMIT_REACHED',
+            f'A movie log may have at most {_MAX_PHOTOS_PER_LOG} photos.',
+        )
+
+    row = {
+        'movie_log_id': log_id,
+        'user_id': current_user.user_id,
+        'storage_path': payload.storage_path,
+        'tag': payload.tag,
+    }
+    result = await supabase_rest.create_movie_log_photo(current_user.access_token, row)
+    LOGGER.info(
+        'add_movie_log_photo user={} log_id={} tag={}',
+        _uid(current_user.user_id), log_id, payload.tag,
+    )
+    return result
+
+
+@router.get(
+    '/{log_id}/photos',
+    response_model=List[MovieLogPhoto],
+    tags=['Movie Logs'],
+    description="List every tagged photo on one of the caller's own logs, "
+    "oldest first. Returns 404 (not 403) if the log belongs to someone "
+    "else — same 'not yours' and 'does not exist' indistinguishable-on-"
+    'purpose pattern as GET /{log_id}.',
+    response_description="The log's photos.",
+    responses=responses['list_movie_log_photos'],
+    operation_id='ListMovieLogPhotos',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_movie_log_photos(
+    request: Request,
+    log_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    log = await supabase_rest.get_movie_log(
+        current_user.access_token, current_user.user_id, log_id
+    )
+    if log is None:
+        raise APIError(404, 'NOT_FOUND', 'Movie log not found.')
+    return await supabase_rest.list_movie_log_photos(
+        current_user.access_token, current_user.user_id, log_id
+    )
+
+
+@router.delete(
+    '/{log_id}/photos/{photo_id}',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Movie Logs'],
+    description="Remove one photo from one of the caller's own logs — the "
+    'log and its other photos are untouched.',
+    responses=responses['delete_movie_log_photo'],
+    operation_id='DeleteMovieLogPhoto',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_movie_log_photo(
+    request: Request,
+    log_id: str,
+    photo_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_movie_log_photo(
+        current_user.access_token, current_user.user_id, log_id, photo_id
+    )
+    if not deleted:
+        raise APIError(404, 'NOT_FOUND', 'Photo not found.')
+    LOGGER.info(
+        'delete_movie_log_photo user={} log_id={} photo_id={}',
+        _uid(current_user.user_id), log_id, photo_id,
+    )
 
 
 @router.put(

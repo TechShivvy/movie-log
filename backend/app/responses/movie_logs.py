@@ -28,6 +28,7 @@ _MOVIE_LOG_EXAMPLE = {
     'notes': 'Great sound, comfy seats.',
     'rating': 4.5,
     'ticket_image_path': None,
+    'ticket_url': None,
     'theatre_id': None,
     'screen_id': None,
     'movie_id': None,
@@ -47,6 +48,15 @@ _MOVIE_LOG_EXAMPLE = {
     'updated_at': '2026-08-10T03:30:16.719405+00:00',
     'edited_at': None,
     'favorite_position': None,
+}
+
+_MOVIE_LOG_PHOTO_EXAMPLE = {
+    'id': '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+    'movie_log_id': _MOVIE_LOG_EXAMPLE['id'],
+    'user_id': _MOVIE_LOG_EXAMPLE['user_id'],
+    'storage_path': f"{_MOVIE_LOG_EXAMPLE['user_id']}/photo1.jpg",
+    'tag': 'theatre',
+    'created_at': '2026-08-19T03:31:15.977764+00:00',
 }
 
 _UNAUTHORIZED = {
@@ -486,6 +496,66 @@ responses = {
             'content': {
                 'application/json': {
                     'example': {'code': 'NOT_FOUND', 'message': 'No venue rating for this log.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'add_movie_log_photo': {
+        201: {
+            'description': "The stored photo row.",
+            'content': {'application/json': {'example': _MOVIE_LOG_PHOTO_EXAMPLE}},
+        },
+        400: {
+            'description': 'storage_path outside the caller\'s own storage prefix, or '
+            'this log already has the maximum of 10 photos.',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'invalid_image_path': {
+                            'summary': "storage_path outside the caller's own prefix",
+                            'value': {
+                                'code': 'INVALID_IMAGE_PATH',
+                                'message': "storage_path must live under the "
+                                "user's own storage prefix.",
+                            },
+                        },
+                        'photo_limit_reached': {
+                            'summary': 'Already at the 10-photo cap for this log',
+                            'value': {
+                                'code': 'PHOTO_LIMIT_REACHED',
+                                'message': 'A movie log may have at most 10 photos.',
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_NOT_FOUND,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'list_movie_log_photos': {
+        200: {
+            'description': "The log's photos, oldest first.",
+            'content': {'application/json': {'example': [_MOVIE_LOG_PHOTO_EXAMPLE]}},
+        },
+        **_UNAUTHORIZED,
+        **_NOT_FOUND,
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'delete_movie_log_photo': {
+        204: {'description': 'Deleted — no response body. The log and its other photos '
+        'are untouched.'},
+        404: {
+            'description': "No photo with this id on this log (nothing to delete), or "
+            "the log itself doesn't belong to the caller.",
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Photo not found.'}
                 }
             },
         },
