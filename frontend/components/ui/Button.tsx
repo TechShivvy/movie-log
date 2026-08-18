@@ -15,17 +15,25 @@
 import React from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { Icon, type IconName } from "./Icon";
 
 type Variant = "primary" | "secondary" | "ghost" | "icon";
 
 interface ButtonProps {
   onPress?: () => void;
   label?: string;
+  /** Shown before the label. Swaps to a spinning circle-notch while loading — the label stays put either way, so a caller passing a loading-specific label ("Signing in…") doesn't have it vanish under a bare spinner. */
+  icon?: IconName;
   variant?: Variant;
   loading?: boolean;
   disabled?: boolean;
   block?: boolean;
   style?: ViewStyle | any;
+  /**
+   * Full content override. Unlike `icon`+`label`, children fully replace
+   * whatever `loading` would otherwise show — there's no label for a
+   * loading state to preserve when the caller's supplying arbitrary content.
+   */
   children?: React.ReactNode;
   /**
    * Web only. A bare <button> defaults to type="submit" when it's inside a
@@ -37,10 +45,11 @@ interface ButtonProps {
 }
 
 export function Button({
-  onPress, label, variant = "primary", loading, disabled, block, style, children, type = "button",
+  onPress, label, icon, variant = "primary", loading, disabled, block, style, children, type = "button",
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDisabled = disabled || loading;
+  const shownIcon = loading ? "circle-notch" : icon;
 
   // ── Web ────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -53,9 +62,12 @@ export function Button({
         disabled={isDisabled}
         style={style as React.CSSProperties}
       >
-        {loading
-          ? <span className="spin">◌</span>
-          : children ?? (label && <span>{label}</span>)}
+        {children ?? (
+          <>
+            {shownIcon ? <Icon name={shownIcon} size={16} /> : null}
+            {label ? <span>{label}</span> : null}
+          </>
+        )}
       </button>
     );
   }
@@ -65,7 +77,6 @@ export function Button({
   const nativeBorder = variant === "primary"   ? theme.accent
                      : variant === "secondary" ? theme.divider
                      : "transparent";
-  const nativeBg = "transparent";
 
   return (
     <Pressable
@@ -83,10 +94,15 @@ export function Button({
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={nativeColor} size="small" />
-      ) : children ?? (
-        <Text style={[styles.label, { color: nativeColor }]}>{label}</Text>
+      {children ?? (
+        <>
+          {loading ? (
+            <ActivityIndicator color={nativeColor} size="small" />
+          ) : icon ? (
+            <Icon name={icon} size={16} color={nativeColor} />
+          ) : null}
+          {label ? <Text style={[styles.label, { color: nativeColor }]}>{label}</Text> : null}
+        </>
       )}
     </Pressable>
   );

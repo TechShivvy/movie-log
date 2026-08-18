@@ -54,6 +54,7 @@ import {
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import * as AuthSession from "expo-auth-session";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { completeAuthFromUrl } from "../lib/authCallback";
 import { useTheme } from "../hooks/useTheme";
@@ -61,6 +62,7 @@ import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { GoogleIcon } from "../components/ui/GoogleIcon";
 import { fontFamily } from "../constants/fonts";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -90,6 +92,10 @@ export function LoginScreen() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const passwordRef = useRef<TextInput>(null);
+  // LoginScreen has no shell layout above it (unlike (app)/_layout.tsx's
+  // MobileLayout) to apply device insets, so it reads them directly. Added
+  // on top of the existing 48/30 design padding below, not in place of it.
+  const insets = useSafeAreaInsets();
 
   const headingFamily = fontFamily(fontConfig, "heading", 600);
   const muted = `${theme.text}8c`; // .text-muted ≈ text 55%
@@ -377,6 +383,7 @@ export function LoginScreen() {
                   type="submit"
                   variant="primary"
                   block
+                  icon="sign-in"
                   loading={action === "password"}
                   disabled={busy}
                   label={action === "password" ? "Signing in…" : "Sign in"}
@@ -385,6 +392,7 @@ export function LoginScreen() {
                 <Button
                   variant="secondary"
                   block
+                  icon="magic-wand"
                   loading={action === "magic"}
                   disabled={busy}
                   label={action === "magic" ? "Sending link…" : "Send magic link"}
@@ -398,20 +406,28 @@ export function LoginScreen() {
                   <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
                 </div>
 
-                <Button
-                  variant="secondary"
-                  block
-                  loading={action === "google"}
-                  disabled={busy}
-                  label={action === "google" ? "Opening Google…" : "Continue with Google"}
-                  onPress={signInGoogle}
-                />
+                {/* Google's mark is 4 fixed brand colors, not a currentColor
+                    glyph — GoogleIcon renders it directly rather than going
+                    through Icon's one-color registry. Swapped in via
+                    children while idle; loading still falls back to
+                    Button's own circle-notch+label pair since children
+                    fully overrides that path (see Button.tsx's ButtonProps
+                    comment on `children`). */}
+                {action === "google" ? (
+                  <Button variant="secondary" block loading disabled label="Opening Google…" />
+                ) : (
+                  <Button variant="secondary" block disabled={busy} onPress={signInGoogle}>
+                    <GoogleIcon size={16} />
+                    <span>Continue with Google</span>
+                  </Button>
+                )}
               </>
             ) : (
               <Button
                 type="submit"
                 variant="primary"
                 block
+                icon="user-plus"
                 loading={action === "signup"}
                 disabled={busy}
                 label={action === "signup" ? "Creating account…" : "Create account"}
@@ -456,9 +472,9 @@ export function LoginScreen() {
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
-            paddingTop: 48,
+            paddingTop: 48 + insets.top,
             paddingHorizontal: 26,
-            paddingBottom: 30,
+            paddingBottom: 30 + insets.bottom,
           }}
           keyboardShouldPersistTaps="handled"
         >
@@ -523,6 +539,7 @@ export function LoginScreen() {
 
             <Button
               variant="ghost"
+              icon={showPassword ? "eye-slash" : "eye"}
               label={showPassword ? "Hide password" : "Show password"}
               onPress={() => setShowPassword((s) => !s)}
             />
@@ -532,6 +549,7 @@ export function LoginScreen() {
                 <Button
                   variant="primary"
                   block
+                  icon="sign-in"
                   loading={action === "password"}
                   disabled={busy}
                   label={action === "password" ? "Signing in…" : "Sign in"}
@@ -541,6 +559,7 @@ export function LoginScreen() {
                 <Button
                   variant="secondary"
                   block
+                  icon="magic-wand"
                   loading={action === "magic"}
                   disabled={busy}
                   label={action === "magic" ? "Sending link…" : "Send magic link"}
@@ -554,19 +573,23 @@ export function LoginScreen() {
                   <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
                 </View>
 
-                <Button
-                  variant="secondary"
-                  block
-                  loading={action === "google"}
-                  disabled={busy}
-                  label={action === "google" ? "Opening Google…" : "Continue with Google"}
-                  onPress={signInGoogle}
-                />
+                {/* Google's mark is 4 fixed brand colors — GoogleIcon, not
+                    Icon's one-color registry. See the matching comment on
+                    the web branch above. */}
+                {action === "google" ? (
+                  <Button variant="secondary" block loading disabled label="Opening Google…" />
+                ) : (
+                  <Button variant="secondary" block disabled={busy} onPress={signInGoogle}>
+                    <GoogleIcon size={16} />
+                    <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Continue with Google</Text>
+                  </Button>
+                )}
               </>
             ) : (
               <Button
                 variant="primary"
                 block
+                icon="user-plus"
                 loading={action === "signup"}
                 disabled={busy}
                 label={action === "signup" ? "Creating account…" : "Create account"}
