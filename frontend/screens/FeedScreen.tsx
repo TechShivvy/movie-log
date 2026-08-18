@@ -26,6 +26,7 @@ import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useLikeLog } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
+import { hueFromTitle } from "../components/ui/Poster";
 import type { MovieLog } from "../types";
 
 // ─── Feed card ────────────────────────────────────────────────────────────────
@@ -34,7 +35,8 @@ function FeedCard({ log }: { log: MovieLog }) {
   const { theme } = useTheme();
   const router = useRouter();
   const likeLog = useLikeLog();
-  const hue = Array.from(log.movie_title).reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  // movie_title can be null/undefined — hueFromTitle guards that (see LogDetailScreen)
+  const hue = hueFromTitle(log.movie_title);
 
   if (Platform.OS === "web") {
     return (

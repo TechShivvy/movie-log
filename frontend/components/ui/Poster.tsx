@@ -17,7 +17,12 @@ import React from "react";
 import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-export function hueFromTitle(title: string): number {
+// Typed loosely on purpose: MovieLog.movie_title is declared as a required
+// `string`, but real API/DB rows can still come back null/undefined (a
+// title that failed to resolve, a row written before the column was
+// required, etc.) — the ?? "" guard is what actually stops Array.from from
+// crashing, so the signature should admit the values it's built to handle.
+export function hueFromTitle(title: string | null | undefined): number {
   return Array.from(title ?? "").reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
 }
 

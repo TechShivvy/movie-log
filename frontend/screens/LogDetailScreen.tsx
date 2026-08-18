@@ -39,6 +39,7 @@ import { useMovieLog, useArchiveLog } from "../hooks/useMovieLogs";
 import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
+import { hueFromTitle } from "../components/ui/Poster";
 import type { Comment } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -179,8 +180,10 @@ export function LogDetailScreen() {
     setReplyTo(null);
   };
 
-  // Hue from title for poster gradient
-  const hue = Array.from(log.movie_title).reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  // Hue from title for poster gradient — movie_title can be null/undefined
+  // (e.g. a log created without a resolved title), which crashed Array.from
+  // with "undefined is not iterable". hueFromTitle already guards this.
+  const hue = hueFromTitle(log.movie_title);
 
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
