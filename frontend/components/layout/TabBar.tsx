@@ -107,9 +107,19 @@ const styles = StyleSheet.create({
   },
   // Oversized, low-opacity, same-color circle sitting behind the button —
   // the "glow". Real blur isn't available without a native blur view, so
-  // this approximates it with a soft-edged halo instead.
+  // this approximates it with a soft-edged halo instead. Needs explicit
+  // top/left to actually center: an absolutely-positioned view with none
+  // of top/left/right/bottom set is NOT reliably centered by the parent's
+  // alignItems/justifyContent on every renderer (Yoga does honor it, but
+  // react-native-web renders this as plain CSS absolute positioning, which
+  // never does) — since TabBar now also mounts on narrow web viewports,
+  // this rendered anchored to fabWrap's top-left corner there: a lopsided
+  // blob instead of a halo. (78-54)/2 = 12 centers the larger circle over
+  // the button on every renderer, not just the ones with Yoga's semantics.
   fabGlow: {
     position: "absolute",
+    top: -12,
+    left: -12,
     width: 78,
     height: 78,
     borderRadius: 39,

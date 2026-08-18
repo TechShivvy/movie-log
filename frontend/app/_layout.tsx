@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet } from "react-native";
@@ -66,14 +67,24 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <AuthProvider>
-            <StatusBar style="light" />
-            <ThemedStack />
-          </AuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      {/* Provides the actual device insets (notch/status bar, home
+          indicator / gesture nav bar) that useSafeAreaInsets() reads.
+          react-native-safe-area-context was already a dependency but had
+          no provider anywhere in the tree, and every screen imported
+          SafeAreaView from plain "react-native" instead — that built-in
+          component is iOS-only and even there considered legacy; on
+          Android it's a no-op. Content sat under the status bar/notch and
+          behind the gesture nav bar as a result. */}
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <AuthProvider>
+              <StatusBar style="light" />
+              <ThemedStack />
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

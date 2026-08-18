@@ -1,6 +1,7 @@
 import React from "react";
 import { Redirect, Stack } from "expo-router";
-import { Platform, SafeAreaView, StyleSheet, View, ActivityIndicator } from "react-native";
+import { Platform, StyleSheet, View, ActivityIndicator } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
@@ -45,6 +46,13 @@ function WebLayout({ children }: { children: React.ReactNode }) {
 
 function MobileLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
+  // Real device insets (notch/status bar height, gesture-nav/home-indicator
+  // height) — see app/_layout.tsx's SafeAreaProvider comment. `insets.top`
+  // pads every screen below the status bar/notch instead of them starting
+  // right under it; `insets.bottom` sits under TabBar's own fixed 22px
+  // bottom padding so the tab bar (and the FAB poking up out of it) clears
+  // the gesture bar/home indicator rather than sitting behind it.
+  const insets = useSafeAreaInsets();
   return (
     <View style={[styles.mobileRoot, { backgroundColor: theme.bg }]}>
       {/* Only .grain is app-wide. .cine-bg is NOT a shell layer — in the design
@@ -52,11 +60,11 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
           header's 280px band, so rendering it here tinted every screen. */}
       <FilmGrain />
 
-      <View style={styles.mobileContent}>{children}</View>
+      <View style={[styles.mobileContent, { paddingTop: insets.top }]}>{children}</View>
 
-      <SafeAreaView style={{ backgroundColor: theme.surface }}>
+      <View style={{ backgroundColor: theme.surface, paddingBottom: insets.bottom }}>
         <TabBar />
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
