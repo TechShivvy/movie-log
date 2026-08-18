@@ -15,7 +15,7 @@
  *   profile ← settings | notifications
  */
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
@@ -32,8 +32,10 @@ export function TabBar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (Platform.OS === "web") return null;
-
+  // No Platform.OS guard: the parent layout (app/(app)/_layout.tsx) now
+  // decides whether to mount TabBar at all, based on viewport width, not
+  // platform. Pressable/Icon both already render fine on web through
+  // react-native-web.
   const inactive = `${theme.text}73`; // text 45%
 
   function isActive(t: (typeof TABS)[number]) {

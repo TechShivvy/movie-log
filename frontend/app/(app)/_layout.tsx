@@ -3,6 +3,7 @@ import { Redirect, Stack } from "expo-router";
 import { Platform, SafeAreaView, StyleSheet, View, ActivityIndicator } from "react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { FilmGrain } from "../../components/layout/FilmGrain";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { TabBar } from "../../components/layout/TabBar";
@@ -63,6 +64,7 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
 export default function AppLayout() {
   const { session, loading } = useAuth();
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
 
   if (loading) {
     return (
@@ -84,7 +86,12 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
   );
 
-  if (Platform.OS === "web") {
+  // Native always gets the phone shell (tablet/landscape is a later pass —
+  // see useBreakpoint's doc comment). Web switches on viewport width: the
+  // 236px Sidebar only fits comfortably at tablet width and up. Below that,
+  // web gets the same TabBar shell native uses, instead of the desktop
+  // sidebar overflowing a phone-width viewport.
+  if (Platform.OS === "web" && !isMobile) {
     return <WebLayout>{stack}</WebLayout>;
   }
 
