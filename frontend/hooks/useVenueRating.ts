@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import type { VenueRating } from "../types";
 
@@ -34,4 +34,23 @@ export function useVenueRating(logId: string): VenueRating | undefined {
     enabled: !!logId,
   });
   return data ?? undefined;
+}
+
+/**
+ * PUT /movie-logs/{id}/venue-rating — upsert the caller's screen/speaker/
+ * AC/seat rating for one log. Only meaningful once the log itself exists
+ * (venue-rating rows are scoped to a movie_log_id), so LogFormScreen calls
+ * this *after* create/update succeeds, never before.
+ */
+export function useUpsertVenueRating() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ logId, rating }: { logId: string; rating: VenueRating }) => {
+      const { data } = await api.put<VenueRating>(`/movie-logs/${logId}/venue-rating`, rating);
+      return data;
+    },
+    onSuccess: (_data, { logId }) => {
+      qc.invalidateQueries({ queryKey: ["movie-logs", "venue-rating", logId] });
+    },
+  });
 }

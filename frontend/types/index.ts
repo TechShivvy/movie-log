@@ -118,10 +118,9 @@ export interface MovieLog {
 
 // Per-visit venue quality rating (screen/speaker/AC/seat, half-star
 // 0.5-5.0 each) — a separate table (visit_venue_ratings), one row per log
-// at most. Saved via PUT /movie-logs/{id}/venue-rating (schemas/venues.py's
-// VenueRatingInput on the backend). There is currently no GET
-// /movie-logs/{id}/venue-rating — see hooks/useVenueRating.ts for how this
-// is read back in the meantime.
+// at most. Read via GET and saved via PUT /movie-logs/{id}/venue-rating
+// (schemas/venues.py's VenueRatingInput on the backend) — see
+// hooks/useVenueRating.ts.
 export interface VenueRating {
   screen_rating?: number;
   speaker_rating?: number;

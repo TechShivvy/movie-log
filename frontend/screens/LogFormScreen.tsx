@@ -15,7 +15,7 @@
  *   96px poster thumbnail + AI scan btn on same row
  *   All fields vertical
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -26,11 +26,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { CameraPlus, Robot, Sparkle, ArrowLeft, X } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
-import { useCreateLog } from "../hooks/useMovieLogs";
-import { useMovieSearch, useVenueSearch } from "../hooks/useSearch";
+import { useBreakpoint } from "../hooks/useBreakpoint";
+import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
+import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie } from "../hooks/useSearch";
+import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
 import { StarRating } from "../components/ui/StarRating";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
@@ -40,6 +42,8 @@ import type {
   Format,
   LogVisibility,
   ArrivalStatus,
+  ScreeningStartStatus,
+  MovieLog,
   MovieSearchResult,
   TheatreMatchCandidate,
   ExtractionResult,
@@ -59,16 +63,36 @@ const ARRIVAL_OPTS = [
   { label: "On-time", value: "on_time" },
   { label: "Late",    value: "late" },
 ];
+const SCREENING_START_OPTS = [
+  { label: "Early",     value: "early" },
+  { label: "On-time",   value: "on_time" },
+  { label: "Delayed",   value: "delayed" },
+  { label: "Cancelled", value: "cancelled" },
+];
+
+function todayIso(): string {
+  // watched_date is a plain YYYY-MM-DD, not an instant — building it from
+  // getFullYear/Month/Date (local calendar fields) rather than
+  // toISOString() (which is UTC and can land on the wrong side of
+  // midnight local time) keeps "today" meaning the day the device says it
+  // is right now, not UTC's version of it.
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FormState {
   movieTitle:     string;
-  // UI preview only — resolved from a TMDB search hit's poster_path. There's
-  // no movie_id here: MovieSearchResult only carries a tmdb_id, and turning
-  // that into the catalog UUID MovieLogInput.movie_id expects would need a
-  // POST /movies (MovieCreate) round-trip that no hook wires up yet. Picking
-  // a title from search just fills the title + preview, same as typing it.
+  // Resolved from a TMDB search hit via POST /movies (useCreateMovie) —
+  // dedupes into the catalog and comes back with a real id, which is what
+  // actually gets sent as MovieLogInput.movie_id. Previously nothing set
+  // movie_id at all (MovieSearchResult only carries a tmdb_id, not a
+  // catalog UUID), so the poster preview shown while picking a title never
+  // survived past this form — nothing about it was ever saved.
+  movieId:        string | undefined;
   moviePosterUrl: string | undefined;
   rating:         number;
   format:         Format | undefined;
@@ -79,9 +103,80 @@ interface FormState {
   // on submit. The real backend has no single "seat" field.
   seat:           string;
   isFdfs:         boolean;
+  // is_fdfs implies is_first_day server-side (schemas/movie_logs.py's
+  // _fdfs_implies_first_day) — kept as a separate toggle here too, for the
+  // "opening day, but I wasn't at the very first show" case FDFS alone
+  // can't express.
+  isFirstDay:     boolean;
   arrivalStatus:  ArrivalStatus;
+  // Free text, parsed to a number on submit — only meaningful (and only
+  // sent) alongside early/late, same rule the backend itself enforces.
+  arrivalDeltaMinutes: string;
+  screeningStartStatus: ScreeningStartStatus | undefined;
+  screeningStartDeltaMinutes: string;
   visibility:     LogVisibility;
   notes:          string;
+  watchedDate:    string; // YYYY-MM-DD
+  watchedTime:    string; // HH:MM, 24h
+  language:       string;
+  certificate:    string;
+  price:          string; // free text, parsed to a number on submit
+  currency:       string; // ISO 4217, e.g. "INR"
+  bookingRef:     string;
+  // Venue sub-ratings — a separate visit_venue_ratings row, keyed by this
+  // log's id, not a MovieLogInput field. 0 means "not rated" the same way
+  // rating does; only sent (via a follow-up PUT after the log itself
+  // saves) when at least one of the four is non-zero.
+  screenRating:   number;
+  speakerRating:  number;
+  acRating:       number;
+  seatRating:     number;
+}
+
+const BLANK_FORM: FormState = {
+  movieTitle: "", movieId: undefined, moviePosterUrl: undefined, rating: 0, format: undefined,
+  venueId: undefined, venueName: "", screenNumber: "", seat: "",
+  isFdfs: false, isFirstDay: false,
+  arrivalStatus: "on_time", arrivalDeltaMinutes: "",
+  screeningStartStatus: undefined, screeningStartDeltaMinutes: "",
+  visibility: "public", notes: "",
+  watchedDate: todayIso(), watchedTime: "", language: "", certificate: "",
+  price: "", currency: "", bookingRef: "",
+  screenRating: 0, speakerRating: 0, acRating: 0, seatRating: 0,
+};
+
+/** Existing log -> form state, for edit mode. Inverse of buildPayload below. */
+function logToFormState(log: MovieLog): FormState {
+  return {
+    movieTitle: log.movie ?? "",
+    movieId: log.movie_id,
+    moviePosterUrl: undefined, // resolved separately if movie_id is set — see the edit-mode effect
+    rating: log.rating ?? 0,
+    format: log.format,
+    venueId: log.theatre_id,
+    venueName: log.theater ?? "",
+    screenNumber: log.screen ?? "",
+    seat: log.seats?.join(", ") ?? "",
+    isFdfs: log.is_fdfs,
+    isFirstDay: log.is_first_day,
+    arrivalStatus: log.arrival_status ?? "on_time",
+    arrivalDeltaMinutes: log.arrival_delta_minutes != null ? String(log.arrival_delta_minutes) : "",
+    screeningStartStatus: log.screening_start_status,
+    screeningStartDeltaMinutes: log.screening_start_delta_minutes != null ? String(log.screening_start_delta_minutes) : "",
+    visibility: log.visibility,
+    notes: log.notes ?? "",
+    watchedDate: log.watched_date ?? todayIso(),
+    watchedTime: log.watched_time ?? "",
+    language: log.language ?? "",
+    certificate: log.certificate ?? "",
+    price: log.price != null ? String(log.price) : "",
+    currency: log.currency ?? "",
+    bookingRef: log.booking_ref ?? "",
+    // Venue ratings live in a separate table, keyed by log id — not
+    // available on the MovieLog object itself. Merged in separately by
+    // the edit-mode venue-rating effect once useVenueRating(editId) loads.
+    screenRating: 0, speakerRating: 0, acRating: 0, seatRating: 0,
+  };
 }
 
 // ─── Web poster column ────────────────────────────────────────────────────────
@@ -234,7 +329,35 @@ function WebForm({
         {/* Rating — full width */}
         <div className="field" style={{ gridColumn: "1/-1" } as React.CSSProperties}>
           <label>Rating</label>
-          <WebStarRating value={fs.rating} onChange={(v: number) => setFs((p: FormState) => ({ ...p, rating: v }))} theme={theme} />
+          <div style={{ marginTop: 4 } as React.CSSProperties}>
+            <StarRating value={fs.rating} onChange={(v) => setFs((p: FormState) => ({ ...p, rating: v }))} />
+          </div>
+        </div>
+
+        {/* Venue ratings — new: screen/speaker/AC/seat, a separate
+            visit_venue_ratings row saved via a follow-up PUT after the log
+            itself saves (see handleSubmit). Never collected in this form
+            before, despite LogDetailScreen already having a whole section
+            to display them. */}
+        <div className="field" style={{ gridColumn: "1/-1" } as React.CSSProperties}>
+          <label>Venue ratings <span style={{ color: "var(--color-divider)", fontWeight: 400 } as React.CSSProperties}>(optional)</span></label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 4 } as React.CSSProperties}>
+            {([
+              ["Screen", "screenRating"],
+              ["Speaker", "speakerRating"],
+              ["AC", "acRating"],
+              ["Seat", "seatRating"],
+            ] as const).map(([label, key]) => (
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
+                <span style={{ fontSize: 13, color: `${theme.text}99` } as React.CSSProperties}>{label}</span>
+                <StarRating
+                  size="small"
+                  value={fs[key]}
+                  onChange={(v) => setFs((p: FormState) => ({ ...p, [key]: v }))}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Format chips — full width */}
@@ -252,6 +375,29 @@ function WebForm({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Watched date/time — new: watched_date/watched_time were never
+            collected anywhere in this form at all, despite LogDetailScreen
+            now prominently showing "when you watched it" as the primary
+            date on the whole screen. Defaults to today. */}
+        <div className="field">
+          <label>Watched on</label>
+          <input
+            type="date"
+            className="input"
+            value={fs.watchedDate}
+            onChange={(e) => setFs((p: FormState) => ({ ...p, watchedDate: e.target.value }))}
+          />
+        </div>
+        <div className="field">
+          <label>Time (optional)</label>
+          <input
+            type="time"
+            className="input"
+            value={fs.watchedTime}
+            onChange={(e) => setFs((p: FormState) => ({ ...p, watchedTime: e.target.value }))}
+          />
         </div>
 
         {/* Venue — left col */}
@@ -317,7 +463,62 @@ function WebForm({
           />
         </div>
 
-        {/* Arrival — right col */}
+        {/* Language — new: on the backend, never in this form */}
+        <div className="field">
+          <label>Language</label>
+          <input
+            className="input"
+            value={fs.language}
+            placeholder="e.g. English"
+            onChange={(e) => setFs((p: FormState) => ({ ...p, language: e.target.value }))}
+          />
+        </div>
+
+        {/* Price/currency — new */}
+        <div className="field">
+          <label>Price</label>
+          <input
+            className="input"
+            inputMode="decimal"
+            value={fs.price}
+            placeholder="e.g. 250"
+            onChange={(e) => setFs((p: FormState) => ({ ...p, price: e.target.value }))}
+          />
+        </div>
+        <div className="field">
+          <label>Currency</label>
+          <input
+            className="input"
+            value={fs.currency}
+            placeholder="e.g. INR"
+            maxLength={3}
+            onChange={(e) => setFs((p: FormState) => ({ ...p, currency: e.target.value.toUpperCase() }))}
+          />
+        </div>
+
+        {/* Certificate/booking ref — new */}
+        <div className="field">
+          <label>Certificate</label>
+          <input
+            className="input"
+            value={fs.certificate}
+            placeholder="e.g. U/A"
+            onChange={(e) => setFs((p: FormState) => ({ ...p, certificate: e.target.value }))}
+          />
+        </div>
+        <div className="field">
+          <label>Booking ref</label>
+          <input
+            className="input"
+            value={fs.bookingRef}
+            placeholder="e.g. BMS12345678"
+            onChange={(e) => setFs((p: FormState) => ({ ...p, bookingRef: e.target.value }))}
+          />
+        </div>
+
+        {/* Arrival + delta — right col of the delta pair is only
+            meaningful (and only sent) alongside early/late, same rule the
+            backend enforces server-side. */}
         <div className="field">
           <label>Arrival</label>
           <SegmentedControl
@@ -326,18 +527,73 @@ function WebForm({
             onChange={(v) => setFs((p: FormState) => ({ ...p, arrivalStatus: v as ArrivalStatus }))}
           />
         </div>
+        {fs.arrivalStatus !== "on_time" && (
+          <div className="field">
+            <label>Minutes {fs.arrivalStatus}</label>
+            <input
+              className="input"
+              inputMode="numeric"
+              value={fs.arrivalDeltaMinutes}
+              placeholder="e.g. 10"
+              onChange={(e) => setFs((p: FormState) => ({ ...p, arrivalDeltaMinutes: e.target.value }))}
+            />
+          </div>
+        )}
 
-        {/* FDFS toggle — left col */}
+        {/* Screening start + delta — new: whether the movie itself started
+            on time is distinct from the caller's own arrival, and was
+            never collected here at all. */}
+        <div className="field">
+          <label>Screening start</label>
+          <SegmentedControl
+            options={SCREENING_START_OPTS}
+            value={fs.screeningStartStatus ?? ""}
+            onChange={(v) => setFs((p: FormState) => ({ ...p, screeningStartStatus: (v || undefined) as ScreeningStartStatus | undefined }))}
+          />
+        </div>
+        {(fs.screeningStartStatus === "early" || fs.screeningStartStatus === "delayed") && (
+          <div className="field">
+            <label>Minutes {fs.screeningStartStatus}</label>
+            <input
+              className="input"
+              inputMode="numeric"
+              value={fs.screeningStartDeltaMinutes}
+              placeholder="e.g. 5"
+              onChange={(e) => setFs((p: FormState) => ({ ...p, screeningStartDeltaMinutes: e.target.value }))}
+            />
+          </div>
+        )}
+
+        {/* FDFS / Opening day toggles */}
         <div className="field" style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
           <div>
             <label style={{ marginBottom: 2 } as React.CSSProperties}>First Day First Show</label>
-            <p style={{ color: "var(--color-divider)", fontSize: 12, margin: 0 } as React.CSSProperties}>Opening day screening</p>
+            <p style={{ color: "var(--color-divider)", fontSize: 12, margin: 0 } as React.CSSProperties}>The very first screening</p>
           </div>
           <input
             type="checkbox"
             checked={fs.isFdfs}
-            onChange={(e) => setFs((p: FormState) => ({ ...p, isFdfs: e.target.checked }))}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              // is_fdfs implies is_first_day server-side — mirrored here so
+              // toggling this on doesn't leave the other checkbox looking
+              // (incorrectly) unset.
+              setFs((p: FormState) => ({ ...p, isFdfs: checked, isFirstDay: checked ? true : p.isFirstDay }));
+            }}
             style={{ width: 18, height: 18, accentColor: theme.accent, flexShrink: 0 } as React.CSSProperties}
+          />
+        </div>
+        <div className="field" style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
+          <div>
+            <label style={{ marginBottom: 2 } as React.CSSProperties}>Opening day</label>
+            <p style={{ color: "var(--color-divider)", fontSize: 12, margin: 0 } as React.CSSProperties}>Any showing, not necessarily the first</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={fs.isFirstDay}
+            disabled={fs.isFdfs}
+            onChange={(e) => setFs((p: FormState) => ({ ...p, isFirstDay: e.target.checked }))}
+            style={{ width: 18, height: 18, accentColor: theme.accent, flexShrink: 0, opacity: fs.isFdfs ? 0.5 : 1 } as React.CSSProperties}
           />
         </div>
 
@@ -376,51 +632,30 @@ function WebForm({
   );
 }
 
-// ─── Web star rating ──────────────────────────────────────────────────────────
-
-function WebStarRating({ value, onChange, theme }: { value: number; onChange: (v: number) => void; theme: any }) {
-  return (
-    <div style={{ display: "flex", gap: 4, marginTop: 4 } as React.CSSProperties}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <span
-          key={n}
-          onClick={() => onChange(n === value ? 0 : n)}
-          style={{
-            fontSize: 26,
-            cursor: "pointer",
-            color: n <= value ? theme.accent : theme.divider,
-            lineHeight: 1,
-          } as React.CSSProperties}
-        >
-          ★
-        </span>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function LogFormScreen() {
   const { theme } = useTheme();
   const router = useRouter();
-  const { mutateAsync: createLog, isPending } = useCreateLog();
+  // /(app)/log/new?edit={id} — LogDetailScreen's Edit button already
+  // linked here with this param, but nothing on this screen ever read it:
+  // the form always started blank and always called useCreateLog, so
+  // "editing" a log actually created a brand new duplicate every time,
+  // silently, with no error — the original was untouched and still there.
+  const { edit: editId } = useLocalSearchParams<{ edit?: string }>();
+  const isEditing = !!editId;
 
-  // Form state
-  const [fs, setFs] = useState<FormState>({
-    movieTitle:     "",
-    moviePosterUrl: undefined,
-    rating:         0,
-    format:         undefined,
-    venueId:        undefined,
-    venueName:      "",
-    screenNumber:   "",
-    seat:           "",
-    isFdfs:         false,
-    arrivalStatus:  "on_time",
-    visibility:     "public",
-    notes:          "",
-  });
+  const { mutateAsync: createLog, isPending: isCreating } = useCreateLog();
+  const { mutateAsync: updateLog, isPending: isUpdating } = useUpdateLog();
+  const { mutateAsync: createMovie } = useCreateMovie();
+  const { mutateAsync: upsertVenueRating } = useUpsertVenueRating();
+  const { data: existingLog, isLoading: isLoadingExisting } = useMovieLog(editId ?? "");
+  const existingVenueRating = useVenueRating(editId ?? "");
+  const isPending = isCreating || isUpdating;
+
+  // Form state — blank for a new entry; replaced wholesale once the
+  // existing log loads, for edit mode (see the effect below).
+  const [fs, setFs] = useState<FormState>(BLANK_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAIModal, setShowAIModal] = useState(false);
 
@@ -434,12 +669,62 @@ export function LogFormScreen() {
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
   const { data: venueSuggestions } = useVenueSearch(venueQuery);
 
-  const pickMovie = useCallback((m: MovieSearchResult) => {
-    // No movie_id here — see FormState's note above.
+  // Edit mode: populate the form once the existing log arrives. Runs once
+  // per loaded log (guarded by id so a background refetch — e.g. from
+  // another tab's edit — doesn't clobber what the user is actively typing).
+  useEffect(() => {
+    if (!existingLog) return;
+    setFs(logToFormState(existingLog));
+    setMovieQuery(existingLog.movie ?? "");
+    setVenueQuery(existingLog.theater ?? "");
+    // The existing log only carries movie_id, not a poster — resolved
+    // separately below rather than blocking form population on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingLog?.id]);
+
+  // Poster preview for edit mode: the log only carries movie_id, not a
+  // poster_path, so that has to be looked up from the catalog entry it
+  // points at. No-ops (via useMovie's own enabled check) once fs.movieId
+  // stops matching the log we just loaded — e.g. the user then picks a
+  // different title, which sets its own moviePosterUrl directly via
+  // pickMovie and shouldn't have this effect stomp back over it.
+  const { data: editMovie } = useMovie(isEditing ? fs.movieId : undefined);
+  useEffect(() => {
+    if (editMovie) setFs((p) => ({ ...p, moviePosterUrl: tmdbPosterUrl(editMovie.poster_path, "w342") }));
+  }, [editMovie]);
+
+  // Venue ratings for edit mode: a separate visit_venue_ratings row, not
+  // part of the MovieLog object logToFormState converts above — merged in
+  // once useVenueRating(editId) resolves (undefined for a log that was
+  // never rated, which is the common case and simply leaves the 0 defaults).
+  useEffect(() => {
+    if (!existingVenueRating) return;
+    setFs((p) => ({
+      ...p,
+      screenRating: existingVenueRating.screen_rating ?? 0,
+      speakerRating: existingVenueRating.speaker_rating ?? 0,
+      acRating: existingVenueRating.ac_rating ?? 0,
+      seatRating: existingVenueRating.seat_rating ?? 0,
+    }));
+  }, [existingVenueRating]);
+
+  const pickMovie = useCallback(async (m: MovieSearchResult) => {
     setFs((p) => ({ ...p, movieTitle: m.title, moviePosterUrl: tmdbPosterUrl(m.poster_path, "w342") }));
     setMovieQuery(m.title);
     setShowMovieSuggestions(false);
-  }, []);
+    // Dedupe-into-catalog so this log can carry a real movie_id — without
+    // this, movie_id was never set at all (MovieSearchResult only has a
+    // tmdb_id, not a catalog UUID), so the poster preview shown here never
+    // survived past this form. Best-effort: a failure here (offline, TMDB
+    // hiccup) shouldn't block picking a title — the log still saves fine
+    // with just the free-typed title and no catalog link, same as before.
+    try {
+      const movie = await createMovie(m.tmdb_id);
+      if (movie) setFs((p) => ({ ...p, movieId: movie.id }));
+    } catch {
+      // swallowed deliberately — see comment above
+    }
+  }, [createMovie]);
 
   const pickVenue = useCallback((v: TheatreMatchCandidate) => {
     setFs((p) => ({ ...p, venueId: v.id, venueName: v.name }));
@@ -465,24 +750,82 @@ export function LogFormScreen() {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
+    const payload = {
+      movie:         fs.movieTitle.trim(),
+      movie_id:      fs.movieId,
+      theater:       fs.venueName || undefined,
+      theatre_id:    fs.venueId,
+      screen:        fs.screenNumber || undefined,
+      seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      format:        fs.format,
+      rating:        fs.rating > 0 ? fs.rating : undefined,
+      notes:         fs.notes || undefined,
+      visibility:    fs.visibility,
+      is_fdfs:       fs.isFdfs,
+      is_first_day:  fs.isFirstDay,
+      arrival_status: fs.arrivalStatus,
+      arrival_delta_minutes: fs.arrivalDeltaMinutes.trim() ? Number(fs.arrivalDeltaMinutes) : undefined,
+      screening_start_status: fs.screeningStartStatus,
+      screening_start_delta_minutes: fs.screeningStartDeltaMinutes.trim() ? Number(fs.screeningStartDeltaMinutes) : undefined,
+      watched_date:  fs.watchedDate || undefined,
+      watched_time:  fs.watchedTime || undefined,
+      language:      fs.language || undefined,
+      certificate:   fs.certificate || undefined,
+      price:         fs.price.trim() ? Number(fs.price) : undefined,
+      currency:      fs.currency ? fs.currency.trim().toUpperCase() : undefined,
+      booking_ref:   fs.bookingRef || undefined,
+    };
+
     try {
-      await createLog({
-        movie:         fs.movieTitle.trim(),
-        theater:       fs.venueName || undefined,
-        theatre_id:    fs.venueId,
-        screen:        fs.screenNumber || undefined,
-        seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
-        format:        fs.format,
-        rating:        fs.rating > 0 ? fs.rating : undefined,
-        notes:         fs.notes || undefined,
-        visibility:    fs.visibility,
-        is_fdfs:       fs.isFdfs,
-        arrival_status: fs.arrivalStatus,
-      });
-      router.back();
+      let logId: string;
+      if (isEditing && editId) {
+        const saved = await updateLog({ id: editId, payload });
+        logId = saved.id;
+      } else {
+        const saved = await createLog(payload as typeof payload & { movie: string });
+        logId = saved.id;
+      }
+
+      // Venue sub-ratings live in their own visit_venue_ratings row, scoped
+      // to the log's id — only reachable once the log itself has been
+      // created/updated above, so this is necessarily a second request,
+      // not part of the same payload. Only sent when at least one of the
+      // four is actually set, so a screening nobody bothered to rate the
+      // venue on doesn't create an all-zero row.
+      const hasVenueRating = fs.screenRating > 0 || fs.speakerRating > 0 || fs.acRating > 0 || fs.seatRating > 0;
+      if (hasVenueRating) {
+        await upsertVenueRating({
+          logId,
+          rating: {
+            screen_rating: fs.screenRating || undefined,
+            speaker_rating: fs.speakerRating || undefined,
+            ac_rating: fs.acRating || undefined,
+            seat_rating: fs.seatRating || undefined,
+          },
+        });
+      }
+
+      // router.back() alone strands the user on this form whenever there's
+      // no actual navigation history to go back to — a direct link, a
+      // refreshed tab, or (on native) a deep link straight into edit mode
+      // all have nothing to pop back to, so back() silently no-ops and the
+      // just-saved form just sits there looking unsaved. Same fallback
+      // LogDetailScreen's delete flow already uses.
+      router.canGoBack() ? router.back() : router.replace("/");
     } catch (e: any) {
       setErrors({ submit: e.message ?? "Failed to save log" });
     }
+  }
+
+  // Edit mode, still fetching the log to populate the form — show a
+  // spinner instead of a blank "new entry" form that's about to change
+  // out from under whoever's looking at it.
+  if (isEditing && isLoadingExisting) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 60 }}>
+        <ActivityIndicator color={theme.accent} size="large" />
+      </View>
+    );
   }
 
   // ── Web layout ──────────────────────────────────────────────────────────────
@@ -509,7 +852,7 @@ export function LogFormScreen() {
               color: theme.accent,
               marginBottom: 4,
             } as React.CSSProperties}>
-              Add new entry
+              {isEditing ? "Edit entry" : "Add new entry"}
             </div>
             <h1 style={{
               fontSize: 32,
@@ -518,7 +861,7 @@ export function LogFormScreen() {
               margin: 0,
               letterSpacing: -0.5,
             } as React.CSSProperties}>
-              Log a screening
+              {isEditing ? "Edit screening" : "Log a screening"}
             </h1>
           </div>
 
@@ -533,7 +876,7 @@ export function LogFormScreen() {
               disabled={isPending}
             >
               {isPending ? <span className="spin">◌</span> : null}
-              Save log
+              {isEditing ? "Save changes" : "Save log"}
             </button>
           </div>
         </div>
@@ -601,7 +944,9 @@ export function LogFormScreen() {
         <Pressable onPress={() => router.back()} style={{ padding: 4 }}>
           <ArrowLeft size={20} color={theme.accent} />
         </Pressable>
-        <Text style={{ color: theme.text, fontSize: 20, fontWeight: "700", flex: 1 }}>Log a screening</Text>
+        <Text style={{ color: theme.text, fontSize: 20, fontWeight: "700", flex: 1 }}>
+          {isEditing ? "Edit screening" : "Log a screening"}
+        </Text>
         <Pressable
           onPress={handleSubmit}
           disabled={isPending}
@@ -744,6 +1089,44 @@ export function LogFormScreen() {
         </View>
       </View>
 
+      {/* Venue ratings — new: screen/speaker/AC/seat, a separate
+          visit_venue_ratings row saved via a follow-up PUT after the log
+          itself saves (see handleSubmit). See the matching web section. */}
+      <View style={{ marginTop: 14 }}>
+        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>
+          VENUE RATINGS <Text style={{ fontWeight: "400", textTransform: "none" }}>(optional)</Text>
+        </Text>
+        <View style={{ gap: 10 }}>
+          {([
+            ["Screen", "screenRating"],
+            ["Speaker", "speakerRating"],
+            ["AC", "acRating"],
+            ["Seat", "seatRating"],
+          ] as const).map(([label, key]) => (
+            <View key={key} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 14, color: theme.text }}>{label}</Text>
+              <StarRating size="small" value={fs[key]} onChange={(v) => setFs((p) => ({ ...p, [key]: v }))} />
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Watched date/time — new: never collected anywhere in this form
+          before, despite LogDetailScreen now showing it as the primary
+          date on the whole screen. No native date-picker dependency is
+          installed (@react-native-community/datetimepicker isn't in
+          package.json, and adding a native module needs a rebuild this
+          pass can't verify) — plain text with a format hint, same
+          free-typed pattern as Screen/Seat below. */}
+      <View style={{ flexDirection: "row", gap: 12, marginTop: 14 }}>
+        <View style={{ flex: 1 }}>
+          <Input label="Watched on" value={fs.watchedDate} onChangeText={(v) => setFs((p) => ({ ...p, watchedDate: v }))} placeholder="YYYY-MM-DD" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Input label="Time (optional)" value={fs.watchedTime} onChangeText={(v) => setFs((p) => ({ ...p, watchedTime: v }))} placeholder="HH:MM" />
+        </View>
+      </View>
+
       {/* Venue */}
       <View style={{ marginTop: 14 }}>
         <Input
@@ -778,19 +1161,98 @@ export function LogFormScreen() {
         </View>
       </View>
 
-      {/* Arrival */}
+      {/* Language — new */}
+      <View style={{ marginTop: 14 }}>
+        <Input label="Language" value={fs.language} onChangeText={(v) => setFs((p) => ({ ...p, language: v }))} placeholder="e.g. English" />
+      </View>
+
+      {/* Price/currency — new */}
+      <View style={{ flexDirection: "row", gap: 12, marginTop: 14 }}>
+        <View style={{ flex: 1 }}>
+          <Input label="Price" value={fs.price} onChangeText={(v) => setFs((p) => ({ ...p, price: v }))} placeholder="e.g. 250" keyboardType="decimal-pad" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Input label="Currency" value={fs.currency} onChangeText={(v) => setFs((p) => ({ ...p, currency: v.toUpperCase() }))} placeholder="e.g. INR" maxLength={3} />
+        </View>
+      </View>
+
+      {/* Certificate/booking ref — new */}
+      <View style={{ flexDirection: "row", gap: 12, marginTop: 14 }}>
+        <View style={{ flex: 1 }}>
+          <Input label="Certificate" value={fs.certificate} onChangeText={(v) => setFs((p) => ({ ...p, certificate: v }))} placeholder="e.g. U/A" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Input label="Booking ref" value={fs.bookingRef} onChangeText={(v) => setFs((p) => ({ ...p, bookingRef: v }))} placeholder="e.g. BMS12345678" />
+        </View>
+      </View>
+
+      {/* Arrival + delta */}
       <View style={{ marginTop: 14 }}>
         <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>ARRIVAL</Text>
         <SegmentedControl options={ARRIVAL_OPTS} value={fs.arrivalStatus} onChange={(v) => setFs((p) => ({ ...p, arrivalStatus: v as ArrivalStatus }))} />
       </View>
+      {fs.arrivalStatus !== "on_time" && (
+        <View style={{ marginTop: 10 }}>
+          <Input
+            label={`Minutes ${fs.arrivalStatus}`}
+            value={fs.arrivalDeltaMinutes}
+            onChangeText={(v) => setFs((p) => ({ ...p, arrivalDeltaMinutes: v }))}
+            placeholder="e.g. 10"
+            keyboardType="number-pad"
+          />
+        </View>
+      )}
+
+      {/* Screening start + delta — new: whether the movie itself started
+          on time, distinct from the caller's own arrival, was never
+          collected here at all. */}
+      <View style={{ marginTop: 14 }}>
+        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>SCREENING START</Text>
+        <SegmentedControl
+          options={SCREENING_START_OPTS}
+          value={fs.screeningStartStatus ?? ""}
+          onChange={(v) => setFs((p) => ({ ...p, screeningStartStatus: (v || undefined) as ScreeningStartStatus | undefined }))}
+        />
+      </View>
+      {(fs.screeningStartStatus === "early" || fs.screeningStartStatus === "delayed") && (
+        <View style={{ marginTop: 10 }}>
+          <Input
+            label={`Minutes ${fs.screeningStartStatus}`}
+            value={fs.screeningStartDeltaMinutes}
+            onChangeText={(v) => setFs((p) => ({ ...p, screeningStartDeltaMinutes: v }))}
+            placeholder="e.g. 5"
+            keyboardType="number-pad"
+          />
+        </View>
+      )}
 
       {/* FDFS toggle */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingVertical: 4 }}>
         <View>
           <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>First Day First Show</Text>
-          <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>Opening day screening</Text>
+          <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>The very first screening</Text>
         </View>
-        <Switch value={fs.isFdfs} onValueChange={(v) => setFs((p) => ({ ...p, isFdfs: v }))} trackColor={{ true: theme.accent }} />
+        <Switch
+          value={fs.isFdfs}
+          onValueChange={(v) => setFs((p) => ({ ...p, isFdfs: v, isFirstDay: v ? true : p.isFirstDay }))}
+          trackColor={{ true: theme.accent }}
+        />
+      </View>
+
+      {/* Opening day toggle — new: separate from FDFS, for "opening day
+          but not the very first show." is_fdfs implies is_first_day
+          server-side, mirrored above. */}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingVertical: 4, opacity: fs.isFdfs ? 0.5 : 1 }}>
+        <View>
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>Opening day</Text>
+          <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>Any showing, not necessarily the first</Text>
+        </View>
+        <Switch
+          value={fs.isFirstDay}
+          disabled={fs.isFdfs}
+          onValueChange={(v) => setFs((p) => ({ ...p, isFirstDay: v }))}
+          trackColor={{ true: theme.accent }}
+        />
       </View>
 
       {/* Visibility */}
