@@ -22,9 +22,10 @@ import {
   Text,
   View,
 } from "react-native";
-import { CheckCircle, Palette, User, Lock, Robot, Database, Trash } from "phosphor-react-native";
+import { CheckCircle, Palette, User, Lock, Robot, Database, Trash, SignOut } from "phosphor-react-native";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useTheme } from "../hooks/useTheme";
+import { useAuth } from "../hooks/useAuth";
 import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
 
@@ -115,9 +116,10 @@ export function SettingsScreen() {
             )}
             {section === "ai" && <WebAiSection theme={theme} />}
             {section === "data" && <WebDataSection theme={theme} />}
-            {(section === "account" || section === "privacy") && (
+            {section === "account" && <WebAccountSection theme={theme} />}
+            {section === "privacy" && (
               <div className="card" style={{ color: `${theme.text}66`, fontSize: 14 } as React.CSSProperties}>
-                {section === "account" ? "Account settings — coming soon." : "Privacy settings — coming soon."}
+                Privacy settings — coming soon.
               </div>
             )}
           </div>
@@ -163,11 +165,10 @@ export function SettingsScreen() {
       )}
       {section === "ai" && <NativeAiSection theme={theme} />}
       {section === "data" && <NativeDataSection theme={theme} />}
-      {(section === "account" || section === "privacy") && (
+      {section === "account" && <NativeAccountSection theme={theme} />}
+      {section === "privacy" && (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-          <Text style={{ color: `${theme.text}66`, fontSize: 14 }}>
-            {section === "account" ? "Account settings — coming soon." : "Privacy settings — coming soon."}
-          </Text>
+          <Text style={{ color: `${theme.text}66`, fontSize: 14 }}>Privacy settings — coming soon.</Text>
         </View>
       )}
     </ScrollView>
@@ -255,6 +256,37 @@ function WebAiSection({ theme }: any) {
         <br /><br />
         Add your OpenAI, Gemini, or Anthropic keys here to enable ticket scanning.
       </div>
+    </div>
+  );
+}
+
+// ─── Account — Web ────────────────────────────────────────────────────────────
+
+function WebAccountSection({ theme }: any) {
+  // signOut() alone is enough — (app)/_layout.tsx already gates on
+  // useAuth().session and Redirects to /(auth) the moment it goes null;
+  // no manual navigation needed here.
+  const { user, signOut } = useAuth();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Account</h3>
+      <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
+        <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>Signed in as</div>
+        <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 } as React.CSSProperties}>{user?.email}</div>
+      </div>
+      <button className="btn btn-secondary" onClick={() => setConfirming(true)}>
+        <SignOut size={14} />
+        Sign out
+      </button>
+      <ConfirmDialog
+        visible={confirming}
+        title="Sign out"
+        message="You'll need to sign in again to keep logging screenings."
+        confirmLabel="Sign out"
+        onConfirm={() => { setConfirming(false); signOut(); }}
+        onCancel={() => setConfirming(false)}
+      />
     </div>
   );
 }
@@ -384,6 +416,40 @@ function NativeAiSection({ theme }: any) {
       <Text style={{ fontSize: 14, color: `${theme.text}66`, lineHeight: 20 }}>
         AI provider key management — coming soon.{"\n\n"}Add your OpenAI, Gemini, or Anthropic keys to enable ticket scanning.
       </Text>
+    </View>
+  );
+}
+
+// ─── Account section — Native ─────────────────────────────────────────────────
+
+function NativeAccountSection({ theme }: any) {
+  const { user, signOut } = useAuth();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <View style={{ gap: 14 }}>
+      <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
+        <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 }}>Signed in as</Text>
+        <Text style={{ fontSize: 14, color: theme.text, fontWeight: "700" }}>{user?.email}</Text>
+      </View>
+      <Pressable
+        onPress={() => setConfirming(true)}
+        style={{
+          flexDirection: "row", alignItems: "center", gap: 6,
+          borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
+          paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start",
+        }}
+      >
+        <SignOut size={14} color={theme.text} />
+        <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>Sign out</Text>
+      </Pressable>
+      <ConfirmDialog
+        visible={confirming}
+        title="Sign out"
+        message="You'll need to sign in again to keep logging screenings."
+        confirmLabel="Sign out"
+        onConfirm={() => { setConfirming(false); signOut(); }}
+        onCancel={() => setConfirming(false)}
+      />
     </View>
   );
 }

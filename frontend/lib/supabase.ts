@@ -36,9 +36,20 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     storage,
     autoRefreshToken: true,
     persistSession: true,
-    // On web (SPA mode) Supabase can read the OAuth redirect from the URL.
-    // On native, Expo delivers it as a deep link — disable URL detection.
-    detectSessionInUrl: Platform.OS === "web",
+    // Always false, both platforms — app/auth/callback.tsx's
+    // completeAuthFromUrl() (lib/authCallback.ts) is the one, sole owner
+    // of redirect completion everywhere (PKCE code AND implicit-flow
+    // fragment, native deep link AND web hard-navigation). This used to
+    // be `Platform.OS === "web"`: on a real web OAuth redirect, the
+    // whole app (including this client) reinitializes fresh on that hard
+    // page load, so detectSessionInUrl:true meant Supabase's OWN internal
+    // auto-detection fired at client-creation time, racing the explicit
+    // exchangeCodeForSession() call in app/auth/callback.tsx — a PKCE
+    // code+verifier is single-use, so whichever ran second failed with
+    // "code verifier could not be found" even though sign-in had already
+    // actually succeeded a moment earlier. False everywhere removes the
+    // second, redundant auto-handler instead of trying to out-race it.
+    detectSessionInUrl: false,
     // supabase-js defaults flowType to 'implicit', which returns the session as
     // a URL *fragment* (#access_token=…). A fragment is invisible to
     // Linking.parse()'s queryParams and cannot be exchanged with
