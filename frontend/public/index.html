@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+         values instead of 0 in standalone PWA mode on iOS — this app already
+         reads those through react-native-safe-area-context's web
+         implementation throughout MobileLayout/LoginScreen's native
+         branches, so this is the one piece those screens actually depend
+         on from the PWA setup, not the other way around. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+
+    <!-- ── PWA ──────────────────────────────────────────────────────────────
+         app.json's old web.pwa block never did anything: those fields only
+         ever fed the legacy webpack bundler's auto-manifest step, and this
+         project builds web via Metro, which has no such step at all — see
+         public/manifest.json and public/sw.js for the real equivalents. -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#e50914" />
+
+    <!-- iOS Safari discovers PWAs through these specific tags, not the
+         manifest the way Chrome/Edge do — manifest icons are ignored for
+         the actual home-screen glyph; apple-touch-icon is the only thing
+         that controls it. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CineLog" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Feature-detected and deferred to window.load so it never competes
+         with the app's own initial bundle fetch/parse. See public/sw.js for
+         why this is a small hand-written worker rather than a Workbox
+         build step. -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function (err) {
+            console.error("Service worker registration failed:", err);
+          });
+        });
+      }
+    </script>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>
