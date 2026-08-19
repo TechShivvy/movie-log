@@ -61,14 +61,15 @@ const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] =
 // Wide relative to its height on purpose — 76px read as a tall,
 // narrow capsule ("thumb/fingerprint scanner," not a dome bulging out
 // of the bar); 100px was the other direction's overshoot ("too big").
-const DOME_WIDTH = 84;
+// 84 landed close but still ran a bit large — trimmed once more.
+const DOME_WIDTH = 74;
 // Tall enough that its flat bottom reaches the very bottom of the bar
 // (anchored there via `bottom:0`, not tucked a little way into the
 // bar's top like the first version was) while its rounded top still
 // pokes up past the bar's own top edge — "coming from the bottom of
 // the screen like a dome," not a small bump near the bar's top.
-const DOME_HEIGHT = 84;
-const FAB_ICON = 30;
+const DOME_HEIGHT = 74;
+const FAB_ICON = 26;
 
 export function TabBar() {
   const { theme } = useTheme();
@@ -124,7 +125,16 @@ export function TabBar() {
           why. Anchored to the bar's own BOTTOM edge (not its top) so
           the dome's flat base sits flush with the very bottom of the
           bar — the whole shape rises from there, rather than being a
-          shallow bump tucked just inside the bar's top. */}
+          shallow bump tucked just inside the bar's top.
+
+          Centering: `left:"50%"` + `marginLeft:-(width/2)` on the bar's
+          own full width, not the row of tabs' — measured directly
+          (dome center vs. bar center vs. viewport center) rather than
+          eyeballed, and all three land on the exact same pixel. Reported
+          as slightly left-of-center on a real device; couldn't
+          reproduce that here — this math doesn't leave room for an
+          asymmetry, so if it's still off after this, it's something
+          specific to that device/build rather than this centering. */}
       <Pressable
         onPress={() => router.push("/(app)/log/new" as any)}
         style={[
