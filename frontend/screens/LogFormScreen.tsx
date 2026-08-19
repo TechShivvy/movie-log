@@ -32,7 +32,7 @@ import { CameraPlus, Robot, Sparkle, ArrowLeft, X } from "phosphor-react-native"
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
-import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie } from "../hooks/useSearch";
+import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie, useSearchPlaces, useCreateTheatre } from "../hooks/useSearch";
 import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../context/ToastContext";
@@ -49,6 +49,7 @@ import type {
   MovieLog,
   MovieSearchResult,
   TheatreMatchCandidate,
+  TheatrePlaceSuggestion,
   ExtractionResult,
 } from "../types";
 
@@ -72,6 +73,15 @@ const SCREENING_START_OPTS = [
   { label: "Delayed",   value: "delayed" },
   { label: "Cancelled", value: "cancelled" },
 ];
+
+function randomSessionToken(): string {
+  // Just needs to be unique per venue-search session, not cryptographically
+  // secure — this only ever groups Google Places Autocomplete requests for
+  // billing, never used as an auth/security token. No crypto.randomUUID()
+  // here on purpose: Hermes (this app's RN JS engine) doesn't polyfill
+  // WebCrypto, and pulling in a package just for this would be overkill.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 function todayIso(): string {
   // watched_date is a plain YYYY-MM-DD, not an instant — building it from
@@ -258,6 +268,12 @@ function WebForm({
   setVenueQuery,
   pickMovie,
   pickVenue,
+  placesResults,
+  placesSearched,
+  venueSearchLoading,
+  searchingPlaces,
+  handleSearchPlaces,
+  pickPlace,
   setFs,
   setErrors,
   handleSubmit,
@@ -439,7 +455,7 @@ function WebForm({
             }}
             autoComplete="off"
           />
-          {showVenueSuggestions && (venueSuggestions?.length ?? 0) > 0 && (
+          {showVenueSuggestions && venueQuery.trim().length > 2 && (
             <div style={{
               position: "absolute",
               top: "100%",
@@ -452,7 +468,7 @@ function WebForm({
               overflow: "hidden",
               marginTop: 4,
             } as React.CSSProperties}>
-              {venueSuggestions.map((v: TheatreMatchCandidate) => (
+              {(venueSuggestions?.length ?? 0) > 0 && venueSuggestions.map((v: TheatreMatchCandidate) => (
                 <div
                   key={v.id}
                   onClick={() => pickVenue(v)}
@@ -463,6 +479,47 @@ function WebForm({
                   {v.city && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.city}</span>}
                 </div>
               ))}
+              {placesResults.length > 0 && placesResults.map((p: TheatrePlaceSuggestion) => (
+                <div
+                  key={p.place_id}
+                  onClick={() => pickPlace(p)}
+                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                  className="tapc"
+                >
+                  {p.main_text ?? p.description}
+                  {p.secondary_text && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{p.secondary_text}</span>}
+                </div>
+              ))}
+              {(venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
+                venueSearchLoading ? (
+                  <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                    Searching your library…
+                  </div>
+                ) : placesSearched ? (
+                  <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                    No results found — try a different search
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ padding: "10px 14px 2px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                      No matches in your library
+                    </div>
+                    <div
+                      onClick={searchingPlaces ? undefined : handleSearchPlaces}
+                      style={{
+                        padding: "6px 14px 10px",
+                        cursor: searchingPlaces ? "default" : "pointer",
+                        fontSize: 13,
+                        color: "var(--color-accent)",
+                        fontWeight: 600,
+                      } as React.CSSProperties}
+                      className="tapc"
+                    >
+                      {searchingPlaces ? "Searching Google Places…" : "Can't find it? Search Google Places"}
+                    </div>
+                  </>
+                )
+              )}
             </div>
           )}
         </div>
@@ -710,7 +767,26 @@ export function LogFormScreen() {
   const [venueQuery, setVenueQuery]             = useState("");
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
   const debouncedVenueQuery = useDebouncedValue(venueQuery, 300);
-  const { data: venueSuggestions } = useVenueSearch(debouncedVenueQuery);
+  const { data: venueSuggestions, isFetching: venueSearchLoading } = useVenueSearch(debouncedVenueQuery);
+
+  // Google Places fallback — only reachable by an explicit tap (never
+  // auto-fired off the debounce above, unlike venueSuggestions itself),
+  // since unlike the free trigram match this one bills. placesToken is a
+  // client-generated id Google's Autocomplete billing groups repeated
+  // searches under as one "session" — created once per venue field visit
+  // and kept stable across query edits/re-searches, only reset once a
+  // place is actually picked (or the field is cleared), not on every
+  // keystroke, so refining a search still bills as one session.
+  // placesSearched distinguishes "haven't tried Places yet" (offer the tap)
+  // from "tried it, nothing came back" (say so instead of re-offering the
+  // exact same tap with no visible change — that silence was the bad UX:
+  // tapping "Search Google Places" against a genuinely empty result looked
+  // identical to not having tapped it at all).
+  const [placesResults, setPlacesResults] = useState<TheatrePlaceSuggestion[]>([]);
+  const [placesSearched, setPlacesSearched] = useState(false);
+  const [placesToken, setPlacesToken] = useState<string | null>(null);
+  const searchPlaces = useSearchPlaces();
+  const createTheatre = useCreateTheatre();
 
   // Edit mode: populate the form once the existing log arrives. Runs once
   // per loaded log (guarded by id so a background refetch — e.g. from
@@ -785,11 +861,52 @@ export function LogFormScreen() {
     }
   }, [createMovie, qc]);
 
-  const pickVenue = useCallback((v: TheatreMatchCandidate) => {
+  const pickVenue = useCallback((v: { id: string; name: string }) => {
     setFs((p) => ({ ...p, venueId: v.id, venueName: v.name }));
     setVenueQuery(v.name);
     setShowVenueSuggestions(false);
+    setPlacesResults([]);
+    setPlacesSearched(false);
+    setPlacesToken(null);
   }, []);
+
+  // Explicit-tap trigger for the Google Places fallback (see placesToken
+  // comment above for why this never fires off the debounce like
+  // venueSuggestions does) — bills, so it's the user asking for it, not us
+  // guessing they want it mid-keystroke.
+  const handleSearchPlaces = useCallback(async () => {
+    const q = venueQuery.trim();
+    if (q.length < 3) return;
+    const token = placesToken ?? randomSessionToken();
+    if (!placesToken) setPlacesToken(token);
+    try {
+      const results = await searchPlaces.mutateAsync({ query: q, sessionToken: token });
+      setPlacesResults(results);
+    } catch {
+      showToast("Couldn't reach Google Places — try again");
+      setPlacesResults([]);
+    } finally {
+      // Set regardless of outcome — an empty [] and a failed request both
+      // need to stop looking like "never tried yet" once this resolves,
+      // or the fallback row just re-offers the identical tap with nothing
+      // visibly different, which is exactly the silent-nothing-happened
+      // UX this was meant to fix.
+      setPlacesSearched(true);
+    }
+  }, [venueQuery, placesToken, searchPlaces, showToast]);
+
+  // Picking a Google result creates (or, if someone else already logged
+  // this exact place_id, returns the existing) theatre row, then feeds it
+  // through the same pickVenue() a local trigram match would — from here
+  // on it's indistinguishable from having matched locally to begin with.
+  const pickPlace = useCallback(async (place: TheatrePlaceSuggestion) => {
+    try {
+      const theatre = await createTheatre.mutateAsync(place);
+      if (theatre) pickVenue(theatre);
+    } catch {
+      showToast("Couldn't add that theatre — try again");
+    }
+  }, [createTheatre, pickVenue, showToast]);
 
   const handleExtractionResult = useCallback((result: ExtractionResult) => {
     setFs((p) => ({
@@ -985,9 +1102,17 @@ export function LogFormScreen() {
               setVenueQuery(v);
               setFs((p) => ({ ...p, venueName: v }));
               setShowVenueSuggestions(v.length > 1);
+              setPlacesResults([]);
+              setPlacesSearched(false);
             }}
             pickMovie={pickMovie}
             pickVenue={pickVenue}
+            placesResults={placesResults}
+            placesSearched={placesSearched}
+            venueSearchLoading={venueSearchLoading}
+            searchingPlaces={searchPlaces.isPending}
+            handleSearchPlaces={handleSearchPlaces}
+            pickPlace={pickPlace}
             setFs={setFs}
             setErrors={setErrors}
             handleSubmit={handleSubmit}
@@ -1221,10 +1346,12 @@ export function LogFormScreen() {
             setVenueQuery(v);
             setFs((p) => ({ ...p, venueName: v }));
             setShowVenueSuggestions(v.length > 1);
+            setPlacesResults([]);
+            setPlacesSearched(false);
           }}
           placeholder="Search theatre…"
         />
-        {showVenueSuggestions && (venueSuggestions?.length ?? 0) > 0 && (
+        {showVenueSuggestions && venueQuery.trim().length > 2 && (
           <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
             {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
               <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
@@ -1232,6 +1359,37 @@ export function LogFormScreen() {
                 {v.city && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.city}</Text>}
               </Pressable>
             ))}
+            {placesResults.map((p: TheatrePlaceSuggestion) => (
+              <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
+                {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
+              </Pressable>
+            ))}
+            {(venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
+              venueSearchLoading ? (
+                <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                  Searching your library…
+                </Text>
+              ) : placesSearched ? (
+                <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                  No results found — try a different search
+                </Text>
+              ) : (
+                <>
+                  <Text style={{ paddingHorizontal: 10, paddingTop: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                    No matches in your library
+                  </Text>
+                  <Pressable
+                    onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
+                    style={{ padding: 10 }}
+                  >
+                    <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                      {searchPlaces.isPending ? "Searching Google Places…" : "Can't find it? Search Google Places"}
+                    </Text>
+                  </Pressable>
+                </>
+              )
+            )}
           </View>
         )}
       </View>

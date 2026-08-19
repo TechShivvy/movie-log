@@ -1,7 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { MOCK_MOVIES, MOCK_VENUES } from "../lib/mockData";
-import type { Movie, MovieSearchResult, Theatre, TheatreMatchCandidate } from "../types";
+import type {
+  Movie,
+  MovieSearchResult,
+  Theatre,
+  TheatreMatchCandidate,
+  TheatrePlaceSuggestion,
+} from "../types";
 
 /**
  * TMDB movie catalog search.
@@ -90,6 +96,61 @@ export function useVenueSearch(q?: string) {
       if (!q || q.trim().length < 3) return [];
       const { data } = await api.post<TheatreMatchCandidate[]>("/venues/theatres/match", {
         query: q,
+      });
+      return data;
+    },
+  });
+}
+
+/**
+ * Google Places autocomplete, for when useVenueSearch's free trigram match
+ * comes up empty — our own theatres directory only ever grows from
+ * someone actually creating a row via useCreateTheatre below, so an empty
+ * table (or just a theatre nobody's logged yet) means /theatres/match can
+ * only ever return [], with no way to break that loop from the UI. This
+ * is the fallback: real Google results to pick from instead.
+ *
+ * A mutation, not a query — deliberately NOT wired to fire on every
+ * keystroke like useVenueSearch. Unlike /theatres/match, this one calls
+ * the real Google Places API (billed server-side past its monthly
+ * credit), so it only ever runs on an explicit "search Google" tap, never
+ * an idle debounce that could bill for a query someone's still typing.
+ * Backend: POST /api/v1/venues/theatres/search-places  body: {query, session_token}
+ */
+export function useSearchPlaces() {
+  return useMutation({
+    mutationFn: async ({ query, sessionToken }: { query: string; sessionToken: string }): Promise<TheatrePlaceSuggestion[]> => {
+      if (DEMO_MODE) return [];
+      const { data } = await api.post<TheatrePlaceSuggestion[]>("/venues/theatres/search-places", {
+        query,
+        session_token: sessionToken,
+      });
+      return data;
+    },
+  });
+}
+
+/**
+ * Creates (or, if this place_id already exists, returns the existing)
+ * theatre from a picked Google Places suggestion — the other half of the
+ * useSearchPlaces fallback above. place_id is the real dedup key the
+ * backend matches on; name/city here are best-effort from the
+ * autocomplete result's own text (Google's autocomplete response is only
+ * ever a free-text description, never structured address components) —
+ * the backend re-fetches the place server-side from place_id and
+ * overwrites these with the real name/address/lat-lng whenever that
+ * lookup succeeds, so they only ever end up as the final stored value in
+ * the (rare) case that lookup fails.
+ */
+export function useCreateTheatre() {
+  return useMutation({
+    mutationFn: async (place: TheatrePlaceSuggestion): Promise<Theatre | undefined> => {
+      if (DEMO_MODE) return undefined;
+      const { data } = await api.post<Theatre>("/venues/theatres", {
+        name: place.main_text ?? place.description ?? "Unknown theatre",
+        city: place.secondary_text?.split(",")[0]?.trim() || "Unknown",
+        place_id: place.place_id,
+        formatted_address: place.description,
       });
       return data;
     },
