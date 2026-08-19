@@ -58,6 +58,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { completeAuthFromUrl } from "../lib/authCallback";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
 import { Button } from "../components/ui/Button";
@@ -83,6 +84,7 @@ type Action = null | "password" | "signup" | "magic" | "google";
 
 export function LoginScreen() {
   const { theme, fontConfig } = useTheme();
+  const { isMobile } = useBreakpoint();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -255,8 +257,14 @@ export function LoginScreen() {
     else void signUp();
   }
 
-  // ── Web ─────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // isMobile, not just Platform.OS: below 768px the "web" branch used to
+  // still render — a centred ≤340px card degrades tolerably at any width
+  // above its own cap, so this was lower-risk than Library/LogForm, but it's
+  // still the desktop-authored branch rather than the one built for a phone
+  // (which also already handles safe-area insets this one doesn't). Same
+  // routing change as the other two priority screens.
+  // ── Web (tablet & desktop only) ─────────────────────────────────────────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div
         style={{
@@ -460,7 +468,7 @@ export function LoginScreen() {
     );
   }
 
-  // ── Native ──────────────────────────────────────────────────────────────────
+  // ── Native (also mobile web — see the isMobile comment above) ───────────────
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg, overflow: "hidden" }}>
       <CinematicBg />
