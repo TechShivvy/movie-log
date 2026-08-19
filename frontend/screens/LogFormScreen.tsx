@@ -400,7 +400,7 @@ function WebForm({
           />
         </div>
         <div className="field">
-          <label>Time (optional)</label>
+          <label>Time</label>
           <input
             type="time"
             className="input"
@@ -1151,7 +1151,7 @@ export function LogFormScreen() {
           <Input label="Watched on" value={fs.watchedDate} onChangeText={(v) => setFs((p) => ({ ...p, watchedDate: v }))} placeholder="YYYY-MM-DD" />
         </View>
         <View style={{ flex: 1 }}>
-          <Input label="Time (optional)" value={fs.watchedTime} onChangeText={(v) => setFs((p) => ({ ...p, watchedTime: v }))} placeholder="HH:MM" />
+          <Input label="Time" value={fs.watchedTime} onChangeText={(v) => setFs((p) => ({ ...p, watchedTime: v }))} placeholder="HH:MM" />
         </View>
       </View>
 
