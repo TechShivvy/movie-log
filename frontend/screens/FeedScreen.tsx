@@ -12,7 +12,6 @@ import React from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -22,11 +21,13 @@ import {
 import { useRouter } from "expo-router";
 import { Heart, ChatCircle, UserPlus } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
-import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useFeed } from "../hooks/useFeed";
 import { useLikeLog } from "../hooks/useSocial";
+import { useMovie } from "../hooks/useSearch";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
-import { hueFromTitle } from "../components/ui/Poster";
+import { Poster } from "../components/ui/Poster";
+import { tmdbPosterUrl } from "../lib/tmdb";
 import type { MovieLog } from "../types";
 
 // ─── Feed card ────────────────────────────────────────────────────────────────
@@ -35,29 +36,24 @@ function FeedCard({ log }: { log: MovieLog }) {
   const { theme } = useTheme();
   const router = useRouter();
   const likeLog = useLikeLog();
-  // `movie` can be null/undefined — hueFromTitle guards that (see LogDetailScreen)
-  const hue = hueFromTitle(log.movie);
-  // No poster image support yet — see PosterCard.tsx's own note on why
-  // (a log's movie_id catalog row isn't embedded in the response).
-  const posterUrl: string | undefined = undefined;
+  // Same fix as PosterCard.tsx — this card had its own separate copy of
+  // the same "always gradient, never a real poster" stub (a log's
+  // movie_id catalog row isn't embedded in the response, so it needs its
+  // own lookup) — duplicated here rather than actually reusing
+  // PosterCard, so PosterCard's own fix didn't cover this screen too.
+  const { data: movie, isLoading: posterLoading } = useMovie(log.movie_id);
+  const posterUrl = tmdbPosterUrl(movie?.poster_path, "w342");
 
   if (Platform.OS === "web") {
     return (
       <div className="card" style={{ display: "flex", gap: 14, marginBottom: 12 } as React.CSSProperties}>
         {/* Poster — 78×117px */}
-        <div
+        <Poster
+          title={log.movie ?? "Untitled"}
+          imageUrl={posterUrl}
+          loading={posterLoading}
           onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-          style={{
-            width: 78,
-            height: 117,
-            borderRadius: 6,
-            flexShrink: 0,
-            overflow: "hidden",
-            cursor: "pointer",
-            background: posterUrl
-              ? `url(${posterUrl}) center/cover`
-              : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
-          } as React.CSSProperties}
+          style={{ width: 78, height: 117, flexShrink: 0, cursor: "pointer" } as React.CSSProperties}
         />
 
         {/* Content */}
@@ -149,20 +145,7 @@ function FeedCard({ log }: { log: MovieLog }) {
       }}
     >
       {/* Poster */}
-      <View style={{
-        width: 64,
-        height: 96,
-        borderRadius: 6,
-        overflow: "hidden",
-        backgroundColor: theme.neutral800,
-        flexShrink: 0,
-      }}>
-        {posterUrl ? (
-          <Image source={{ uri: posterUrl }} style={{ width: 64, height: 96 }} resizeMode="cover" />
-        ) : (
-          <Text style={{ fontSize: 20, textAlign: "center", lineHeight: 96 }}>🎬</Text>
-        )}
-      </View>
+      <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={posterLoading} style={{ width: 64, height: 96, flexShrink: 0 }} />
 
       {/* Content */}
       <View style={{ flex: 1, gap: 4 }}>
@@ -278,9 +261,14 @@ function WebSidebar({ theme }: { theme: any }) {
 
 export function FeedScreen() {
   const { theme } = useTheme();
-  const { data: logs, isLoading } = useMovieLogs({ archived: false });
+  // Was useMovieLogs({archived:false}).slice(0,20) — the caller's OWN
+  // logs, capped at 20. That's not a feed, it's a fake: GET /public/feed
+  // (real public logs from people the caller follows, never their own)
+  // was never called anywhere in the app. useFeed with no filters is the
+  // real, unscoped global feed.
+  const { data: logs, isLoading } = useFeed({ limit: 20 });
 
-  const feedLogs = (logs ?? []).slice(0, 20);
+  const feedLogs = logs ?? [];
 
   // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {

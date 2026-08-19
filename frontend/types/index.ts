@@ -166,15 +166,21 @@ export type MovieLogInput = Partial<
     | "extraction_model"
     | "extraction_edited"
   >
->;
+> & {
+  // Write-only — never echoed back on a MovieLog response (not a real
+  // column, resolved server-side into theatre_id before the row is
+  // written). Only meaningful when theatre_id itself is absent — an
+  // explicit theatre_id always wins if both are somehow sent.
+  theatre_place?: TheatrePlaceInput;
+};
 
 // ─── Venues (Theatres/Screens) ──────────────────────────────────────────────
 //
-// No GET /venues list/search endpoint exists. Discovery is via
-// POST /venues/theatres/match (free, trigram search over our own DB) or
+// Discovery is via POST /venues/theatres/match (free, trigram search over
+// our own DB — now also matching against `nickname`, not just `name`) or
 // POST /venues/theatres/search-places (Google Places autocomplete, billed
-// server-side, optional). A specific theatre's stats/reviews/note are
-// fetched by id once you have one.
+// server-side, optional). A single theatre is GET /venues/theatres/{id}
+// (public, no auth) — its stats/reviews/note are separate fetches by id.
 
 export type VenueStatus = "open" | "closed" | "renovation";
 
@@ -191,12 +197,22 @@ export interface Theatre {
   formatted_address?: string;
   source: "google_places" | "user_submitted";
   status: VenueStatus;
+  // Admin-set alternate label — NOT a correction to name/formatted_address
+  // (those stay Google-sourced/untouched). null unless an admin has set
+  // one. The backend never coalesces this into `name` — see
+  // lib/venue.ts's venueDisplayName() for the one place that decision is
+  // made on the frontend.
+  nickname?: string;
+  nickname_address?: string;
 }
 
 export interface TheatreMatchCandidate {
   id: string;
   name: string;
+  chain?: string;
   city?: string;
+  formatted_address?: string;
+  nickname?: string;
   similarity: number;
 }
 
@@ -205,6 +221,89 @@ export interface TheatrePlaceSuggestion {
   description?: string;
   main_text?: string;
   secondary_text?: string;
+}
+
+// Sent instead of a resolved theatre_id when the picked venue is a Google
+// Places suggestion, not yet a row in our own directory — the backend
+// resolves-or-creates it server-side (POST/PATCH /movie-logs), same
+// place_id-dedup logic POST /venues/theatres itself uses. No `city`: the
+// backend already derives it from place_id via a server-side Places
+// lookup, same as theatre creation proper.
+export interface TheatrePlaceInput {
+  place_id: string;
+  name?: string;
+  formatted_address?: string;
+}
+
+export interface Screen {
+  id: string;
+  theatre_id: string;
+  name: string;
+  screen_type?: string;
+  status: VenueStatus;
+}
+
+export interface ScreenMatchCandidate {
+  id: string;
+  name: string;
+  screen_type?: string;
+  similarity: number;
+}
+
+// Half-star category averages, as returned by GET /venues/theatres/{id}/stats
+// and GET /venues/screens/{id}/stats — a category key is simply absent
+// (not present with a null value) when nobody's rated it yet.
+export interface VenueRatingCategoryStats {
+  avg: number;
+  count: number;
+}
+export type VenueRatingCategories = Partial<Record<"screen_rating" | "speaker_rating" | "ac_rating" | "seat_rating", VenueRatingCategoryStats>>;
+
+export interface PunctualityStats {
+  on_time_count: number;
+  early_count: number;
+  delayed_count: number;
+  cancelled_count: number;
+  avg_delay_minutes?: number;
+  total_count: number;
+}
+
+export interface TheatreStats {
+  theatre_id: string;
+  overall: VenueRatingCategories;
+  overall_avg?: number; // visit-weighted mean across categories
+  screens_avg?: number; // mean of this theatre's own screens' overall_avg, one vote per screen
+  computed_at?: string;
+  punctuality: PunctualityStats;
+}
+
+export interface ScreenStats {
+  screen_id: string;
+  categories: VenueRatingCategories;
+  overall_avg?: number;
+  computed_at?: string;
+  punctuality: PunctualityStats;
+}
+
+export interface MovieStats {
+  movie_id: string;
+  avg_rating?: number;
+  rating_count: number;
+}
+
+// A private, standing note about a theatre/screen/movie — independent of
+// any specific log. One per (user, entity); saving again overwrites the
+// previous text. Exactly one of theatre_id/screen_id/movie_id is ever set,
+// matching which GET/PUT/DELETE .../note endpoint it came from.
+export interface VenueNote {
+  id: string;
+  user_id: string;
+  theatre_id?: string;
+  screen_id?: string;
+  movie_id?: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── Comments & Likes ───────────────────────────────────────────────────────

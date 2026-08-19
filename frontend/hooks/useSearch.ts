@@ -1,12 +1,18 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { MOCK_MOVIES, MOCK_VENUES } from "../lib/mockData";
 import type {
   Movie,
+  MovieLog,
   MovieSearchResult,
+  MovieStats,
+  Screen,
+  ScreenStats,
   Theatre,
   TheatreMatchCandidate,
   TheatrePlaceSuggestion,
+  TheatreStats,
+  VenueNote,
 } from "../types";
 
 /**
@@ -72,6 +78,72 @@ export function useMovie(movieId: string | undefined) {
     },
     enabled: !DEMO_MODE && !!movieId,
     staleTime: 10 * 60_000, // a catalog entry's poster/title never changes underneath it
+  });
+}
+
+/** Aggregate rating for a movie (GET /movies/{id}/stats, public) — the
+ * "Public" section's headline number on MovieDetailScreen. */
+export function useMovieStats(movieId: string | undefined) {
+  return useQuery({
+    queryKey: ["movies", movieId, "stats"],
+    queryFn: async () => {
+      const { data } = await api.get<MovieStats>(`/movies/${movieId}/stats`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!movieId,
+  });
+}
+
+/** Public + anonymous reviews for a movie, from anyone — GET
+ * /movies/{id}/reviews, public+optional-auth, paginated. Never includes
+ * `private` logs, which is exactly the "Public" scope on
+ * MovieDetailScreen wants (as opposed to the caller's own logs via
+ * useMovieLogs({movieId}), or followed-users' via useFeed({movieId})). */
+export function useMovieReviews(movieId: string | undefined, params?: { limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["movies", movieId, "reviews", params],
+    queryFn: async () => {
+      const { data } = await api.get<MovieLog[]>(`/movies/${movieId}/reviews`, { params });
+      return data;
+    },
+    enabled: !DEMO_MODE && !!movieId,
+  });
+}
+
+/** The caller's own private standing note about a movie — independent of
+ * any specific log's own `notes` field. 404 (via the mutationFn-less GET
+ * below) means "no note yet", not an error — surfaced as `undefined`
+ * data, same pattern as useVenueRating. */
+export function useMovieNote(movieId: string | undefined) {
+  return useQuery({
+    queryKey: ["movies", movieId, "note"],
+    queryFn: async (): Promise<VenueNote | null> => {
+      if (DEMO_MODE) return null;
+      try {
+        const { data } = await api.get<VenueNote>(`/movies/${movieId}/note`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: !!movieId,
+  });
+}
+
+export function useSetMovieNote(movieId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (note: string) => {
+      const trimmed = note.trim();
+      if (!trimmed) {
+        await api.delete(`/movies/${movieId}/note`);
+        return null;
+      }
+      const { data } = await api.put<VenueNote>(`/movies/${movieId}/note`, { note: trimmed });
+      return data;
+    },
+    onSuccess: (data) => qc.setQueryData(["movies", movieId, "note"], data),
   });
 }
 
@@ -154,5 +226,192 @@ export function useCreateTheatre() {
       });
       return data;
     },
+  });
+}
+
+/** A single theatre by id — GET /venues/theatres/{id}, public, no auth.
+ * The full directory row, including nickname/nickname_address if an
+ * admin has set one — VenueDetailScreen's header data source. */
+export function useTheatre(theatreId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "theatres", theatreId],
+    queryFn: async () => {
+      const { data } = await api.get<Theatre>(`/venues/theatres/${theatreId}`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!theatreId,
+  });
+}
+
+/** Aggregate ratings + punctuality for a theatre — GET
+ * /venues/theatres/{id}/stats, public. 404s only when there's truly
+ * nothing yet (neither ratings nor punctuality data) — surfaced as
+ * `undefined` data via React Query's own 404-is-an-error-but-we-treat-
+ * it-as-empty handling isn't automatic, so this catches it explicitly. */
+export function useTheatreStats(theatreId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "theatres", theatreId, "stats"],
+    queryFn: async (): Promise<TheatreStats | null> => {
+      try {
+        const { data } = await api.get<TheatreStats>(`/venues/theatres/${theatreId}/stats`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: !DEMO_MODE && !!theatreId,
+  });
+}
+
+/** Public + anonymous reviews at a theatre, newest first — GET
+ * /venues/theatres/{id}/reviews, public+optional-auth, paginated. */
+export function useTheatreReviews(theatreId: string | undefined, params?: { limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["venues", "theatres", theatreId, "reviews", params],
+    queryFn: async () => {
+      const { data } = await api.get<MovieLog[]>(`/venues/theatres/${theatreId}/reviews`, { params });
+      return data;
+    },
+    enabled: !DEMO_MODE && !!theatreId,
+  });
+}
+
+/** Every screen (auditorium) recorded for a theatre — GET
+ * /venues/theatres/{id}/screens. VenueDetailScreen's "Browse screens"
+ * section. */
+export function useTheatreScreens(theatreId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "theatres", theatreId, "screens"],
+    queryFn: async () => {
+      const { data } = await api.get<Screen[]>(`/venues/theatres/${theatreId}/screens`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!theatreId,
+  });
+}
+
+/** Admin-only: set/clear a theatre's nickname and/or nickname_address —
+ * PATCH /venues/theatres/{id}/nickname. Not a general theatre-edit
+ * endpoint (the real name/address stay Google-sourced, never editable
+ * here) — see lib/venue.ts's venueDisplayName() for how the two combine
+ * on read. */
+export function useSetTheatreNickname(theatreId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: { nickname?: string; nickname_address?: string }) => {
+      const { data } = await api.patch<Theatre>(`/venues/theatres/${theatreId}/nickname`, patch);
+      return data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["venues", "theatres", theatreId], data);
+      qc.invalidateQueries({ queryKey: ["venues", "theatres", "match"] });
+    },
+  });
+}
+
+/** Aggregate ratings + punctuality for one screen — GET
+ * /venues/screens/{id}/stats, public. Same shape/reasoning as
+ * useTheatreStats, one level down. */
+export function useScreenStats(screenId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "screens", screenId, "stats"],
+    queryFn: async (): Promise<ScreenStats | null> => {
+      try {
+        const { data } = await api.get<ScreenStats>(`/venues/screens/${screenId}/stats`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: !DEMO_MODE && !!screenId,
+  });
+}
+
+/** Public + anonymous reviews at one screen, newest first — GET
+ * /venues/screens/{id}/reviews, public+optional-auth, paginated. */
+export function useScreenReviews(screenId: string | undefined, params?: { limit?: number; offset?: number }) {
+  return useQuery({
+    queryKey: ["venues", "screens", screenId, "reviews", params],
+    queryFn: async () => {
+      const { data } = await api.get<MovieLog[]>(`/venues/screens/${screenId}/reviews`, { params });
+      return data;
+    },
+    enabled: !DEMO_MODE && !!screenId,
+  });
+}
+
+// ─── Private notes (theatre/screen) ────────────────────────────────────────
+//
+// A standing, private-to-the-caller note about a venue — independent of
+// any specific visit/log (unlike a log's own `notes` field). One per
+// (user, entity); PUT again overwrites, empty text deletes it outright
+// rather than PUTting an empty string (matches the movie-note hooks
+// above and the backend's own DELETE endpoint for "no note").
+
+export function useTheatreNote(theatreId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "theatres", theatreId, "note"],
+    queryFn: async (): Promise<VenueNote | null> => {
+      if (DEMO_MODE) return null;
+      try {
+        const { data } = await api.get<VenueNote>(`/venues/theatres/${theatreId}/note`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: !!theatreId,
+  });
+}
+
+export function useSetTheatreNote(theatreId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (note: string) => {
+      const trimmed = note.trim();
+      if (!trimmed) {
+        await api.delete(`/venues/theatres/${theatreId}/note`);
+        return null;
+      }
+      const { data } = await api.put<VenueNote>(`/venues/theatres/${theatreId}/note`, { note: trimmed });
+      return data;
+    },
+    onSuccess: (data) => qc.setQueryData(["venues", "theatres", theatreId, "note"], data),
+  });
+}
+
+export function useScreenNote(screenId: string | undefined) {
+  return useQuery({
+    queryKey: ["venues", "screens", screenId, "note"],
+    queryFn: async (): Promise<VenueNote | null> => {
+      if (DEMO_MODE) return null;
+      try {
+        const { data } = await api.get<VenueNote>(`/venues/screens/${screenId}/note`);
+        return data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled: !!screenId,
+  });
+}
+
+export function useSetScreenNote(screenId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (note: string) => {
+      const trimmed = note.trim();
+      if (!trimmed) {
+        await api.delete(`/venues/screens/${screenId}/note`);
+        return null;
+      }
+      const { data } = await api.put<VenueNote>(`/venues/screens/${screenId}/note`, { note: trimmed });
+      return data;
+    },
+    onSuccess: (data) => qc.setQueryData(["venues", "screens", screenId, "note"], data),
   });
 }
