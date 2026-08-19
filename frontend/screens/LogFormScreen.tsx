@@ -74,6 +74,16 @@ const SCREENING_START_OPTS = [
   { label: "Cancelled", value: "cancelled" },
 ];
 
+// Shared copy for the sticky Google Places row under the Theatre dropdown —
+// always present and always tappable (never just disappears once the local
+// match list has something in it), so "this isn't the theatre I meant" is
+// never a dead end.
+function placesFooterLabel(searching: boolean, searched: boolean, resultCount: number): string {
+  if (searching) return "Searching Google Places…";
+  if (searched) return resultCount > 0 ? "Search Google Places again" : "No results on Google Places — search again";
+  return "Search Google Places";
+}
+
 function randomSessionToken(): string {
   // Just needs to be unique per venue-search session, not cryptographically
   // secure — this only ever groups Google Places Autocomplete requests for
@@ -264,6 +274,8 @@ function WebForm({
   venueSuggestions,
   showMovieSuggestions,
   showVenueSuggestions,
+  setShowMovieSuggestions,
+  setShowVenueSuggestions,
   setMovieQuery,
   setVenueQuery,
   pickMovie,
@@ -308,6 +320,7 @@ function WebForm({
               setFs((p: FormState) => ({ ...p, movieTitle: e.target.value }));
               setErrors((p: any) => ({ ...p, movieTitle: undefined }));
             }}
+            onBlur={() => setTimeout(() => setShowMovieSuggestions(false), 150)}
             autoComplete="off"
           />
           {errors.movieTitle && (
@@ -332,6 +345,7 @@ function WebForm({
                 return (
                   <div
                     key={m.tmdb_id}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pickMovie(m)}
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
@@ -453,6 +467,14 @@ function WebForm({
               setVenueQuery(e.target.value);
               setFs((p: FormState) => ({ ...p, venueName: e.target.value }));
             }}
+            // Delayed rather than immediate — an immediate hide on blur
+            // fires before a click on a dropdown row has a chance to
+            // register (the row's onClick needs the element still mounted
+            // when the browser processes the click), so this gives that
+            // click a beat to land before the dropdown actually closes.
+            // pickVenue/pickPlace both already close it synchronously too;
+            // this is only what makes tapping *outside* the field close it.
+            onBlur={() => setTimeout(() => setShowVenueSuggestions(false), 150)}
             autoComplete="off"
           />
           {showVenueSuggestions && venueQuery.trim().length > 2 && (
@@ -467,59 +489,68 @@ function WebForm({
               zIndex: 100,
               overflow: "hidden",
               marginTop: 4,
+              display: "flex",
+              flexDirection: "column",
             } as React.CSSProperties}>
-              {(venueSuggestions?.length ?? 0) > 0 && venueSuggestions.map((v: TheatreMatchCandidate) => (
-                <div
-                  key={v.id}
-                  onClick={() => pickVenue(v)}
-                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
-                  className="tapc"
-                >
-                  {v.name}
-                  {v.city && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.city}</span>}
-                </div>
-              ))}
-              {placesResults.length > 0 && placesResults.map((p: TheatrePlaceSuggestion) => (
-                <div
-                  key={p.place_id}
-                  onClick={() => pickPlace(p)}
-                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
-                  className="tapc"
-                >
-                  {p.main_text ?? p.description}
-                  {p.secondary_text && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{p.secondary_text}</span>}
-                </div>
-              ))}
-              {(venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-                venueSearchLoading ? (
+              {/* Scrolls independently once local matches + Places results
+                  together run past ~5 rows — the Google row below stays
+                  put rather than being one more thing to scroll past. */}
+              <div style={{ maxHeight: 230, overflowY: "auto" } as React.CSSProperties}>
+                {venueSearchLoading && (
                   <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
                     Searching your library…
                   </div>
-                ) : placesSearched ? (
+                )}
+                {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
                   <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
-                    No results found — try a different search
+                    No matches in your library
                   </div>
-                ) : (
-                  <>
-                    <div style={{ padding: "10px 14px 2px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
-                      No matches in your library
-                    </div>
-                    <div
-                      onClick={searchingPlaces ? undefined : handleSearchPlaces}
-                      style={{
-                        padding: "6px 14px 10px",
-                        cursor: searchingPlaces ? "default" : "pointer",
-                        fontSize: 13,
-                        color: "var(--color-accent)",
-                        fontWeight: 600,
-                      } as React.CSSProperties}
-                      className="tapc"
-                    >
-                      {searchingPlaces ? "Searching Google Places…" : "Can't find it? Search Google Places"}
-                    </div>
-                  </>
-                )
-              )}
+                )}
+                {(venueSuggestions?.length ?? 0) > 0 && venueSuggestions.map((v: TheatreMatchCandidate) => (
+                  <div
+                    key={v.id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickVenue(v)}
+                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                    className="tapc"
+                  >
+                    {v.name}
+                    {v.city && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.city}</span>}
+                  </div>
+                ))}
+                {placesResults.length > 0 && placesResults.map((p: TheatrePlaceSuggestion) => (
+                  <div
+                    key={p.place_id}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickPlace(p)}
+                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                    className="tapc"
+                  >
+                    {p.main_text ?? p.description}
+                    {p.secondary_text && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{p.secondary_text}</span>}
+                  </div>
+                ))}
+              </div>
+              {/* Sticky footer — always here, not just when the local list
+                  comes up empty, so "not the one I meant" always has
+                  somewhere to go even when local matches did show up. */}
+              <div
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={searchingPlaces ? undefined : handleSearchPlaces}
+                style={{
+                  padding: "10px 14px",
+                  cursor: searchingPlaces ? "default" : "pointer",
+                  fontSize: 13,
+                  color: "var(--color-accent)",
+                  fontWeight: 600,
+                  borderTop: "1px solid var(--color-divider)",
+                  background: "var(--color-surface)",
+                  flexShrink: 0,
+                } as React.CSSProperties}
+                className="tapc"
+              >
+                {placesFooterLabel(searchingPlaces, placesSearched, placesResults.length)}
+              </div>
             </div>
           )}
         </div>
@@ -787,6 +818,14 @@ export function LogFormScreen() {
   const [placesToken, setPlacesToken] = useState<string | null>(null);
   const searchPlaces = useSearchPlaces();
   const createTheatre = useCreateTheatre();
+  // Picking a Places suggestion does NOT create the theatre right away —
+  // only stages it here. Creating on pick meant every suggestion tapped
+  // while still comparing options (or picked, then swapped for a
+  // different one) landed a real row in the shared theatres table whether
+  // or not the log was ever actually saved — the actual create call only
+  // happens in handleSubmit, once, for whichever place is still selected
+  // when Save is pressed.
+  const [pendingPlace, setPendingPlace] = useState<TheatrePlaceSuggestion | null>(null);
 
   // Edit mode: populate the form once the existing log arrives. Runs once
   // per loaded log (guarded by id so a background refetch — e.g. from
@@ -868,6 +907,7 @@ export function LogFormScreen() {
     setPlacesResults([]);
     setPlacesSearched(false);
     setPlacesToken(null);
+    setPendingPlace(null);
   }, []);
 
   // Explicit-tap trigger for the Google Places fallback (see placesToken
@@ -895,18 +935,21 @@ export function LogFormScreen() {
     }
   }, [venueQuery, placesToken, searchPlaces, showToast]);
 
-  // Picking a Google result creates (or, if someone else already logged
-  // this exact place_id, returns the existing) theatre row, then feeds it
-  // through the same pickVenue() a local trigram match would — from here
-  // on it's indistinguishable from having matched locally to begin with.
-  const pickPlace = useCallback(async (place: TheatrePlaceSuggestion) => {
-    try {
-      const theatre = await createTheatre.mutateAsync(place);
-      if (theatre) pickVenue(theatre);
-    } catch {
-      showToast("Couldn't add that theatre — try again");
-    }
-  }, [createTheatre, pickVenue, showToast]);
+  // Stages a Google result as the venue — displays immediately, same as a
+  // local match would, but doesn't create anything yet (see pendingPlace
+  // above). fs.venueId is deliberately left unset here: it's what
+  // handleSubmit checks to know a real create-or-reuse call still needs to
+  // happen for this venue before the log itself can carry a theatre_id.
+  const pickPlace = useCallback((place: TheatrePlaceSuggestion) => {
+    const name = place.main_text ?? place.description ?? "Unknown theatre";
+    setFs((p) => ({ ...p, venueId: undefined, venueName: name }));
+    setVenueQuery(name);
+    setShowVenueSuggestions(false);
+    setPlacesResults([]);
+    setPlacesSearched(false);
+    setPlacesToken(null);
+    setPendingPlace(place);
+  }, []);
 
   const handleExtractionResult = useCallback((result: ExtractionResult) => {
     setFs((p) => ({
@@ -926,11 +969,29 @@ export function LogFormScreen() {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
+    // A Google Places pick only ever stages pendingPlace (see pickPlace) —
+    // the actual create-or-reuse-by-place_id call happens here, once, right
+    // before the log itself is created, so nothing lands in the shared
+    // theatres table for a place that was only compared and never saved.
+    // A failure here aborts the whole save (rather than silently falling
+    // back to free-text) so a save never reports success while quietly
+    // dropping the venue link the user explicitly picked.
+    let theatreId = fs.venueId;
+    if (!theatreId && pendingPlace) {
+      try {
+        const theatre = await createTheatre.mutateAsync(pendingPlace);
+        theatreId = theatre?.id;
+      } catch {
+        showToast("Couldn't add that theatre — try saving again");
+        return;
+      }
+    }
+
     const payload = {
       movie:         fs.movieTitle.trim(),
       movie_id:      fs.movieId,
       theater:       fs.venueName || undefined,
-      theatre_id:    fs.venueId,
+      theatre_id:    theatreId,
       screen:        fs.screenNumber || undefined,
       seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
       format:        fs.format,
@@ -1092,6 +1153,8 @@ export function LogFormScreen() {
             venueSuggestions={venueSuggestions}
             showMovieSuggestions={showMovieSuggestions}
             showVenueSuggestions={showVenueSuggestions}
+            setShowMovieSuggestions={setShowMovieSuggestions}
+            setShowVenueSuggestions={setShowVenueSuggestions}
             setMovieQuery={(v: string) => {
               setMovieQuery(v);
               setFs((p) => ({ ...p, movieTitle: v }));
@@ -1224,6 +1287,7 @@ export function LogFormScreen() {
           setShowMovieSuggestions(v.length > 1);
           setErrors((p) => ({ ...p, movieTitle: "" }));
         }}
+        onBlur={() => setTimeout(() => setShowMovieSuggestions(false), 150)}
         placeholder="Search or type movie title…"
         error={errors.movieTitle}
       />
@@ -1350,46 +1414,48 @@ export function LogFormScreen() {
             setPlacesSearched(false);
           }}
           placeholder="Search theatre…"
+          onBlur={() => setTimeout(() => setShowVenueSuggestions(false), 150)}
         />
         {showVenueSuggestions && venueQuery.trim().length > 2 && (
           <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
-            {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
-              <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{v.name}</Text>
-                {v.city && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.city}</Text>}
-              </Pressable>
-            ))}
-            {placesResults.map((p: TheatrePlaceSuggestion) => (
-              <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
-                {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
-              </Pressable>
-            ))}
-            {(venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-              venueSearchLoading ? (
+            {/* Scrolls independently once local matches + Places results
+                run past ~5 rows — the Google row below stays put rather
+                than being one more thing to scroll past. */}
+            <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              {venueSearchLoading && (
                 <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
                   Searching your library…
                 </Text>
-              ) : placesSearched ? (
+              )}
+              {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
                 <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
-                  No results found — try a different search
+                  No matches in your library
                 </Text>
-              ) : (
-                <>
-                  <Text style={{ paddingHorizontal: 10, paddingTop: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
-                    No matches in your library
-                  </Text>
-                  <Pressable
-                    onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
-                    style={{ padding: 10 }}
-                  >
-                    <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
-                      {searchPlaces.isPending ? "Searching Google Places…" : "Can't find it? Search Google Places"}
-                    </Text>
-                  </Pressable>
-                </>
-              )
-            )}
+              )}
+              {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
+                <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{v.name}</Text>
+                  {v.city && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.city}</Text>}
+                </Pressable>
+              ))}
+              {placesResults.map((p: TheatrePlaceSuggestion) => (
+                <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
+                  {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
+                </Pressable>
+              ))}
+            </ScrollView>
+            {/* Sticky footer — always here, not just when the local list
+                comes up empty, so "not the one I meant" always has
+                somewhere to go even when local matches did show up. */}
+            <Pressable
+              onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
+              style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
+            >
+              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
+              </Text>
+            </Pressable>
           </View>
         )}
       </View>

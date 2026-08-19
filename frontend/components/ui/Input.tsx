@@ -108,6 +108,13 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
   }
 
   // ── Native ─────────────────────────────────────────────────────────────────
+  // onFocus/onBlur pulled out of `rest` (rather than left in the {...rest}
+  // spread below) so a caller's own handler — e.g. a suggestions dropdown
+  // closing itself on blur — actually fires. {...rest} spreads AFTER these,
+  // so leaving them in rest would silently let a caller's onBlur override
+  // (not merge with) the focused-state tracking below, breaking the
+  // focus-ring border color the moment any caller passed its own onBlur.
+  const { onFocus: callerOnFocus, onBlur: callerOnBlur, ...restNoFocus } = rest as any;
   return (
     <View style={styles.wrapper}>
       {label ? (
@@ -117,8 +124,8 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
         ref={ref}
         multiline={multiline}
         placeholderTextColor={`${theme.text}61`}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={(e) => { setFocused(true); callerOnFocus?.(e); }}
+        onBlur={(e) => { setFocused(false); callerOnBlur?.(e); }}
         style={[
           styles.input,
           multiline && styles.multiline,
@@ -131,7 +138,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
           },
           style,
         ]}
-        {...rest}
+        {...restNoFocus}
       />
       {error ? (
         <Text style={styles.error}>{error}</Text>
