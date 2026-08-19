@@ -766,7 +766,8 @@ export function LogFormScreen() {
   // the form always started blank and always called useCreateLog, so
   // "editing" a log actually created a brand new duplicate every time,
   // silently, with no error — the original was untouched and still there.
-  const { edit: editId } = useLocalSearchParams<{ edit?: string }>();
+  const { edit: editId, movieId: prefillMovieId, movieTitle: prefillMovieTitle, poster: prefillPoster } =
+    useLocalSearchParams<{ edit?: string; movieId?: string; movieTitle?: string; poster?: string }>();
   const isEditing = !!editId;
 
   const { mutateAsync: createLog, isPending: isCreating } = useCreateLog();
@@ -839,6 +840,24 @@ export function LogFormScreen() {
     // separately below rather than blocking form population on it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingLog?.id]);
+
+  // "+ Log this movie" prefill (MovieDetailScreen) — only when starting a
+  // genuinely new entry, never over edit mode (an edit link never carries
+  // these params anyway, but the isEditing guard makes that explicit
+  // rather than relying on it). poster is the bare TMDB path, same as
+  // MovieSearchResult.poster_path — built into a real URL here the same
+  // way pickMovie does for a normal search pick.
+  useEffect(() => {
+    if (isEditing || !prefillMovieId || !prefillMovieTitle) return;
+    setFs((p) => ({
+      ...p,
+      movieId: prefillMovieId,
+      movieTitle: prefillMovieTitle,
+      moviePosterUrl: prefillPoster ? tmdbPosterUrl(prefillPoster, "w342") : p.moviePosterUrl,
+    }));
+    setMovieQuery(prefillMovieTitle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, prefillMovieId, prefillMovieTitle, prefillPoster]);
 
   // Poster preview for edit mode: the log only carries movie_id, not a
   // poster_path, so that has to be looked up from the catalog entry it
