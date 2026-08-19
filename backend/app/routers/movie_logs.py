@@ -88,6 +88,7 @@ async def list_logs(
     theatre_id: Annotated[str | None, Query()] = None,
     screen_id: Annotated[str | None, Query()] = None,
     movie: Annotated[str | None, Query(min_length=1)] = None,
+    movie_id: Annotated[str | None, Query()] = None,
     favorites_only: Annotated[bool, Query()] = False,
     archived_only: Annotated[bool, Query()] = False,
 ) -> Any:
@@ -112,6 +113,7 @@ async def list_logs(
         favorites_only=favorites_only,
         archived_only=archived_only,
         movie=movie,
+        movie_id=movie_id,
     )
 
 

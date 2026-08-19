@@ -127,6 +127,7 @@ async def list_movie_logs(
     theatre_id: Optional[str] = None,
     screen_id: Optional[str] = None,
     movie: Optional[str] = None,
+    movie_id: Optional[str] = None,
     favorites_only: bool = False,
     archived_only: bool = False,
 ) -> list[dict[str, Any]]:
@@ -143,20 +144,22 @@ async def list_movie_logs(
         'limit': str(limit),
         'offset': str(offset),
     }
-    # All three are optional narrowing filters on top of the caller's own
+    # All four are optional narrowing filters on top of the caller's own
     # logs — used by the frontend to answer "have I been here before?" /
     # "have I logged this movie before?" for the revisit-prefill suggestion
-    # (routers/movie_logs.py), and doubles as a per-venue "my visit
-    # history" view. eq (not ilike) throughout: exact match is enough here
-    # since callers always pass back a value they already got from another
-    # response (a theatre_id/screen_id they resolved, or a movie title they
-    # already displayed), never raw free-text search.
+    # (routers/movie_logs.py), and doubles as a per-venue/per-movie "my
+    # visit history" view. eq (not ilike) throughout: exact match is enough
+    # here since callers always pass back a value they already got from
+    # another response (a theatre_id/screen_id/movie_id they resolved, or a
+    # movie title they already displayed), never raw free-text search.
     if theatre_id:
         params['theatre_id'] = f'eq.{theatre_id}'
     if screen_id:
         params['screen_id'] = f'eq.{screen_id}'
     if movie:
         params['movie'] = f'eq.{movie}'
+    if movie_id:
+        params['movie_id'] = f'eq.{movie_id}'
     if favorites_only:
         params['favorite_position'] = 'not.is.null'
     response = await _request(
@@ -1012,19 +1015,36 @@ async def delete_block(user_token: str, blocker_id: str, blocked_id: str) -> boo
 
 # ── Feed ─────────────────────────────────────────────────────────────────
 
-async def list_feed(user_token: str, *, limit: int, offset: int) -> list[dict]:
+async def list_feed(
+    user_token: str,
+    *,
+    limit: int,
+    offset: int,
+    movie_id: Optional[str] = None,
+    theatre_id: Optional[str] = None,
+    screen_id: Optional[str] = None,
+) -> list[dict]:
     # feed_entries (migration 20260811000013) already does the real
     # filtering (visibility='public', can_view_user_content, excludes the
     # caller's own logs) via auth.uid() read from the caller's own JWT —
     # this has to go through the user's own token, not the anon key, since
     # feed_entries isn't granted to anon at all (the feed requires real
-    # sign-in).
-    params = {
+    # sign-in). movie_id/theatre_id/screen_id are filter-only narrowing on
+    # top of that — the view already carries all three columns, no schema
+    # change needed — same eq-only reasoning as list_movie_logs's own
+    # theatre_id/screen_id/movie_id filters.
+    params: dict[str, Any] = {
         'select': '*',
         'order': 'watched_date.desc,created_at.desc',
         'limit': str(limit),
         'offset': str(offset),
     }
+    if movie_id:
+        params['movie_id'] = f'eq.{movie_id}'
+    if theatre_id:
+        params['theatre_id'] = f'eq.{theatre_id}'
+    if screen_id:
+        params['screen_id'] = f'eq.{screen_id}'
     response = await _request('GET', '/feed_entries', user_token, 'list_feed', params=params)
     return response.json()
 

@@ -9,6 +9,7 @@ rights on the underlying movie_logs table).
 import uuid
 
 import pytest
+from conftest import THEATRE_TEST_TAG
 
 
 async def _set_username_and_privacy(client, headers, visibility='public'):
@@ -84,3 +85,42 @@ async def test_feed_excludes_a_followed_but_not_accessible_account(client, make_
 
     feed = await client.get('/api/v1/public/feed', headers=viewer_headers)
     assert 'Pending Follow Log' not in [e['movie'] for e in feed.json()]
+
+
+@pytest.mark.asyncio
+async def test_feed_movie_id_theatre_id_screen_id_filters(client, make_user):
+    """Filter-only narrowing on top of the existing feed gating — the
+    feed_entries view already carries movie_id/theatre_id/screen_id, no
+    schema change needed."""
+
+    _, viewer_token = await make_user()
+    _, followed_token = await make_user()
+    viewer_headers = {'Authorization': f'Bearer {viewer_token}'}
+    followed_headers = {'Authorization': f'Bearer {followed_token}'}
+
+    followed_username = await _set_username_and_privacy(client, followed_headers, 'public')
+    follow = await client.post(f'/api/v1/public/follows/{followed_username}', headers=viewer_headers)
+    assert follow.json()['status'] == 'accepted'
+
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=followed_headers,
+        json={'name': f'Feed Filter Theatre{THEATRE_TEST_TAG}', 'place_id': f'feedfilter-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    at_theatre = await client.post(
+        '/api/v1/movie-logs', headers=followed_headers,
+        json={'movie': 'Feed Filter At Theatre', 'visibility': 'public', 'theatre_id': theatre_id},
+    )
+    elsewhere = await client.post(
+        '/api/v1/movie-logs', headers=followed_headers,
+        json={'movie': 'Feed Filter Elsewhere', 'visibility': 'public'},
+    )
+
+    filtered = await client.get(
+        '/api/v1/public/feed', headers=viewer_headers, params={'theatre_id': theatre_id},
+    )
+    assert filtered.status_code == 200
+    filtered_ids = {e['id'] for e in filtered.json()}
+    assert at_theatre.json()['id'] in filtered_ids
+    assert elsewhere.json()['id'] not in filtered_ids

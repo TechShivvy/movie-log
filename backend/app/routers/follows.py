@@ -265,7 +265,11 @@ async def block_user(
     "each followed account's own logs (never `anonymous`/`private` ones; the "
     "account-level visibility tier is an additional gate on top of that, via "
     "can_view_user_content — see migration 20260811000012). Never includes "
-    "the caller's own logs. Requires sign-in — there's no anonymous variant.",
+    "the caller's own logs. Optional `movie_id`/`theatre_id`/`screen_id` "
+    'narrow this to entries about one movie/venue — same eq-only filter shape '
+    'as GET /movie-logs\'s own theatre_id/screen_id/movie_id, applied on top of '
+    'the gating above, not a replacement for it. Requires sign-in — there\'s no '
+    'anonymous variant.',
     response_description="The caller's feed, newest watched_date first.",
     responses=responses['list_feed'],
     operation_id='GetFeed',
@@ -276,8 +280,18 @@ async def get_feed(
     current_user: AuthenticatedUser = Depends(get_current_user),
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
+    movie_id: Annotated[str | None, Query()] = None,
+    theatre_id: Annotated[str | None, Query()] = None,
+    screen_id: Annotated[str | None, Query()] = None,
 ) -> Any:
-    return await supabase_rest.list_feed(current_user.access_token, limit=limit, offset=offset)
+    return await supabase_rest.list_feed(
+        current_user.access_token,
+        limit=limit,
+        offset=offset,
+        movie_id=movie_id,
+        theatre_id=theatre_id,
+        screen_id=screen_id,
+    )
 
 
 @router.delete(
