@@ -110,6 +110,23 @@ export const DESIGN_SYSTEM_CSS = `
    custom button already sets its own background/border via .btn or an
    inline style, so this never removes anything actually wanted. */
 button { appearance: none; -webkit-appearance: none; background: none; border: none; font: inherit; color: inherit; }
+
+/* Mobile Chrome/WebKit's default tap feedback — a semi-transparent grey
+   rectangle flashed over whatever was tapped — is not a CSS box-shadow
+   or outline and does not respect border-radius, so on a real touch
+   device it visibly overshoots every rounded button, card, chip and
+   swatch in the app the instant a finger taps one. A mouse click never
+   triggers it at all (mousedown/mouseup don't fire the same tap-highlight
+   path touchstart/touchend do), which is why this went unnoticed testing
+   through a desktop click, and why it reads as "every curved box in the
+   app" rather than any specific component: the browser applies it to
+   every clickable/focusable element by default, not something any
+   component here opted into. -webkit-tap-highlight-color inherits, so
+   setting it to fully transparent once on html removes the flash
+   everywhere without touching any of the app's own :active/:focus/press
+   styling, which every interactive element already handles itself. */
+html { -webkit-tap-highlight-color: transparent; }
+
 html, body, #root { margin: 0; padding: 0; height: 100%; }
 body {
   background: var(--color-bg); color: var(--color-text);
