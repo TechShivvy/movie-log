@@ -39,6 +39,27 @@ async def test_valid_token_returns_the_real_user_id(client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_me_reports_is_admin_correctly(client, make_user, admin_user):
+    """GET /auth/me's is_admin is the frontend's cheapest way to know
+    whether to show any admin-only affordance — false for a regular user,
+    true for one in ADMIN_USER_IDS."""
+
+    _, regular_token = await make_user()
+    regular = await client.get(
+        '/api/v1/auth/me', headers={'Authorization': f'Bearer {regular_token}'},
+    )
+    assert regular.status_code == 200
+    assert regular.json()['is_admin'] is False
+
+    _, admin_token = admin_user
+    admin = await client.get(
+        '/api/v1/auth/me', headers={'Authorization': f'Bearer {admin_token}'},
+    )
+    assert admin.status_code == 200
+    assert admin.json()['is_admin'] is True
+
+
+@pytest.mark.asyncio
 async def test_admin_route_403s_a_regular_authenticated_user(client, make_user):
     _, token = await make_user()
     response = await client.get(

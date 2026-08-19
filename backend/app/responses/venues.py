@@ -17,6 +17,8 @@ _THEATRE_EXAMPLE = {
     'formatted_address': 'Nexus Mall, Vadapalani, Chennai, Tamil Nadu 600026',
     'source': 'google_places',
     'status': 'open',
+    'nickname': None,
+    'nickname_address': None,
 }
 
 _SCREEN_EXAMPLE = {
@@ -227,6 +229,7 @@ responses = {
                             'chain': _THEATRE_EXAMPLE['chain'],
                             'city': _THEATRE_EXAMPLE['city'],
                             'formatted_address': _THEATRE_EXAMPLE['formatted_address'],
+                            'nickname': None,
                             'similarity': 0.87,
                         }
                     ]
@@ -290,6 +293,69 @@ responses = {
             '/theatres/match endpoint above is only ever a UI prompt, never used '
             'for auto-merging).',
             'content': {'application/json': {'example': _THEATRE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_VALIDATION,
+        **_UPSTREAM,
+    },
+    'get_theatre': {
+        200: {
+            'description': 'The theatre.',
+            'content': {'application/json': {'example': _THEATRE_EXAMPLE}},
+        },
+        404: {
+            'description': 'No theatre with this id.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Theatre not found.'}
+                }
+            },
+        },
+        **_VALIDATION_UNLIKELY,
+        **_UPSTREAM,
+    },
+    'set_theatre_nickname': {
+        200: {
+            'description': 'The updated theatre.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        **_THEATRE_EXAMPLE,
+                        'nickname': 'The Old Sathyam',
+                        'nickname_address': None,
+                    },
+                }
+            },
+        },
+        400: {
+            'description': 'No fields provided to update.',
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'BAD_REQUEST',
+                        'message': 'No fields provided to update.',
+                    }
+                }
+            },
+        },
+        403: {
+            'description': "Caller isn't in ADMIN_USER_IDS.",
+            'content': {
+                'application/json': {
+                    'example': {
+                        'code': 'FORBIDDEN',
+                        'message': 'This action requires admin access.',
+                    }
+                }
+            },
+        },
+        404: {
+            'description': 'No theatre with this id.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Theatre not found.'}
+                }
+            },
         },
         **_UNAUTHORIZED,
         **_VALIDATION,

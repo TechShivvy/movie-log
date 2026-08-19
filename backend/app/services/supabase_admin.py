@@ -231,6 +231,23 @@ async def update_theatre_status(theatre_id: str, status: str) -> Optional[dict[s
     return rows[0] if rows else None
 
 
+async def update_theatre_nickname(
+    theatre_id: str, patch: dict[str, Any]
+) -> Optional[dict[str, Any]]:
+    # Same service-role reasoning as update_theatre_status — theatres has
+    # no authenticated UPDATE grant at all, ADMIN_USER_IDS lives in
+    # backend settings not the database, so get_current_admin is what
+    # gates who can reach this code path, the write itself always goes
+    # through the service-role key.
+    params = {'id': f'eq.{theatre_id}'}
+    response = await _rest_request(
+        'PATCH', '/theatres', 'update_theatre_nickname',
+        params=params, json=patch, prefer='return=representation',
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
 async def update_screen_status(screen_id: str, status: str) -> Optional[dict[str, Any]]:
     params = {'id': f'eq.{screen_id}'}
     response = await _rest_request(

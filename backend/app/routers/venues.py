@@ -16,7 +16,6 @@ from auth.supabase_auth import (
 )
 from config import settings
 from fastapi import APIRouter, Depends, Query, Request
-from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.venues import responses
 from schemas.venues import (
@@ -31,11 +30,12 @@ from schemas.venues import (
     TheatreMatchRequest,
     TheatrePlaceSuggestion,
     TheatreSearchRequest,
+    VenueNicknameUpdate,
     VenueNote,
     VenueNoteInput,
     VenueStatusUpdate,
 )
-from services import google_places, supabase_admin, supabase_rest
+from services import google_places, supabase_admin, supabase_rest, venue_resolution
 from utils.errors import APIError
 
 router = APIRouter()
@@ -123,51 +123,71 @@ async def create_theatre(
     payload: TheatreCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
-    # place_id is the durable dedup key: if a theatre with this place_id
-    # already exists, return it instead of creating a duplicate row.
-    if payload.place_id:
-        existing = await supabase_rest.find_theatre_by_place_id(
-            current_user.access_token, payload.place_id
-        )
-        if existing:
-            LOGGER.debug(
-                'create_theatre: reusing existing place_id={}', payload.place_id
-            )
-            return existing
+    # The create-or-reuse-by-place_id logic (place_id dedup, Places lookup,
+    # non-fatal fallback) lives in services/venue_resolution.py — shared
+    # with the movie-log write path's theatre_place resolution
+    # (routers/movie_logs.py). This call is behaviorally identical to the
+    # inline version this endpoint used before that extraction.
+    return await venue_resolution.resolve_or_create_theatre(
+        current_user.access_token, current_user.user_id, payload.model_dump()
+    )
 
-    row = payload.model_dump()
-    row['source'] = 'user_submitted'
-    if payload.place_id and google_places.is_configured():
-        try:
-            details = await google_places.place_details(payload.place_id)
-        except APIError as exc:
-            # Places being unavailable (billing disabled, quota exceeded,
-            # transient outage) or the place_id simply not resolving (bad/
-            # stale id) shouldn't block theatre creation entirely — fall
-            # back to the client-submitted fields, same as if no place_id
-            # had been given at all. Logged as a warning (not silent) so
-            # it's visible something's wrong with the Places integration,
-            # without surfacing an error to the user for what's ultimately
-            # still a successful create.
-            LOGGER.warning(
-                'create_theatre: Places lookup failed for place_id={} ({}), '
-                'falling back to submitted data',
-                payload.place_id,
-                exc.message,
-            )
-        else:
-            # Only overwrite fields Google actually returned a value for —
-            # e.g. if address-component parsing can't find a city for this
-            # place, keep whatever the client sent rather than nulling out
-            # a NOT NULL column.
-            row.update({k: v for k, v in details.items() if v is not None})
-            row['source'] = 'google_places'
-            LOGGER.info(
-                'create_theatre: resolved place_id={} via Google Places', payload.place_id
-            )
 
-    row['created_by'] = current_user.user_id
-    return await supabase_rest.create_theatre(current_user.access_token, row)
+@router.get(
+    '/theatres/{theatre_id}',
+    response_model=Theatre,
+    tags=['Venues'],
+    description='A single theatre by id — the full directory row, including '
+    '`nickname`/`nickname_address` if an admin has set one. Public — no sign-in '
+    'needed, same `theatres_select_all` RLS (`using(true)`) every other public '
+    'venues endpoint already reads through.',
+    response_description='The theatre.',
+    responses=responses['get_theatre'],
+    operation_id='GetTheatre',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_theatre(request: Request, theatre_id: str) -> Any:
+    theatre = await supabase_rest.get_theatre(theatre_id)
+    if theatre is None:
+        raise APIError(404, 'NOT_FOUND', 'Theatre not found.')
+    return theatre
+
+
+@router.patch(
+    '/theatres/{theatre_id}/nickname',
+    response_model=Theatre,
+    tags=['Venues'],
+    description='Admin-only: set the theatre\'s optional alternate label '
+    '(`nickname`) and/or alternate address (`nickname_address`) — NOT a '
+    'correction to the Google-sourced `name`/`formatted_address` (those stay '
+    "untouched); this is a separate, additional label the frontend shows only "
+    'when present. Same admin-only reasoning as PATCH /theatres/{id}/status — '
+    'shared directory data, a false label misleads everyone who sees this '
+    'theatre afterward. Both fields are optional and independently settable: '
+    'omitted entirely leaves the field unchanged, `null`/`""` clears it, a '
+    'non-empty string sets it. At least one of the two must be present.',
+    response_description='The updated theatre.',
+    responses=responses['set_theatre_nickname'],
+    operation_id='SetTheatreNickname',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_theatre_nickname(
+    request: Request,
+    theatre_id: str,
+    payload: VenueNicknameUpdate,
+    admin: AuthenticatedUser = Depends(get_current_admin),
+) -> Any:
+    patch = payload.model_dump(exclude_unset=True)
+    if not patch:
+        raise APIError(400, 'BAD_REQUEST', 'No fields provided to update.')
+    # exclude_unset tells us which fields were actually sent; within those,
+    # null/blank clears the column (None), anything else sets it as given
+    # (trimmed) — see VenueNicknameUpdate's own docstring for this contract.
+    row = {k: (v.strip() or None) if isinstance(v, str) else v for k, v in patch.items()}
+    updated = await supabase_admin.update_theatre_nickname(theatre_id, row)
+    if updated is None:
+        raise APIError(404, 'NOT_FOUND', 'Theatre not found.')
+    return updated
 
 
 @router.patch(

@@ -39,7 +39,13 @@ _MAX_IMPORT = 500
 @router.get(
     '/me',
     tags=['Auth'],
-    description='Verify a Supabase access token and see the identity it maps to.',
+    description='Verify a Supabase access token and see the identity it maps to. '
+    '`is_admin` is whether the caller is in ADMIN_USER_IDS (the same flat '
+    'allowlist get_current_admin gates every admin-only route with, e.g. PATCH '
+    '/venues/theatres/{id}/status and .../nickname) — the cheapest way for the '
+    'frontend to know whether to show any admin-only affordance at all, without '
+    'a dedicated endpoint or a failed request against an admin route just to '
+    'find out.',
     response_description='The identity mapped from the access token.',
     responses=responses['me'],
     operation_id='WhoAmI',
@@ -48,7 +54,11 @@ _MAX_IMPORT = 500
 async def me(
     request: Request, current_user: AuthenticatedUser = Depends(get_current_user)
 ) -> dict:
-    return {'user_id': current_user.user_id, 'email': current_user.email}
+    return {
+        'user_id': current_user.user_id,
+        'email': current_user.email,
+        'is_admin': current_user.user_id in settings.admin_user_ids,
+    }
 
 
 @router.delete(

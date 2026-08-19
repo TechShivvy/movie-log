@@ -60,6 +60,22 @@ class Theatre(TheatreCreate):
         'an annotation for the frontend to badge. Admin-only to change, see '
         'PATCH /theatres/{id}/status.',
     )
+    nickname: Optional[str] = Field(
+        default=None,
+        max_length=300,
+        description='Admin-set alternate label — NOT a correction to `name` '
+        '(that stays Google-sourced/untouched). null unless an admin has set '
+        'one; the frontend decides whether/how to show it, this is returned '
+        'raw, never coalesced into `name` server-side. Admin-only to set, see '
+        'PATCH /theatres/{id}/nickname.',
+    )
+    nickname_address: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description='Admin-set alternate address, paired with `nickname` — '
+        'same "not a correction to formatted_address" reasoning, independently '
+        'settable from `nickname` itself.',
+    )
     model_config = ConfigDict(extra='ignore')
 
 
@@ -100,6 +116,13 @@ class TheatreMatchCandidate(BaseModel):
     chain: Optional[str] = None
     city: str
     formatted_address: Optional[str] = None
+    nickname: Optional[str] = Field(
+        default=None,
+        description='See Theatre.nickname — `similarity` is ranked against '
+        'whichever of name/nickname is the closer match to the query, so a '
+        "candidate can surface here on its nickname alone even if its "
+        "official name doesn't match at all.",
+    )
     similarity: float
 
 
@@ -140,6 +163,24 @@ class VenueStatusUpdate(BaseModel):
     status: VenueStatus
 
     model_config = ConfigDict(json_schema_extra={'example': {'status': 'closed'}})
+
+
+class VenueNicknameUpdate(BaseModel):
+    """Body for PATCH /theatres/{id}/nickname (admin-only). Both fields are
+    optional and independently settable — a field omitted entirely from the
+    request body is left unchanged; a field sent as `null` or `""` clears it
+    (sets the column back to null); a field sent as a non-empty string sets
+    it. Sending `{}` is a 400 (nothing to do), same as PATCH /movie-logs/{id}
+    with an empty patch."""
+
+    nickname: Optional[str] = Field(default=None, max_length=300)
+    nickname_address: Optional[str] = Field(default=None, max_length=500)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {'nickname': 'The Old Sathyam', 'nickname_address': None}
+        }
+    )
 
 
 class VenueRatingInput(BaseModel):

@@ -122,6 +122,91 @@ async def test_theatre_with_no_data_at_all_404s_stats(client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_get_theatre_by_id(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': f'Get By Id Theatre{THEATRE_TEST_TAG}', 'place_id': f'getid-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    fetched = await client.get(f'/api/v1/venues/theatres/{theatre_id}')  # no auth
+    assert fetched.status_code == 200
+    assert fetched.json()['id'] == theatre_id
+    assert fetched.json()['name'] == f'Get By Id Theatre{THEATRE_TEST_TAG}'
+    assert fetched.json()['nickname'] is None
+
+    missing = await client.get('/api/v1/venues/theatres/00000000-0000-0000-0000-000000000000')
+    assert missing.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_theatre_nickname_admin_only_independent_fields_and_match_ranking(
+    client, make_user, admin_user,
+):
+    _, non_admin_token = await make_user()
+    admin_id, admin_token = admin_user
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'name': f'Nickname Test Theatre{THEATRE_TEST_TAG}', 'place_id': f'nick-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+    assert theatre.json()['nickname'] is None
+    assert theatre.json()['nickname_address'] is None
+
+    non_admin_attempt = await client.patch(
+        f'/api/v1/venues/theatres/{theatre_id}/nickname', headers={'Authorization': f'Bearer {non_admin_token}'},
+        json={'nickname': 'Should Fail'},
+    )
+    assert non_admin_attempt.status_code == 403
+
+    empty_patch = await client.patch(
+        f'/api/v1/venues/theatres/{theatre_id}/nickname', headers={'Authorization': f'Bearer {admin_token}'},
+        json={},
+    )
+    assert empty_patch.status_code == 400
+
+    # Set nickname only — nickname_address untouched (stays null).
+    set_nickname = await client.patch(
+        f'/api/v1/venues/theatres/{theatre_id}/nickname', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'nickname': 'The Nickname'},
+    )
+    assert set_nickname.status_code == 200
+    assert set_nickname.json()['nickname'] == 'The Nickname'
+    assert set_nickname.json()['nickname_address'] is None
+    # The Google-sourced name is untouched by setting a nickname.
+    assert set_nickname.json()['name'] == f'Nickname Test Theatre{THEATRE_TEST_TAG}'
+
+    # A search against the nickname alone (not the real name) surfaces it.
+    match = await client.post(
+        '/api/v1/venues/theatres/match', headers={'Authorization': f'Bearer {non_admin_token}'},
+        json={'query': 'The Nickname'},
+    )
+    assert theatre_id in [m['id'] for m in match.json()]
+    matched = next(m for m in match.json() if m['id'] == theatre_id)
+    assert matched['nickname'] == 'The Nickname'
+
+    # Independently set nickname_address, leaving nickname as-is.
+    set_address = await client.patch(
+        f'/api/v1/venues/theatres/{theatre_id}/nickname', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'nickname_address': '123 Old St'},
+    )
+    assert set_address.status_code == 200
+    assert set_address.json()['nickname'] == 'The Nickname'
+    assert set_address.json()['nickname_address'] == '123 Old St'
+
+    # Empty string clears just the field sent.
+    clear_nickname = await client.patch(
+        f'/api/v1/venues/theatres/{theatre_id}/nickname', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'nickname': ''},
+    )
+    assert clear_nickname.status_code == 200
+    assert clear_nickname.json()['nickname'] is None
+    assert clear_nickname.json()['nickname_address'] == '123 Old St'  # untouched
+
+
+@pytest.mark.asyncio
 async def test_venue_status_admin_only_and_never_hides_from_search(client, make_user, admin_user):
     _, non_admin_token = await make_user()
     admin_id, admin_token = admin_user

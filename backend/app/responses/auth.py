@@ -49,6 +49,7 @@ responses = {
                     'example': {
                         'user_id': '11111111-1111-1111-1111-111111111111',
                         'email': 'you@example.com',
+                        'is_admin': False,
                     }
                 }
             },
