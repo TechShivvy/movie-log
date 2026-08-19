@@ -111,6 +111,17 @@ export function useDeleteLog() {
     // as before.
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: logKeys.detail(id) });
+      // Strip the deleted log out of every cached list synchronously,
+      // rather than only invalidating and waiting on a real refetch —
+      // invalidateQueries alone left the just-deleted log visibly
+      // sitting in the library grid for the full round-trip of that
+      // background refetch (1-2s, more on a cold backend) after
+      // navigating back from its now-gone detail screen. setQueriesData
+      // updates what's on screen immediately; the invalidate below still
+      // runs to reconcile with the server in the background.
+      qc.setQueriesData<MovieLog[]>({ queryKey: [...logKeys.all, "list"] }, (old) =>
+        old ? old.filter((l) => l.id !== id) : old
+      );
       // logKeys.all (not logKeys.list()) — invalidateQueries prefix-matches
       // on the queryKey array, and logKeys.list() with no params produces
       // [...all, "list", undefined], which isn't a structural prefix of the
