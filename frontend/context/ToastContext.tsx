@@ -135,7 +135,11 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
     maxWidth: "88%",
+    // iOS-only shadow* props, no `elevation` — Android computes an
+    // elevation shadow from the view's rectangular layout bounds, not
+    // its borderRadius, so a rounded pill like this rendered a visibly
+    // square halo poking out past its own rounded corners (same bug,
+    // same fix, as TabBar's bar/fab styles — see that file's comment).
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10,
-    elevation: 10,
   },
 });

@@ -126,15 +126,21 @@ const styles = StyleSheet.create({
     // Elevated panel, floating over content, instead of a hairline top
     // border — matches the --shadow-md card language used everywhere
     // else (Sidebar cards, dialogs), just cast upward since this sits
-    // at the bottom edge of the screen.
+    // at the bottom edge of the screen. iOS-only shadow* props, no
+    // `elevation` — Android's elevation shadow is computed from the
+    // view's rectangular layout bounds, not its borderRadius, so a
+    // wide, mostly-rectangular panel like this bar rendered as a
+    // visibly square halo poking out past its own rounded top corners
+    // (confirmed on a real device). Dropping elevation here means no
+    // shadow at all on Android, but that's the safer trade against a
+    // shadow shaped nothing like the panel it's supposedly cast by.
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.35,
     shadowRadius: 14,
-    elevation: 12,
   },
   tab: { alignItems: "center", gap: 3, paddingVertical: 2, paddingHorizontal: 6 },
   tabPill: {
-    width: 38, height: 30, borderRadius: 10,
+    width: 38, height: 30, borderRadius: 10, overflow: "hidden",
     alignItems: "center", justifyContent: "center",
   },
   fabWrap: {
@@ -147,9 +153,14 @@ const styles = StyleSheet.create({
   fab: {
     alignItems: "center",
     justifyContent: "center",
+    // Same reasoning as `bar` above — Android elevation on this fully
+    // round button rendered a squared-off shadow that visibly clipped
+    // into the circle's edge instead of following it, reading as the
+    // FAB itself being cut off. The SVG radial-gradient glow behind it
+    // already carries the actual visual glow; this shadow was always
+    // just supplemental depth, not load-bearing.
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
     shadowRadius: 16,
-    elevation: 8,
   },
 });
