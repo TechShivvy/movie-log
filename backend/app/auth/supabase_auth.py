@@ -58,6 +58,17 @@ def decode_access_token(token: str) -> dict:
     )
 
     issuer = _expected_issuer()
+    # A few seconds of leeway on iat/exp/nbf -- PyJWT validates these with
+    # zero tolerance by default, but the token-issuing server (Supabase
+    # Auth) and this backend are two independent machines; even NTP-synced
+    # clocks routinely differ by a fraction of a second. Confirmed live:
+    # a token minted 0.7s "in the future" relative to this backend's own
+    # clock was hard-rejected as ImmatureSignatureError with zero leeway --
+    # a real, freshly-issued, otherwise-valid token, not an attack. 10s is
+    # generous enough to absorb realistic clock drift without meaningfully
+    # weakening exp's actual purpose (a stolen token is still only usable
+    # ~10s past its real expiry, not minutes).
+    _LEEWAY_SECONDS = 10
 
     if legacy_secret:
         try:
@@ -67,6 +78,7 @@ def decode_access_token(token: str) -> dict:
                 algorithms=['HS256'],
                 audience='authenticated',
                 issuer=issuer,
+                leeway=_LEEWAY_SECONDS,
                 options={'require': ['exp', 'sub'], 'verify_iss': bool(issuer)},
             )
         except InvalidTokenError:
@@ -84,6 +96,7 @@ def decode_access_token(token: str) -> dict:
             algorithms=['RS256', 'ES256', 'EdDSA'],
             audience='authenticated',
             issuer=issuer,
+            leeway=_LEEWAY_SECONDS,
             options={'require': ['exp', 'sub'], 'verify_iss': bool(issuer)},
         )
     except (InvalidTokenError, PyJWKClientError) as exc:
