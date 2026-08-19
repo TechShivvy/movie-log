@@ -320,7 +320,7 @@ export function LogDetailScreen() {
   // log isn't guaranteed loaded yet here (still before the isLoading/error
   // early-returns below) — useMovie's own `enabled: !!movieId` check
   // handles that, same pattern as venueRating above.
-  const { data: movieCatalog } = useMovie(log?.movie_id);
+  const { data: movieCatalog, isLoading: isMovieLoading } = useMovie(log?.movie_id);
   const { data: comments = [] } = useComments(id ?? "");
   const addComment = useAddComment(id ?? "");
 
@@ -457,14 +457,22 @@ export function LogDetailScreen() {
               Delete moved to the content column's header row, next to the
               title they act on rather than under the poster image. */}
           <div style={isMobile ? { width: "100%", maxWidth: 280, margin: "0 auto" } as React.CSSProperties : { width: 280, flexShrink: 0 } as React.CSSProperties}>
-            <div style={{
-              aspectRatio: "2/3",
-              borderRadius: 12,
-              overflow: "hidden",
-              background: posterUrl
-                ? `url(${posterUrl}) center/cover`
-                : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
-            } as React.CSSProperties} />
+            <div
+              // isMovieLoading && !posterUrl — a log's real artwork is
+              // still resolving (catalog GET, then the TMDB CDN fetch)
+              // for a good couple seconds, commonly longer on a cold
+              // backend — the pulse marks the placeholder as transient
+              // rather than "this log genuinely has no poster".
+              className={isMovieLoading && !posterUrl ? "poster-loading" : undefined}
+              style={{
+                aspectRatio: "2/3",
+                borderRadius: 12,
+                overflow: "hidden",
+                background: posterUrl
+                  ? `url(${posterUrl}) center/cover`
+                  : `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${(hue + 30) % 360} 38% 8%))`,
+              } as React.CSSProperties}
+            />
 
             <button
               className={`btn btn-block ${log.liked_by_caller ? "btn-primary" : "btn-secondary"}`}
@@ -508,33 +516,44 @@ export function LogDetailScreen() {
                     (same deferred-work class as the poster image). */}
               </div>
 
-              {/* Edit/Archive/Delete — compact icon buttons, grouped as
-                  "manage this entry" separate from the social Like action
-                  by the poster. Delete never existed in this UI before,
-                  despite DELETE /movie-logs/{id} being a real endpoint. */}
-              <div style={{ display: "flex", gap: 4, flexShrink: 0 } as React.CSSProperties}>
+              {/* Edit/Archive/Delete — grouped as "manage this entry"
+                  separate from the social Like action by the poster.
+                  Delete never existed in this UI before, despite DELETE
+                  /movie-logs/{id} being a real endpoint. A plain
+                  btn-secondary icon button (transparent fill, a
+                  1.5px divider-colour border) reads as barely-there
+                  against the page background — each now carries a real
+                  surfaceHigh fill so the three read as distinct,
+                  findable buttons at rest, not just on hover; Delete
+                  additionally gets an error-tinted fill/border so its
+                  destructive weight is visible without having to hover
+                  to discover the red icon color. */}
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 } as React.CSSProperties}>
                 <button
-                  className="btn btn-icon btn-secondary"
+                  className="btn btn-icon"
                   title="Edit"
                   onClick={() => router.push(`/log/new?edit=${log.id}` as never)}
+                  style={{ backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
                 >
-                  <PencilSimple size={16} />
+                  <PencilSimple size={17} />
                 </button>
                 <button
-                  className="btn btn-icon btn-secondary"
+                  className="btn btn-icon"
                   title={log.is_archived ? "Unarchive" : "Archive"}
                   onClick={handleArchive}
-                  style={log.is_archived ? { color: theme.accent, borderColor: theme.accent } as React.CSSProperties : undefined}
+                  style={log.is_archived
+                    ? { color: theme.accent, backgroundColor: `${theme.accent}1a`, border: `1px solid ${theme.accent}` } as React.CSSProperties
+                    : { backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
                 >
-                  <Archive size={16} weight={log.is_archived ? "fill" : "regular"} />
+                  <Archive size={17} weight={log.is_archived ? "fill" : "regular"} />
                 </button>
                 <button
-                  className="btn btn-icon btn-secondary"
+                  className="btn btn-icon"
                   title="Delete"
                   onClick={handleDelete}
-                  style={{ color: "#EF4444" } as React.CSSProperties}
+                  style={{ color: theme.error, backgroundColor: `${theme.error}15`, border: `1px solid ${theme.error}55` } as React.CSSProperties}
                 >
-                  <Trash size={16} />
+                  <Trash size={17} />
                 </button>
               </div>
             </div>
@@ -643,6 +662,12 @@ export function LogDetailScreen() {
             style={{ width: "100%", height: "100%" }}
           />
         )}
+        {/* Real artwork still resolving — see the matching web comment. */}
+        {isMovieLoading && !posterUrl && (
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: "60%", alignItems: "center", justifyContent: "center" }}>
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+          </View>
+        )}
         {/* Gradient overlay from bottom */}
         <LinearGradient
           colors={[theme.bg + "00", theme.bg]}
@@ -744,26 +769,32 @@ export function LogDetailScreen() {
               {log.like_count} {log.like_count === 1 ? "like" : "likes"}
             </Text>
           </Pressable>
+          {/* A transparent-fill button outlined only in divider-colour
+              read as barely-there against the page — same fix as the
+              matching web buttons: a real surfaceHigh fill so these
+              three are findable at a glance, not just on a hover state
+              touch doesn't even have; Delete gets an error tint. */}
           <Pressable
             onPress={() => router.push(`/log/new?edit=${log.id}` as never)}
-            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider }}
+            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surfaceHigh }}
           >
-            <PencilSimple size={16} color={theme.text} />
+            <PencilSimple size={17} color={theme.text} />
           </Pressable>
           <Pressable
             onPress={handleArchive}
             style={{
               width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1,
               borderColor: log.is_archived ? theme.accent : theme.divider,
+              backgroundColor: log.is_archived ? `${theme.accent}1a` : theme.surfaceHigh,
             }}
           >
-            <Archive size={16} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
+            <Archive size={17} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
           </Pressable>
           <Pressable
             onPress={handleDelete}
-            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider }}
+            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: `${theme.error}55`, backgroundColor: `${theme.error}15` }}
           >
-            <Trash size={16} color="#EF4444" />
+            <Trash size={17} color={theme.error} />
           </Pressable>
         </View>
 

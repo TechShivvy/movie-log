@@ -59,9 +59,16 @@ import type { MovieLog } from "../types";
  * component — a hook can't run inside the .map() callbacks below directly.
  * Forwards every prop Poster itself takes; only adds the lookup.
  */
-function LogPoster({ log, ...rest }: { log: MovieLog } & Omit<React.ComponentProps<typeof PosterType>, "title" | "imageUrl">) {
-  const { data: movie } = useMovie(log.movie_id);
-  return <Poster title={log.movie ?? "Untitled"} imageUrl={tmdbPosterUrl(movie?.poster_path, "w342")} {...rest} />;
+function LogPoster({ log, ...rest }: { log: MovieLog } & Omit<React.ComponentProps<typeof PosterType>, "title" | "imageUrl" | "loading">) {
+  const { data: movie, isLoading } = useMovie(log.movie_id);
+  return (
+    <Poster
+      title={log.movie ?? "Untitled"}
+      imageUrl={tmdbPosterUrl(movie?.poster_path, "w342")}
+      loading={isLoading}
+      {...rest}
+    />
+  );
 }
 
 // libFilters from the design, verbatim — "All" is tag-accent, rest tag-neutral

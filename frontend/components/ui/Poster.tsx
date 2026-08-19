@@ -14,7 +14,7 @@
  * artwork, matching the design's per-item posterStyle.
  */
 import React from "react";
-import { Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Typed loosely on purpose: MovieLog.movie is optional (a title that failed
@@ -43,6 +43,17 @@ interface PosterProps {
    * absent (no movie_id link, catalog entry has no poster, still loading).
    */
   imageUrl?: string;
+  /**
+   * The real poster is still being looked up (a catalog GET, then the
+   * TMDB CDN image itself — commonly 1-3s combined, more on a cold
+   * backend) — distinct from "no artwork at all". Without this the
+   * gradient placeholder is the only thing ever shown while waiting,
+   * which reads as "this log has no poster" rather than "still
+   * loading", even though the real artwork is a couple seconds away.
+   * Adds a subtle pulse to the gradient so the same placeholder reads as
+   * transient instead of final.
+   */
+  loading?: boolean;
   /** Overlays (star badge, hover overlay, title plate). */
   children?: React.ReactNode;
   /** Extra styles — width, aspectRatio, flex, etc. */
@@ -52,14 +63,14 @@ interface PosterProps {
   onClick?: () => void;
 }
 
-export function Poster({ title, imageUrl, children, style, className, dark = true, onClick }: PosterProps) {
+export function Poster({ title, imageUrl, loading, children, style, className, dark = true, onClick }: PosterProps) {
   const hue = hueFromTitle(title);
   const [c1, c2] = posterColors(hue, dark);
 
   if (Platform.OS === "web") {
     return (
       <div
-        className={["poster", className].filter(Boolean).join(" ")}
+        className={["poster", loading && "poster-loading", className].filter(Boolean).join(" ")}
         onClick={onClick}
         style={{
           // 155deg in CSS terms. Real artwork wins outright when present —
@@ -89,6 +100,11 @@ export function Poster({ title, imageUrl, children, style, className, dark = tru
           style={StyleSheet.absoluteFill}
         />
       )}
+      {loading && !imageUrl && (
+        <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
+          <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+        </View>
+      )}
       {children}
     </View>
   );
@@ -96,4 +112,5 @@ export function Poster({ title, imageUrl, children, style, className, dark = tru
 
 const styles = StyleSheet.create({
   poster: { position: "relative", borderRadius: 8, overflow: "hidden" },
+  loadingOverlay: { alignItems: "center", justifyContent: "center" },
 });
