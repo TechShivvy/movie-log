@@ -3,7 +3,10 @@ case), favorites, search, punctuality, edited_at precision, and
 extraction provenance. See plan.md's Iterations 6-8/14 bug inventory.
 """
 
+import uuid
+
 import pytest
+from conftest import THEATRE_TEST_TAG
 
 
 @pytest.mark.asyncio
@@ -127,6 +130,193 @@ async def test_archive_excludes_from_public_view_and_owners_own_default_list(cli
 
     default_list = await client.get('/api/v1/movie-logs', headers=headers)
     assert log_id not in [l['id'] for l in default_list.json()]
+
+
+@pytest.mark.asyncio
+async def test_list_logs_movie_id_filter(client, make_user):
+    from config import settings
+    if not settings.tmdb_api_key:
+        pytest.skip('TMDB_API_KEY not configured in backend/.env')
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    search = await client.post('/api/v1/movies/search', headers=headers, json={'query': 'Inception'})
+    tmdb_id = next(r['tmdb_id'] for r in search.json() if r['title'] == 'Inception')
+    movie = await client.post('/api/v1/movies', headers=headers, json={'tmdb_id': tmdb_id})
+    assert movie.status_code == 201
+    movie_id = movie.json()['id']
+
+    linked = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Linked Log', 'movie_id': movie_id},
+    )
+    assert linked.status_code == 201
+    unlinked = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Unlinked Log'},
+    )
+    assert unlinked.status_code == 201
+
+    filtered = await client.get(
+        '/api/v1/movie-logs', headers=headers, params={'movie_id': movie_id},
+    )
+    assert filtered.status_code == 200
+    ids = [l['id'] for l in filtered.json()]
+    assert linked.json()['id'] in ids
+    assert unlinked.json()['id'] not in ids
+
+
+@pytest.mark.asyncio
+async def test_theatre_place_reuses_an_existing_theatre_by_place_id(client, make_user):
+    """resolve_or_create_theatre's place_id dedup path — never touches
+    Google Places at all when the theatre already exists, so this doesn't
+    need @pytest.mark.external."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    place_id = f'movielog-place-{uuid.uuid4().hex[:8]}'
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': f'Theatre Place Reuse{THEATRE_TEST_TAG}', 'place_id': place_id, 'city': 'X', 'country': 'US'},
+    )
+    assert theatre.status_code == 201
+    theatre_id = theatre.json()['id']
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Theatre Place Reuse Log', 'theatre_place': {'place_id': place_id, 'name': 'Ignored'}},
+    )
+    assert log.status_code == 201
+    assert log.json()['theatre_id'] == theatre_id  # reused, not a new row
+
+
+@pytest.mark.asyncio
+async def test_theatre_id_in_payload_wins_over_theatre_place(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': f'Theatre Id Wins{THEATRE_TEST_TAG}', 'place_id': f'wins-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={
+            'movie': 'Theatre Id Wins Log',
+            'theatre_id': theatre_id,
+            'theatre_place': {'place_id': f'ignored-{uuid.uuid4().hex[:8]}'},
+        },
+    )
+    assert log.status_code == 201
+    assert log.json()['theatre_id'] == theatre_id
+
+
+@pytest.mark.external
+@pytest.mark.asyncio
+async def test_theatre_place_falls_back_and_creates_a_theatre_when_places_lookup_fails(
+    client, make_user,
+):
+    """theatre_place has no `city` at all — a fake place_id (Places
+    lookup fails, or Places isn't configured) must still land a real
+    theatre row rather than a NOT NULL violation, defaulting city to
+    'Unknown'. Marked external for the same reason
+    test_create_theatre_falls_back_to_submitted_data_on_places_failure is:
+    whenever GOOGLE_PLACES_API_KEY is configured, this makes a real
+    (billed) lookup against a guaranteed-not-found id."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    place_id = f'fake-movielog-{uuid.uuid4().hex[:8]}'
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={
+            'movie': 'Theatre Place Fallback Log',
+            'theatre_place': {'place_id': place_id, 'name': f'Fallback Theatre{THEATRE_TEST_TAG}'},
+        },
+    )
+    assert log.status_code == 201
+    theatre_id = log.json()['theatre_id']
+    assert theatre_id is not None
+
+    theatre = await client.get(f'/api/v1/venues/theatres/{theatre_id}')
+    assert theatre.status_code == 200
+    assert theatre.json()['source'] == 'user_submitted'
+    assert theatre.json()['city'] == 'Unknown'
+
+
+@pytest.mark.asyncio
+async def test_screen_resolved_by_name_under_a_theatre_and_reused(client, make_user):
+    """No screen_id given, but a theatre was resolved (via theatre_id
+    here) and `screen` is non-empty -> a screen gets created-or-reused by
+    (theatre_id, name), same dedup key screens_theatre_id_name_key
+    already enforces."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': f'Screen Resolve Theatre{THEATRE_TEST_TAG}', 'place_id': f'screenres-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    first = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Screen Resolve Log 1', 'theatre_id': theatre_id, 'screen': 'Balcony'},
+    )
+    assert first.status_code == 201
+    screen_id = first.json()['screen_id']
+    assert screen_id is not None
+
+    second = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Screen Resolve Log 2', 'theatre_id': theatre_id, 'screen': 'Balcony'},
+    )
+    assert second.status_code == 201
+    assert second.json()['screen_id'] == screen_id  # reused, not a duplicate row
+
+    # An explicit screen_id always wins over resolving from `screen` text.
+    other_screen = await client.post(
+        f'/api/v1/venues/theatres/{theatre_id}/screens', headers=headers,
+        json={'name': 'Explicit Screen'},
+    )
+    explicit_screen_id = other_screen.json()['id']
+    third = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={
+            'movie': 'Screen Resolve Log 3', 'theatre_id': theatre_id,
+            'screen': 'Balcony', 'screen_id': explicit_screen_id,
+        },
+    )
+    assert third.status_code == 201
+    assert third.json()['screen_id'] == explicit_screen_id
+
+
+@pytest.mark.asyncio
+async def test_update_log_resolves_theatre_place_from_an_otherwise_empty_patch(client, make_user):
+    """theatre_place is the only field sent on a PATCH -> not rejected as
+    an empty patch, and it still resolves theatre_id."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    place_id = f'patchonly-{uuid.uuid4().hex[:8]}'
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers=headers,
+        json={'name': f'Patch Theatre Place{THEATRE_TEST_TAG}', 'place_id': place_id, 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'Patch Theatre Place Log'},
+    )
+    log_id = log.json()['id']
+    assert log.json()['theatre_id'] is None
+
+    patched = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers,
+        json={'theatre_place': {'place_id': place_id}},
+    )
+    assert patched.status_code == 200
+    assert patched.json()['theatre_id'] == theatre_id
 
     archived_list = await client.get('/api/v1/movie-logs', headers=headers, params={'archived_only': 'true'})
     assert log_id in [l['id'] for l in archived_list.json()]

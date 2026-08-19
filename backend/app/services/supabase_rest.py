@@ -472,6 +472,24 @@ async def list_screens(user_token: str, theatre_id: str) -> list[dict]:
     return response.json()
 
 
+async def find_screen_by_theatre_and_name(
+    user_token: str, theatre_id: str, name: str
+) -> Optional[dict]:
+    # screens_theatre_id_name_key (migration 20260710000001) is the real
+    # dedup key here — same relationship place_id has to theatres. Used by
+    # services/venue_resolution.py's resolve_or_create_screen, not by
+    # POST /theatres/{id}/screens itself (that endpoint has never deduped,
+    # it just lets the unique constraint reject a repeat name as a 400).
+    params = {
+        'select': '*', 'theatre_id': f'eq.{theatre_id}', 'name': f'eq.{name}', 'limit': '1',
+    }
+    response = await _request(
+        'GET', '/screens', user_token, 'find_screen_by_theatre_and_name', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
 async def create_screen(user_token: str, row: dict[str, Any]) -> dict[str, Any]:
     response = await _request(
         'POST', '/screens', user_token, 'create_screen',

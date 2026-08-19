@@ -147,6 +147,29 @@ def _check_ticket_url(v: Optional[str]) -> Optional[str]:
     return v
 
 
+class TheatrePlaceInput(BaseModel):
+    """A Google Places identity to resolve-or-create a theatre from, inline
+    with a movie-log save — see MovieLogInput.theatre_place. No `city`:
+    server-side place_details() (services/google_places.py) already derives
+    it from `place_id` directly, the same way POST /venues/theatres does —
+    a client-guessed city (e.g. splitting a free-typed address on commas)
+    is no longer needed here."""
+
+    place_id: str = Field(..., max_length=255)
+    name: Optional[str] = Field(default=None, max_length=300)
+    formatted_address: Optional[str] = Field(default=None, max_length=500)
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            'example': {
+                'place_id': 'ChIJ_______example_______',
+                'name': 'PVR Nexus',
+                'formatted_address': 'Nexus Mall, Vadapalani, Chennai, Tamil Nadu 600026',
+            }
+        }
+    )
+
+
 class MovieLogInput(BaseModel):
     """Full create payload. Unknown keys are ignored (e.g. pasted exports)."""
 
@@ -226,6 +249,18 @@ class MovieLogInput(BaseModel):
     )
     screen_id: Optional[str] = Field(
         default=None, description='FK into public.screens'
+    )
+    theatre_place: Optional[TheatrePlaceInput] = Field(
+        default=None,
+        description='Resolve-or-create a theatre from a Google Places identity, '
+        'inline with this log save — an alternative to already having a '
+        'theatre_id in hand. Ignored if `theatre_id` is also present (`theatre_id` '
+        'always wins). If a theatre gets resolved this way (or `theatre_id` was '
+        'given directly) and no `screen_id` is present, but `screen` (below) is '
+        'non-empty, a screen is also resolved-or-created under that theatre by '
+        "that name and linked — see services/venue_resolution.py. Meant to "
+        'replace a create-theatre-then-create-log two-step client flow with one '
+        'atomic call.',
     )
     movie_id: Optional[str] = Field(
         default=None,
@@ -444,6 +479,11 @@ class MovieLogUpdate(BaseModel):
     ticket_url: Optional[str] = Field(default=None, max_length=1000)
     theatre_id: Optional[str] = Field(default=None)
     screen_id: Optional[str] = Field(default=None)
+    theatre_place: Optional[TheatrePlaceInput] = Field(
+        default=None, description='See MovieLogInput.theatre_place — same resolution '
+        'order, applied to this patch\'s own theatre_id/screen_id/screen (not the '
+        "row's existing stored values).",
+    )
     movie_id: Optional[str] = Field(
         default=None, description='FK into public.movies — see MovieLogInput.movie_id'
     )

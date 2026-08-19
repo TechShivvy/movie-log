@@ -22,10 +22,11 @@ from schemas.movie_logs import (
     MovieLogPhotoInput,
     MovieLogSearchResult,
     MovieLogUpdate,
+    TheatrePlaceInput,
     VenueRating,
 )
 from schemas.venues import VenueRatingInput
-from services import supabase_rest
+from services import supabase_rest, venue_resolution
 from utils.errors import APIError
 
 from rate_limit import limiter
@@ -57,15 +58,50 @@ def _writable_row(payload: dict[str, Any]) -> dict[str, Any]:
     return {k: payload[k] for k in WRITABLE_FIELDS if k in payload}
 
 
+async def _resolve_theatre_and_screen(
+    current_user: AuthenticatedUser, row: dict[str, Any], theatre_place: TheatrePlaceInput | None,
+) -> None:
+    """Mutates `row` in place — resolves `theatre_id`/`screen_id` before the
+    log itself is written, so a client can submit a Places identity + a
+    free-text screen name in one call instead of pre-creating the
+    theatre/screen first (see MovieLogInput.theatre_place). Resolution order:
+    an explicit `theatre_id` already in `row` always wins over `theatre_place`
+    (unchanged behavior either way); a screen only gets resolved if no
+    `screen_id` is already present, a theatre was resolved by one of the two
+    paths above, and `row['screen']` (the free-text field) is non-empty —
+    the free-text `theater`/`screen` mirror columns themselves are never
+    touched by this, same values the client sent are still saved there.
+    """
+
+    theatre_id = row.get('theatre_id')
+    if not theatre_id and theatre_place is not None:
+        theatre = await venue_resolution.resolve_or_create_theatre(
+            current_user.access_token,
+            current_user.user_id,
+            theatre_place.model_dump(exclude_none=True),
+        )
+        theatre_id = theatre['id']
+        row['theatre_id'] = theatre_id
+
+    screen_name = row.get('screen')
+    if not row.get('screen_id') and theatre_id and screen_name:
+        screen = await venue_resolution.resolve_or_create_screen(
+            current_user.access_token, current_user.user_id, theatre_id, screen_name,
+        )
+        row['screen_id'] = screen['id']
+
+
 @router.get(
     '',
     response_model=List[MovieLog],
     tags=['Movie Logs'],
     description="List the caller's own movie logs, newest first by default. Optional "
-    '`theatre_id`/`screen_id`/`movie` filters narrow this to the caller\'s own past '
-    "visits to a venue or past logs of a movie — e.g. to answer \"have I been here "
-    'before?" for a revisit-prefill suggestion, or to show a "my visits to this '
-    'theatre" history. `favorites_only` returns just the caller\'s up-to-4 favorite '
+    '`theatre_id`/`screen_id`/`movie`/`movie_id` filters narrow this to the caller\'s '
+    'own past visits to a venue or past logs of a movie — e.g. to answer "have I been '
+    'here before?" for a revisit-prefill suggestion, or to show a "my visits to this '
+    'theatre" history (`movie` matches the free-typed title text exactly; `movie_id` '
+    'matches the linked catalog entry — use whichever the caller already has in '
+    'hand). `favorites_only` returns just the caller\'s up-to-4 favorite '
     'logs (see PUT .../favorite), any visibility — this is the caller\'s own '
     "view; GET /public/users/{username} exposes only the public ones. Archived "
     "logs (see PATCH /{id} is_archived) are excluded by default, from the "
@@ -124,9 +160,10 @@ async def list_logs(
     tags=['Movie Logs'],
     description='Create a movie log for the caller. `movie` is the only required '
     'field; everything else — including linking to a theatre/screen via '
-    '`theatre_id`/`screen_id`, or sharing it via `visibility` (private/anonymous/'
-    'public — see GET /venues/theatres/{id}/reviews) — can be set now or added '
-    'later with PATCH.',
+    '`theatre_id`/`screen_id` (or resolving one inline via `theatre_place`, see its '
+    'own description), or sharing it via `visibility` (private/anonymous/public — '
+    'see GET /venues/theatres/{id}/reviews) — can be set now or added later with '
+    'PATCH.',
     response_description='The created log.',
     responses=responses['create_log'],
     operation_id='CreateMovieLog',
@@ -138,13 +175,14 @@ async def create_log(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
     row = _writable_row(payload.model_dump())
-    _enforce_image_prefix(current_user.user_id, row.get('ticket_image_path'))
     if not row.get('movie'):
         raise APIError(
             status.HTTP_400_BAD_REQUEST,
             'MISSING_MOVIE_TITLE',
             'movie title is required when creating a log.',
         )
+    await _resolve_theatre_and_screen(current_user, row, payload.theatre_place)
+    _enforce_image_prefix(current_user.user_id, row.get('ticket_image_path'))
     row['user_id'] = current_user.user_id
     LOGGER.info('create_log user={}', _uid(current_user.user_id))
     return await supabase_rest.create_movie_log(current_user.access_token, row)
@@ -289,7 +327,7 @@ async def get_log(
     response_model=MovieLog,
     tags=['Movie Logs'],
     description='Partially update a log — only send the fields you want to change. '
-    'At least one field is required.',
+    'At least one field (including `theatre_place` alone) is required.',
     response_description='The updated log.',
     responses=responses['update_log'],
     operation_id='UpdateMovieLog',
@@ -303,8 +341,9 @@ async def update_log(
 ) -> Any:
     patch = payload.model_dump(exclude_unset=True)
     patch = _writable_row(patch)
-    if not patch:
+    if not patch and not payload.theatre_place:
         raise APIError(400, 'BAD_REQUEST', 'No fields provided to update.')
+    await _resolve_theatre_and_screen(current_user, patch, payload.theatre_place)
     _enforce_image_prefix(current_user.user_id, patch.get('ticket_image_path'))
 
     row = await supabase_rest.update_movie_log(
