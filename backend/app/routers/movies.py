@@ -15,6 +15,7 @@ from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.movies import responses
 from schemas.movies import Movie, MovieCreate, MovieSearchRequest, MovieSearchResult, MovieStats
+from schemas.venues import VenueNote, VenueNoteInput
 from services import supabase_rest, tmdb
 from utils.errors import APIError
 
@@ -168,3 +169,79 @@ async def movie_reviews(
     return await supabase_rest.list_movie_reviews(
         movie_id, limit=limit, offset=offset, viewer_token=viewer_token
     )
+
+
+# ── Private per-user notes about a movie ──────────────────────────────────
+# Same pattern as GET/PUT/DELETE /venues/theatres/{id}/note and the screen
+# equivalent (routers/venues.py) — one evolving note per (movie, user),
+# never shown to anyone else, independent of any specific log. NOT the same
+# thing as movie_logs.notes, which is a field on one particular log/visit.
+
+@router.get(
+    '/{movie_id}/note',
+    response_model=VenueNote,
+    tags=['Movies'],
+    description="The caller's own private note about this movie, if any — "
+    'independent of any specific log (see PUT /movie-logs/{id} for per-visit '
+    'notes). Never shown to anyone else, no visibility tiers. Same pattern as '
+    'GET /venues/theatres/{id}/note.',
+    response_description="The caller's note for this movie.",
+    responses=responses['get_movie_note'],
+    operation_id='GetMovieNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_movie_note(
+    request: Request,
+    movie_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    note = await supabase_rest.get_venue_note(
+        current_user.access_token, current_user.user_id, movie_id=movie_id
+    )
+    if note is None:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'No note for this movie yet.')
+    return note
+
+
+@router.put(
+    '/{movie_id}/note',
+    response_model=VenueNote,
+    tags=['Movies'],
+    description="Set (or replace) the caller's private note about this movie. "
+    'One note per movie — calling this again overwrites the previous text, it '
+    "doesn't keep history. Same pattern as PUT /venues/theatres/{id}/note.",
+    response_description='The saved note.',
+    responses=responses['set_movie_note'],
+    operation_id='SetMovieNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def set_movie_note(
+    request: Request,
+    movie_id: str,
+    payload: VenueNoteInput,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.upsert_venue_note(
+        current_user.access_token, current_user.user_id, payload.note, movie_id=movie_id
+    )
+
+
+@router.delete(
+    '/{movie_id}/note',
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=['Movies'],
+    description="Clear the caller's private note about this movie.",
+    responses=responses['delete_movie_note'],
+    operation_id='DeleteMovieNote',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def delete_movie_note(
+    request: Request,
+    movie_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> None:
+    deleted = await supabase_rest.delete_venue_note(
+        current_user.access_token, current_user.user_id, movie_id=movie_id
+    )
+    if not deleted:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'No note for this movie yet.')

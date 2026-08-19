@@ -60,6 +60,34 @@ _UPSTREAM = {
     },
 }
 
+# Notes go through Supabase PostgREST (services/supabase_rest.py), not TMDB —
+# same upstream shape as venues' own note endpoints (responses/venues.py).
+_NOTE_UPSTREAM = {
+    502: {
+        'description': 'Supabase/PostgREST is unreachable, timed out, or returned a '
+        'server error.',
+        'content': {
+            'application/json': {
+                'example': {
+                    'code': 'UPSTREAM_ERROR',
+                    'message': 'Database service is unavailable.',
+                }
+            }
+        },
+    },
+}
+
+_MOVIE_NOTE_EXAMPLE = {
+    'id': '66666666-6666-6666-6666-666666666666',
+    'user_id': '11111111-1111-1111-1111-111111111111',
+    'theatre_id': None,
+    'screen_id': None,
+    'movie_id': _MOVIE_EXAMPLE['id'],
+    'note': "Wait for the OTT release — terrible print quality in theatres near me.",
+    'created_at': '2026-08-19T03:30:16.719405+00:00',
+    'updated_at': '2026-08-19T03:30:16.719405+00:00',
+}
+
 responses = {
     'search_movies': {
         200: {
@@ -164,5 +192,42 @@ responses = {
             },
         },
         **_UPSTREAM,
+    },
+    'get_movie_note': {
+        200: {
+            'description': "The caller's private note for this movie.",
+            'content': {'application/json': {'example': _MOVIE_NOTE_EXAMPLE}},
+        },
+        404: {
+            'description': 'No note saved for this movie yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this movie yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_NOTE_UPSTREAM,
+    },
+    'set_movie_note': {
+        200: {
+            'description': 'The saved note, created or overwritten.',
+            'content': {'application/json': {'example': _MOVIE_NOTE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_NOTE_UPSTREAM,
+    },
+    'delete_movie_note': {
+        204: {'description': 'Deleted — no response body.'},
+        404: {
+            'description': 'No note saved for this movie yet.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'No note for this movie yet.'}
+                }
+            },
+        },
+        **_UNAUTHORIZED,
+        **_NOTE_UPSTREAM,
     },
 }

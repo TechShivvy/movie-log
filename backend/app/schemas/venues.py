@@ -185,6 +185,12 @@ class VenueNote(BaseModel):
     user_id: str
     theatre_id: Optional[str] = None
     screen_id: Optional[str] = None
+    movie_id: Optional[str] = Field(
+        default=None,
+        description='Set instead of theatre_id/screen_id for a note about a '
+        'catalog movie rather than a venue — see GET/PUT/DELETE '
+        '/movies/{id}/note. Exactly one of the three is ever set.',
+    )
     note: str
     created_at: str
     updated_at: str

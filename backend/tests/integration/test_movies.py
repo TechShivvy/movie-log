@@ -86,6 +86,63 @@ async def test_log_with_no_movie_id_still_works(client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_movie_note_round_trip_and_privacy(client, make_user):
+    """GET/PUT/DELETE /movies/{id}/note — same one-note-per-(entity,user),
+    private, no-history-kept pattern as the theatre/screen note endpoints
+    (test_venues.py's test_venue_note_independent_of_any_log). Distinct
+    from movie_logs.notes (a field on one specific log)."""
+
+    if not settings.tmdb_api_key:
+        pytest.skip('TMDB_API_KEY not configured in backend/.env')
+
+    _, owner_token = await make_user()
+    _, other_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    other_headers = {'Authorization': f'Bearer {other_token}'}
+
+    search = await client.post('/api/v1/movies/search', headers=owner_headers, json={'query': 'Inception'})
+    tmdb_id = next(r['tmdb_id'] for r in search.json() if r['title'] == 'Inception')
+    movie = await client.post('/api/v1/movies', headers=owner_headers, json={'tmdb_id': tmdb_id})
+    movie_id = movie.json()['id']
+
+    missing = await client.get(f'/api/v1/movies/{movie_id}/note', headers=owner_headers)
+    assert missing.status_code == 404
+
+    saved = await client.put(
+        f'/api/v1/movies/{movie_id}/note', headers=owner_headers,
+        json={'note': 'Wait for the OTT release.'},
+    )
+    assert saved.status_code == 200
+    assert saved.json()['note'] == 'Wait for the OTT release.'
+    assert saved.json()['movie_id'] == movie_id
+    assert saved.json()['theatre_id'] is None
+    assert saved.json()['screen_id'] is None
+
+    fetched = await client.get(f'/api/v1/movies/{movie_id}/note', headers=owner_headers)
+    assert fetched.status_code == 200
+    assert fetched.json()['note'] == 'Wait for the OTT release.'
+
+    overwritten = await client.put(
+        f'/api/v1/movies/{movie_id}/note', headers=owner_headers, json={'note': 'Actually pretty good.'},
+    )
+    assert overwritten.status_code == 200
+    assert overwritten.json()['note'] == 'Actually pretty good.'
+
+    # Never shown to anyone else — no visibility tiers.
+    as_other = await client.get(f'/api/v1/movies/{movie_id}/note', headers=other_headers)
+    assert as_other.status_code == 404
+
+    deleted = await client.delete(f'/api/v1/movies/{movie_id}/note', headers=owner_headers)
+    assert deleted.status_code == 204
+
+    gone = await client.get(f'/api/v1/movies/{movie_id}/note', headers=owner_headers)
+    assert gone.status_code == 404
+
+    delete_again = await client.delete(f'/api/v1/movies/{movie_id}/note', headers=owner_headers)
+    assert delete_again.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_movie_stats_returns_null_not_404_when_nobody_has_rated_it(client):
     """avg_rating: null/rating_count: 0 for a movie that exists in the
     catalog but has no ratings yet, not a 404 — existing and having
