@@ -247,6 +247,22 @@ textarea.input { min-height: 90px; resize: vertical; }
 .seg-opt.active,
 .seg-opt:has(input:checked) { color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
 .seg-opt:not(.active):not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+/* .seg-opt itself is a plain square element — .seg only LOOKS like a
+   rounded pill because its own overflow:hidden clips the row's outer
+   corners. The active/checked ring above is an INSET box-shadow drawn
+   on that square element's own straight edges; inset shadow paint sits
+   fully inside the clip, so nothing about the clip trims it — it's the
+   square ring's own corner, sitting just inside the container's rounded
+   outer edge, that reads as a visible notch cut into what should be a
+   smooth curve (confirmed on both web and native: SegmentedControl's
+   grid/list toggle, arrival, screening start, visibility, all of them).
+   Giving the two end buttons their own matching corner radius — sized
+   to sit concentric with the container's, one border-width in — makes
+   the end button's own straight edge follow the same curve the
+   container's clip already does, so the inset ring finally traces a
+   real rounded corner instead of a square one poking through it. */
+.seg-opt:first-child { border-top-left-radius: calc(var(--radius-md) - 1.5px); border-bottom-left-radius: calc(var(--radius-md) - 1.5px); }
+.seg-opt:last-child { border-top-right-radius: calc(var(--radius-md) - 1.5px); border-bottom-right-radius: calc(var(--radius-md) - 1.5px); }
 
 /* — cards — */
 .card {
