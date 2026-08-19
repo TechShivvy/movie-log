@@ -33,6 +33,7 @@ import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
 import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie } from "../hooks/useSearch";
 import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../context/ToastContext";
 import { StarRating } from "../components/ui/StarRating";
 import { Input } from "../components/ui/Input";
@@ -271,9 +272,16 @@ function WebForm({
         gap: 16,
       } as React.CSSProperties}>
 
-        {/* Movie title — full width */}
-        <div className="field" style={{ gridColumn: "1/-1" } as React.CSSProperties}>
-          <label>Movie title</label>
+        {/* Movie title — full width. position:relative is what actually
+            anchors the suggestions dropdown below (position:absolute;
+            top:100%) to this field — without it, the dropdown positions
+            against the next ancestor that HAS a positioning context
+            instead (the two-column grid, or further up still), landing
+            it somewhere else on the page entirely rather than attached
+            to this input. The Theatre field below already had this;
+            Movie title never did. */}
+        <div className="field" style={{ gridColumn: "1/-1", position: "relative" } as React.CSSProperties}>
+          <label>Movie title <span style={{ color: "var(--color-error)" } as React.CSSProperties}>*</span></label>
           <input
             className={`input${errors.movieTitle ? " error" : ""}`}
             value={movieQuery}
@@ -341,7 +349,7 @@ function WebForm({
             before, despite LogDetailScreen already having a whole section
             to display them. */}
         <div className="field" style={{ gridColumn: "1/-1" } as React.CSSProperties}>
-          <label>Venue ratings <span style={{ color: "var(--color-divider)", fontWeight: 400 } as React.CSSProperties}>(optional)</span></label>
+          <label>Venue ratings</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 4 } as React.CSSProperties}>
             {([
               ["Screen", "screenRating"],
@@ -661,15 +669,20 @@ export function LogFormScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAIModal, setShowAIModal] = useState(false);
 
-  // Movie search
+  // Movie search — the input itself stays live/uncontrolled by the
+  // debounce (it needs to reflect every keystroke instantly); only the
+  // value actually handed to the search hook is debounced, so a fast
+  // typist doesn't fire a network request per keystroke.
   const [movieQuery, setMovieQuery]             = useState("");
   const [showMovieSuggestions, setShowMovieSuggestions] = useState(false);
-  const { data: movieSuggestions } = useMovieSearch(movieQuery);
+  const debouncedMovieQuery = useDebouncedValue(movieQuery, 300);
+  const { data: movieSuggestions } = useMovieSearch(debouncedMovieQuery);
 
-  // Venue search
+  // Venue search — same debounce treatment.
   const [venueQuery, setVenueQuery]             = useState("");
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
-  const { data: venueSuggestions } = useVenueSearch(venueQuery);
+  const debouncedVenueQuery = useDebouncedValue(venueQuery, 300);
+  const { data: venueSuggestions } = useVenueSearch(debouncedVenueQuery);
 
   // Edit mode: populate the form once the existing log arrives. Runs once
   // per loaded log (guarded by id so a background refetch — e.g. from
@@ -875,7 +888,11 @@ export function LogFormScreen() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
-            <button className="btn btn-secondary" onClick={() => router.back()}>
+            {/* Discard disabled mid-save too — navigating away right as
+                the request lands read as a race between "did my save
+                actually happen" and "I just left", same reasoning as
+                blocking the delete dialog from being dismissed mid-flight. */}
+            <button className="btn btn-secondary" onClick={() => router.back()} disabled={isPending}>
               <X size={14} color={theme.text} />
               Discard
             </button>
@@ -884,8 +901,11 @@ export function LogFormScreen() {
               onClick={handleSubmit}
               disabled={isPending}
             >
-              {isPending ? <span className="spin">◌</span> : null}
-              {isEditing ? "Save changes" : "Save log"}
+              {/* Label itself now changes ("Saving…"), not just a small
+                  spin glyph next to an otherwise-unchanged "Save log" —
+                  that was easy to miss entirely. */}
+              {isPending && <span className="spin">◌</span>}
+              {isPending ? "Saving…" : isEditing ? "Save changes" : "Save log"}
             </button>
           </div>
         </div>
@@ -950,7 +970,7 @@ export function LogFormScreen() {
     >
       {/* Mobile header */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <Pressable onPress={() => router.back()} style={{ padding: 4 }}>
+        <Pressable onPress={() => router.back()} disabled={isPending} style={{ padding: 4, opacity: isPending ? 0.4 : 1 }}>
           <ArrowLeft size={20} color={theme.accent} />
         </Pressable>
         <Text style={{ color: theme.text, fontSize: 20, fontWeight: "700", flex: 1 }}>
@@ -959,13 +979,12 @@ export function LogFormScreen() {
         <Pressable
           onPress={handleSubmit}
           disabled={isPending}
-          style={{ backgroundColor: theme.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}
         >
-          {isPending ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>Save</Text>
-          )}
+          {isPending && <ActivityIndicator color="#fff" size="small" />}
+          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
+            {isPending ? "Saving…" : "Save"}
+          </Text>
         </Pressable>
       </View>
 
@@ -1028,7 +1047,7 @@ export function LogFormScreen() {
 
       {/* Movie title search */}
       <Input
-        label="Movie title"
+        label="Movie title *"
         value={movieQuery}
         onChangeText={(v) => {
           setMovieQuery(v);
@@ -1103,7 +1122,7 @@ export function LogFormScreen() {
           itself saves (see handleSubmit). See the matching web section. */}
       <View style={{ marginTop: 14 }}>
         <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>
-          VENUE RATINGS <Text style={{ fontWeight: "400", textTransform: "none" }}>(optional)</Text>
+          VENUE RATINGS
         </Text>
         <View style={{ gap: 10 }}>
           {([

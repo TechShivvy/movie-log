@@ -21,6 +21,7 @@ import { MagnifyingGlass } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useMovieSearch } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import type { MovieLog } from "../types";
@@ -39,7 +40,8 @@ export function SearchScreen() {
   const [query, setQuery]   = useState("");
   const [scope, setScope]   = useState<Scope>("all");
 
-  const { data: movieResults, isLoading: moviesLoading } = useMovieSearch(query);
+  const debouncedQuery = useDebouncedValue(query, 300);
+  const { data: movieResults, isLoading: moviesLoading } = useMovieSearch(debouncedQuery);
   const { data: logs }                                    = useMovieLogs({ archived: false });
 
   // Filter own logs by title
