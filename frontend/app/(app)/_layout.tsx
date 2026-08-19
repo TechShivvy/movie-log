@@ -11,24 +11,30 @@ import { TabBar } from "../../components/layout/TabBar";
 import { TopBar } from "../../components/layout/TopBar";
 
 /**
- * Web layout:
+ * Sidebar shell — the desktop/tablet layout (Sidebar + TopBar), not just a
+ * web layout: previously gated to `Platform.OS === "web"` at the call site,
+ * so a real iPad (`app.json` claims `supportsTablet: true`) always got the
+ * plain phone shell regardless of its actual width. Sidebar and TopBar each
+ * already have their own native branches (View-based, never reached before
+ * this), so the only thing this wrapper needs is a Platform-safe main-
+ * column container — web keeps the real `.mainscroll` div (scrollbar
+ * styling, clg-scroll classes, etc. only mean anything as real CSS); native
+ * gets a plain `View` with the same flex/1 role.
+ *
  *   .app-shell (position:relative, display:flex, height:100vh, overflow:hidden)
  *     ├── .cine-bg  (position:absolute, animated gradient backdrop)
  *     ├── .grain    (position:fixed, film grain)
- *     ├── .sidebar  (236px → 68px collapsed)
+ *     ├── .sidebar  (236px → 68px collapsed, breakpoint-driven — see Sidebar.tsx)
  *     └── main column (flex:1, display:flex, flex-direction:column)
  *           ├── .topbar (height:62px)
  *           └── .mainscroll .clg-scroll (flex:1, overflow-y:auto)
  *
  * The Sidebar component owns the app-shell div and the bg layers on web.
  */
-function WebLayout({ children }: { children: React.ReactNode }) {
+function SidebarShellLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
-  return (
-    // On web, Sidebar renders the full app-shell div including bg layers.
-    // We pass TopBar + main content as children.
-    <Sidebar>
-      <TopBar />
+  const mainColumn =
+    Platform.OS === "web" ? (
       <div
         className="clg-scroll mainscroll"
         style={{
@@ -40,6 +46,15 @@ function WebLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+    ) : (
+      <View style={{ flex: 1 }}>{children}</View>
+    );
+  return (
+    // Sidebar renders the full app-shell div (with bg layers) on web, or
+    // a plain flex row on native — either way it owns the outer wrapper.
+    <Sidebar>
+      <TopBar />
+      {mainColumn}
     </Sidebar>
   );
 }
@@ -107,13 +122,15 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
   );
 
-  // Native always gets the phone shell (tablet/landscape is a later pass —
-  // see useBreakpoint's doc comment). Web switches on viewport width: the
-  // 236px Sidebar only fits comfortably at tablet width and up. Below that,
-  // web gets the same TabBar shell native uses, instead of the desktop
-  // sidebar overflowing a phone-width viewport.
-  if (Platform.OS === "web" && !isMobile) {
-    return <WebLayout>{stack}</WebLayout>;
+  // Width-driven on every platform now, not gated to web — a real iPad
+  // used to always get the phone shell regardless of how wide its
+  // viewport actually was, since this used to also require
+  // Platform.OS === "web". isMobile is false for anything tablet-width
+  // and up, so an iPad (portrait or landscape) now gets the Sidebar
+  // shell — collapsed by default at tablet width via Sidebar's own
+  // breakpoint check, same as web.
+  if (!isMobile) {
+    return <SidebarShellLayout>{stack}</SidebarShellLayout>;
   }
 
   return <MobileLayout>{stack}</MobileLayout>;

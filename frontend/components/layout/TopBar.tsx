@@ -41,12 +41,18 @@ export function TopBar() {
 
   if (Platform.OS === "web") {
     return (
+      // className="topbar" (not inline styles) is what actually lets
+      // designCss.ts's `@media (max-width: 1119px) { .topbar { padding:
+      // 0 16px } }` reach this element — the inline padding this div used
+      // to carry always wins over a class rule regardless of any media
+      // query, so the tablet-width padding shrink was dead CSS: it fired
+      // its selector but had zero effect. gap is still inline (16px, wider
+      // than .topbar's own 8px) since this bar wants more breathing room
+      // between the search field and the right-hand icons than a plain
+      // .topbar consumer needs by default.
       <div
-        style={{
-          height: 62, flex: "none",
-          borderBottom: `1px solid ${theme.divider}`,
-          display: "flex", alignItems: "center", gap: 16, padding: "0 26px",
-        } as React.CSSProperties}
+        className="topbar"
+        style={{ borderBottom: `1px solid ${theme.divider}`, gap: 16 } as React.CSSProperties}
       >
         <div style={{ position: "relative", flex: 1, maxWidth: 560 } as React.CSSProperties}>
           <Icon

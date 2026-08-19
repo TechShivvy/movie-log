@@ -30,6 +30,7 @@ import { useRouter, usePathname } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
@@ -51,7 +52,17 @@ const NAV: { icon: IconName; label: string; href: string; badge?: number }[] = [
 ];
 
 export function Sidebar({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Tablet width (768-1119px) used to get the full 236px sidebar — the
+  // same width as desktop — squeezing whatever content was left into a
+  // cramped remainder. Defaulting to collapsed (68px, icon rail only) at
+  // tablet width gives that room back; desktop still opens expanded. A
+  // manual click still freely toggles either way — the effect below only
+  // resets to the breakpoint's own default when isTablet itself flips
+  // (i.e. an actual boundary crossing), not on every render, so it never
+  // fights a click made while sitting still at one width.
+  const { isTablet } = useBreakpoint();
+  const [collapsed, setCollapsed] = useState(isTablet);
+  useEffect(() => { setCollapsed(isTablet); }, [isTablet]);
   const { theme, setTheme, fontConfig } = useTheme();
   const { signOut, session } = useAuth();
   const router = useRouter();
