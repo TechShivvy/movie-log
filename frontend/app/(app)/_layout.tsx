@@ -62,7 +62,20 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
 
       <View style={[styles.mobileContent, { paddingTop: insets.top }]}>{children}</View>
 
-      <View style={{ backgroundColor: theme.surface, paddingBottom: insets.bottom }}>
+      {/* zIndex above mobileContent's — without it, mobileContent's own
+          zIndex:1 (see styles below) outranked this wrapper's implicit
+          0/auto, so the scrollable content behind the bar painted OVER
+          it despite being earlier in the JSX: CSS stacking order is
+          decided by zIndex first, DOM order only as a tiebreak among
+          equal zIndex. TabBar's FAB pokes up out of the bar into the
+          content area's own space via a negative offset — with the
+          content on top, that entire popped-up portion of the FAB was
+          invisible, painted over by whatever was behind it (confirmed:
+          the circle rendered as a flat-topped half-circle, cut exactly
+          at the bar's own boundary). This wrapper now outranks it, so
+          the bar (and the FAB) correctly sits above the content it
+          overlaps, not under it. */}
+      <View style={{ backgroundColor: theme.surface, paddingBottom: insets.bottom, zIndex: 2 }}>
         <TabBar />
       </View>
     </View>

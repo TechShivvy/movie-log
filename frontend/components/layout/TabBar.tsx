@@ -1,18 +1,43 @@
 /**
  * TabBar — mobile bottom nav.
  *
- * Redesigned from the original literal port of docs/design/CineLog
- * Mobile.dc.html (lines 558-568): that spec's `box-shadow:0 6px 20px
- * accent@45%` glow around the centre FAB is a real soft-blurred CSS
- * shadow on web, but React Native has no way to render it — shadow*
- * props are iOS-only and Android's `elevation` is a flat grey drop
- * shadow with no colour or blur at all. The original fabGlow worked
- * around that with a flat 35%-opacity accent circle sitting behind the
- * button — which doesn't fade, so it reads as a second hard-edged ring
- * around the FAB rather than a glow (confirmed on a real device). Now
- * built as a true radial gradient (react-native-svg) that fades to
- * fully transparent at its edge, so there's no ring to see, on every
- * renderer this runs on.
+ * The centre action is a dome, not a floating circle: rounded top,
+ * flat bottom anchored flush with the bar's own BOTTOM edge — the
+ * whole shape rises from the bottom of the bar, straight sides and
+ * all, rather than being a shallow bump tucked just inside its top. A
+ * full circle popping up fully above the bar (what this looked like
+ * originally) read as a separate, disconnected element hovering over
+ * the bar rather than something that belongs to it — this asks to
+ * look like a bump built into the bar's own surface instead, bigger
+ * than the other four tabs but still clearly *part of* the same bar,
+ * not a floating button that happens to overlap it.
+ *
+ * Structural history, kept because the same mistakes are easy to
+ * reintroduce:
+ *  1. The centre action used to be a normal flex child of the bar's
+ *     row (justifyContent:"space-around"), popping up via a negative
+ *     marginTop. That makes its on-screen position dependent on how
+ *     the row's flex algorithm lays out ITS SIBLINGS — on a narrow
+ *     phone width, a later tab (Search) painting after it in JSX order
+ *     could end up overlapping/covering part of its edge if there
+ *     wasn't quite enough row width to go around. It's an
+ *     absolutely-positioned overlay on top of the bar instead,
+ *     centered independently of the tabs' own layout.
+ *  2. It was rendering as a flat-topped half-circle on real devices —
+ *     traced to app/(app)/_layout.tsx's mobileContent having
+ *     zIndex:1 while this bar's own wrapper had none: CSS stacking is
+ *     decided by zIndex first and DOM order only as a tiebreak among
+ *     equals, so the scrollable content behind the bar (despite being
+ *     earlier in the JSX) painted OVER the portion of this button that
+ *     pokes up past the bar's own boundary into the content area's
+ *     space. Fixed there, not here — that wrapper now carries a higher
+ *     zIndex than the content it needs to sit above.
+ *  3. The glow used to be a react-native-svg RadialGradient — removed
+ *     outright (not just patched) after the shape bugs above: one
+ *     fewer exotic native-rendering dependency for this button to go
+ *     wrong on, never independently confirmed clean on a real Android
+ *     device. A flat dome doesn't really call for a soft radial glow
+ *     the way a floating circle did anyway.
  *
  * Also: flat theme.surface + a 1px top line didn't share any visual
  * language with the rest of the app (Sidebar's rounded, elevated cards
@@ -23,7 +48,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
 
@@ -34,9 +58,17 @@ const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] =
   { icon: "user",             label: "Profile", href: "/(app)/profile", owns: ["/settings", "/notifications"] },
 ];
 
-const FAB_SIZE = 62;   // was 54 — "make the plus bigger than other sections"
-const FAB_ICON = 30;   // was 26
-const GLOW_SIZE = 108; // fully-faded radius well past the button's edge
+// Wide relative to its height on purpose — 76px read as a tall,
+// narrow capsule ("thumb/fingerprint scanner," not a dome bulging out
+// of the bar); 100px was the other direction's overshoot ("too big").
+const DOME_WIDTH = 84;
+// Tall enough that its flat bottom reaches the very bottom of the bar
+// (anchored there via `bottom:0`, not tucked a little way into the
+// bar's top like the first version was) while its rounded top still
+// pokes up past the bar's own top edge — "coming from the bottom of
+// the screen like a dome," not a small bump near the bar's top.
+const DOME_HEIGHT = 84;
+const FAB_ICON = 30;
 
 export function TabBar() {
   const { theme } = useTheme();
@@ -58,7 +90,7 @@ export function TabBar() {
     return pathname.startsWith(seg) || (t.owns ?? []).some((o) => pathname.startsWith(o));
   }
 
-  // Split so the centre FAB sits between Feed and Search, as in the design
+  // Split so the centre action sits between Feed and Search, as in the design
   const left = TABS.slice(0, 2);
   const right = TABS.slice(2);
 
@@ -80,35 +112,35 @@ export function TabBar() {
   return (
     <View style={[styles.bar, { backgroundColor: theme.surfaceHigh, shadowColor: "#000" }]}>
       {left.map(renderTab)}
-
-      <View style={styles.fabWrap}>
-        <Svg
-          pointerEvents="none"
-          width={GLOW_SIZE}
-          height={GLOW_SIZE}
-          style={{ position: "absolute", top: (FAB_SIZE - GLOW_SIZE) / 2, left: (FAB_SIZE - GLOW_SIZE) / 2 }}
-        >
-          <Defs>
-            <RadialGradient id="fabGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%" stopColor={theme.accent} stopOpacity={0.5} />
-              <Stop offset="45%" stopColor={theme.accent} stopOpacity={0.22} />
-              <Stop offset="100%" stopColor={theme.accent} stopOpacity={0} />
-            </RadialGradient>
-          </Defs>
-          <Circle cx={GLOW_SIZE / 2} cy={GLOW_SIZE / 2} r={GLOW_SIZE / 2} fill="url(#fabGlow)" />
-        </Svg>
-        <Pressable
-          onPress={() => router.push("/(app)/log/new" as any)}
-          style={[
-            styles.fab,
-            { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2, backgroundColor: theme.accent, shadowColor: theme.accent },
-          ]}
-        >
-          <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
-        </Pressable>
-      </View>
-
+      {/* Reserves the dome's own width in the row's flex flow so the 4
+          tabs still space themselves apart the same as before — the
+          dome itself is no longer one of these flex children (see
+          below), just this empty placeholder matching its footprint. */}
+      <View style={{ width: DOME_WIDTH }} />
       {right.map(renderTab)}
+
+      {/* Absolutely positioned over the bar, centered independently of
+          the tabs' own flex layout — see the file-level comment for
+          why. Anchored to the bar's own BOTTOM edge (not its top) so
+          the dome's flat base sits flush with the very bottom of the
+          bar — the whole shape rises from there, rather than being a
+          shallow bump tucked just inside the bar's top. */}
+      <Pressable
+        onPress={() => router.push("/(app)/log/new" as any)}
+        style={[
+          styles.dome,
+          {
+            marginLeft: -(DOME_WIDTH / 2),
+            width: DOME_WIDTH,
+            height: DOME_HEIGHT,
+            borderTopLeftRadius: DOME_WIDTH / 2,
+            borderTopRightRadius: DOME_WIDTH / 2,
+            backgroundColor: theme.accent,
+          },
+        ]}
+      >
+        <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
+      </Pressable>
     </View>
   );
 }
@@ -118,9 +150,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
+    // Anchors the dome's position:"absolute" below to this bar, not to
+    // whatever further ancestor happens to be positioned otherwise.
+    position: "relative",
     paddingTop: 8,
     paddingHorizontal: 6,
-    paddingBottom: 22,
+    // Was 22 vs paddingTop's 8 — a lopsided 14px gap that read as
+    // "more space at the bottom" even before accounting for anything
+    // else, and the wrapping View in app/(app)/_layout.tsx ALSO adds
+    // insets.bottom (the real safe-area/home-indicator clearance) on
+    // top of this, so that extra space was being paid twice: once here
+    // unconditionally, once again for the actual device inset. Matched
+    // to paddingTop instead — insets.bottom alone is what device
+    // clearance needs; this is just the bar's own internal breathing
+    // room, which should be the same on both sides.
+    paddingBottom: 8,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     // Elevated panel, floating over content, instead of a hairline top
@@ -143,24 +187,28 @@ const styles = StyleSheet.create({
     width: 38, height: 30, borderRadius: 10, overflow: "hidden",
     alignItems: "center", justifyContent: "center",
   },
-  fabWrap: {
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    marginTop: -(FAB_SIZE / 2 + 6),
+  dome: {
+    position: "absolute",
+    left: "50%",
+    bottom: 0, // flush with the bar's own bottom edge — see file comment
     alignItems: "center",
-    justifyContent: "center",
-  },
-  fab: {
-    alignItems: "center",
-    justifyContent: "center",
-    // Same reasoning as `bar` above — Android elevation on this fully
-    // round button rendered a squared-off shadow that visibly clipped
-    // into the circle's edge instead of following it, reading as the
-    // FAB itself being cut off. The SVG radial-gradient glow behind it
-    // already carries the actual visual glow; this shadow was always
-    // just supplemental depth, not load-bearing.
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
+    // The dome is much taller than its rounded cap alone (it reaches
+    // all the way down to the bar's bottom edge) — centering on the
+    // full box would bury the icon down in the straight-sided "stem"
+    // well below the visible cap. Pin it near the top instead, roughly
+    // where the cap's own visual center is.
+    justifyContent: "flex-start",
+    paddingTop: 26,
+    // No `elevation` — same reasoning as `bar` above. iOS keeps a soft
+    // shadow via shadow*; Android renders a flat dome with none, which
+    // is the safer trade against a shadow shaped nothing like the
+    // dome casting it.
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    // Explicit, not just relying on paint order (last sibling +
+    // absolute) — belt and braces so nothing can ever composite above
+    // the dome regardless of render order.
+    zIndex: 10,
   },
 });
