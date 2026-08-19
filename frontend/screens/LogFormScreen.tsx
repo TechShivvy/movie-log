@@ -311,27 +311,43 @@ function WebForm({
               overflow: "hidden",
               marginTop: 4,
             } as React.CSSProperties}>
-              {movieSuggestions.map((m: MovieSearchResult) => (
-                <div
-                  key={m.tmdb_id}
-                  onClick={() => pickMovie(m)}
-                  style={{
-                    padding: "10px 14px",
-                    cursor: "pointer",
-                    borderBottom: "1px solid var(--color-divider)",
-                    fontSize: 14,
-                    color: "var(--color-text)",
-                  } as React.CSSProperties}
-                  className="tapc"
-                >
-                  {m.title}
-                  {releaseYear(m.release_date) && (
-                    <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>
-                      {releaseYear(m.release_date)}
-                    </span>
-                  )}
-                </div>
-              ))}
+              {movieSuggestions.map((m: MovieSearchResult) => {
+                const thumb = tmdbPosterUrl(m.poster_path, "w92");
+                return (
+                  <div
+                    key={m.tmdb_id}
+                    onClick={() => pickMovie(m)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 14px",
+                      cursor: "pointer",
+                      borderBottom: "1px solid var(--color-divider)",
+                      fontSize: 14,
+                      color: "var(--color-text)",
+                    } as React.CSSProperties}
+                    className="tapc"
+                  >
+                    {/* Small poster thumbnail so a suggestion is
+                        recognizable at a glance, not just a title string —
+                        MovieSearchResult already carries poster_path, this
+                        just never rendered it. Falls back to the same
+                        hue-gradient tile every other poster placeholder
+                        uses when a result has none. */}
+                    <div style={{
+                      width: 32, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden",
+                      background: thumb ? `url(${thumb}) center/cover no-repeat` : theme.surfaceHigh,
+                    } as React.CSSProperties} />
+                    <div style={{ minWidth: 0 } as React.CSSProperties}>
+                      {m.title}
+                      {releaseYear(m.release_date) && (
+                        <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>
+                          {releaseYear(m.release_date)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -647,6 +663,16 @@ function WebForm({
 export function LogFormScreen() {
   const { theme } = useTheme();
   const router = useRouter();
+  // useBreakpoint was imported at the top of this file and never actually
+  // called — dead import. This screen's "web" branch (a fixed 260px poster
+  // column beside a fixed two-column form grid, neither ever wrapping or
+  // stacking) was consequently the ONLY layout mobile web ever got: no
+  // width check anywhere routed it to the already-built, already
+  // phone-tuned native branch below. Screenshotted at 390px before this
+  // fix: the form column sliced clean off the right edge of the viewport,
+  // silently hidden rather than visibly overflowing (overflow-x:hidden on
+  // html/body). isMobile is what actually wires the switch below.
+  const { isMobile } = useBreakpoint();
   // /(app)/log/new?edit={id} — LogDetailScreen's Edit button already
   // linked here with this param, but nothing on this screen ever read it:
   // the form always started blank and always called useCreateLog, so
@@ -868,8 +894,8 @@ export function LogFormScreen() {
     );
   }
 
-  // ── Web layout ──────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web layout (tablet & desktop only — see the isMobile comment above) ─────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen
@@ -979,7 +1005,7 @@ export function LogFormScreen() {
     );
   }
 
-  // ── Native layout ────────────────────────────────────────────────────────────
+  // ── Native layout (also mobile web — see the isMobile comment above) ────────
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "transparent" }}
@@ -1085,18 +1111,31 @@ export function LogFormScreen() {
           borderWidth: 1,
           borderColor: theme.divider,
         }}>
-          {(movieSuggestions ?? []).map((m: MovieSearchResult) => (
-            <Pressable
-              key={m.tmdb_id}
-              onPress={() => pickMovie(m)}
-              style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
-            >
-              <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{m.title}</Text>
-              {releaseYear(m.release_date) && (
-                <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{releaseYear(m.release_date)}</Text>
-              )}
-            </Pressable>
-          ))}
+          {(movieSuggestions ?? []).map((m: MovieSearchResult) => {
+            const thumb = tmdbPosterUrl(m.poster_path, "w92");
+            return (
+              <Pressable
+                key={m.tmdb_id}
+                onPress={() => pickMovie(m)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderBottomWidth: 1, borderBottomColor: theme.divider }}
+              >
+                {/* Same thumbnail treatment as the web suggestion row —
+                    MovieSearchResult already carries poster_path, this
+                    just never rendered it. */}
+                {thumb ? (
+                  <Image source={{ uri: thumb }} style={{ width: 32, height: 46, borderRadius: 4 }} resizeMode="cover" />
+                ) : (
+                  <View style={{ width: 32, height: 46, borderRadius: 4, backgroundColor: theme.surfaceHigh }} />
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{m.title}</Text>
+                  {releaseYear(m.release_date) && (
+                    <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{releaseYear(m.release_date)}</Text>
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
