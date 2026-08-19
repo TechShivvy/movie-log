@@ -35,12 +35,15 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useMovie } from "../hooks/useSearch";
 import { CinematicBg } from "../components/layout/CinematicBg";
@@ -140,8 +143,10 @@ function sortRecent(logs: MovieLog[]): MovieLog[] {
 export function LibraryScreen() {
   const { theme, fontConfig } = useTheme();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const [filter, setFilter] = useState<Filter>("All");
   const [mode, setMode] = useState<"grid" | "list">("grid");
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: logs = [], isLoading, isError, refetch } = useMovieLogs({
     archived: filter === "Archived",
@@ -152,8 +157,26 @@ export function LibraryScreen() {
   const shown = useMemo(() => sortRecent(applyFilter(logs, filter)), [logs, filter]);
   const open = (id: string) => router.push(`/(app)/log/${id}` as any);
 
-  // ── Web ─────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // isMobile, not just Platform.OS: below 768px the "web" branch's HTML/CSS
+  // layout (fixed 32px padding, a grid that only ever partially adapted)
+  // used to render anyway, inside the phone-width TabBar shell the app
+  // shell itself already correctly switches to — mobile web got a
+  // desktop-authored layout with a couple of patches, not the layout
+  // actually built for a phone screen. Below isMobile, every platform now
+  // gets the same native branch (View/Pressable, already phone-tuned,
+  // renders fine on web via react-native-web) instead of two separate
+  // "mobile" designs drifting apart.
+  // ── Web (tablet & desktop only) ─────────────────────────────────────────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div
         className="screen-anim"
@@ -338,19 +361,25 @@ export function LibraryScreen() {
     );
   }
 
-  // ── Native ──────────────────────────────────────────────────────────────────
-  // No PWA install banner here: this branch only renders when Platform.OS
-  // !== "web" — i.e. the actual compiled/Expo Go app, which is by definition
-  // already "installed". The design's mobile mockup shows this banner because
-  // it depicts the mobile-WEB experience (a phone-width browser tab prompting
-  // "add to home screen"); that belongs behind a `Platform.OS === "web"` +
-  // beforeinstallprompt check, the same guard TopBar's "Install app" button
-  // already uses, never in the native branch.
+  // ── Native (also mobile web — see the isMobile comment above) ───────────────
+  // No PWA install banner here: on real native this branch only renders when
+  // Platform.OS !== "web" — i.e. the actual compiled/Expo Go app, which is by
+  // definition already "installed". The design's mobile mockup shows this
+  // banner because it depicts the mobile-WEB experience (a phone-width
+  // browser tab prompting "add to home screen"); that belongs behind a
+  // `Platform.OS === "web"` + beforeinstallprompt check, the same guard
+  // TopBar's "Install app" button already uses, never in this branch.
   return (
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
+      // Pull-to-refresh — react-native-web renders RefreshControl as a
+      // no-op wrapper (there's no native touch/overscroll to hook), so
+      // this is free on real native and harmless on mobile web.
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+      }
     >
 
       {/* Header */}
@@ -445,30 +474,42 @@ export function LibraryScreen() {
                   <Text style={{ fontSize: 11, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
                 </View>
 
-                {/* .pt — title plate pinned to the poster's bottom */}
-                <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: 10 }}>
-                  <Text
-                    numberOfLines={2}
-                    style={{
-                      fontFamily: heading, fontSize: 16, lineHeight: 17.6, color: "#fff",
-                      textShadowColor: "rgba(0,0,0,.6)",
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 8,
-                    }}
-                  >
+                {/* .pt — title plate pinned to the poster's bottom. Used
+                    to be bare text with only a textShadow behind it — no
+                    darkening scrim at all, unlike the web .ov overlay
+                    (and PosterCard's own native branch, which already did
+                    this correctly) — legible against a dark placeholder
+                    gradient, unreadable against a bright real TMDB poster.
+                    Ported PosterCard's gradient + adds the venue/date line
+                    it also had that this card was missing entirely. */}
+                <LinearGradient
+                  colors={["transparent", "rgba(0,0,0,0.85)"]}
+                  start={{ x: 0, y: 0.35 }}
+                  end={{ x: 0, y: 1 }}
+                  pointerEvents="none"
+                  style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, justifyContent: "flex-end", padding: 10 }}
+                >
+                  <Text numberOfLines={2} style={{ fontFamily: heading, fontSize: 16, lineHeight: 17.6, color: "#fff" }}>
                     {log.movie}
                   </Text>
-                </View>
+                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                    {log.theater ?? "—"} · {fmtLogDate(log)}
+                  </Text>
+                </LinearGradient>
               </LogPoster>
 
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 7 }}>
-                <Text style={{ fontSize: 11, color: muted }}>{fmtLogDate(log)}</Text>
-                {log.format ? (
+              {/* Date used to repeat here — the overlay above now carries
+                  venue + date itself (it didn't before), so showing the
+                  same date a second time right underneath it was pure
+                  duplication. Format tag alone, same as PosterCard's own
+                  footer (which never repeated date either). */}
+              {log.format ? (
+                <View style={{ flexDirection: "row", marginTop: 7 }}>
                   <View style={{ backgroundColor: theme.neutral800, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
                     <Text style={{ fontSize: 10, color: theme.neutral100 }}>{log.format}</Text>
                   </View>
-                ) : null}
-              </View>
+                </View>
+              ) : null}
             </Pressable>
           ))}
         </View>
