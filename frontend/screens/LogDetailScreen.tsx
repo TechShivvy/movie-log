@@ -50,6 +50,7 @@ import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs"
 import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
 import { useVenueRating } from "../hooks/useVenueRating";
 import { useMovie } from "../hooks/useSearch";
+import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -313,6 +314,7 @@ export function LogDetailScreen() {
   const { data: log, isLoading, error } = useMovieLog(id ?? "");
   const archiveLog = useArchiveLog();
   const deleteLog = useDeleteLog();
+  const { showToast } = useToast();
   const likeLog = useLikeLog();
   const venueRating = useVenueRating(id ?? "");
   // log isn't guaranteed loaded yet here (still before the isLoading/error
@@ -368,15 +370,28 @@ export function LogDetailScreen() {
   // re-renders in response to before the per-call callback's turn comes
   // up — a plain await sidesteps that ordering question entirely instead
   // of relying on exactly when React Query decides to run which callback.
+  //
+  // confirmDelete deliberately does NOT close the dialog before this
+  // resolves — it used to, which is exactly the bug: dialog closes,
+  // screen sits there for the 1-2s the request actually takes with zero
+  // indication anything is happening, then navigates. The dialog now
+  // stays open (ConfirmDialog's loading prop, driven by
+  // deleteLog.isPending below) showing a spinner until the delete is
+  // actually done, then navigates and confirms via toast. On failure it
+  // closes and reports the error instead of leaving the user stuck
+  // looking at a spinner that will never resolve.
   const doDelete = async () => {
-    await deleteLog.mutateAsync(log.id);
-    goBackOrHome();
+    try {
+      await deleteLog.mutateAsync(log.id);
+      showToast("Log deleted");
+      goBackOrHome();
+    } catch (e: any) {
+      setConfirmingDelete(false);
+      showToast(e?.response?.data?.detail ?? "Couldn't delete — try again", "error");
+    }
   };
   const handleDelete = () => setConfirmingDelete(true);
-  const confirmDelete = () => {
-    setConfirmingDelete(false);
-    void doDelete();
-  };
+  const confirmDelete = () => { void doDelete(); };
   const handleReply = (username: string, commentId: string) => {
     setReplyTo({ username, commentId });
     setCommentText(`@${username} `);

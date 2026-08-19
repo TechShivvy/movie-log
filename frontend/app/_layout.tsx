@@ -19,6 +19,7 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { ThemeProvider } from "../context/ThemeContext";
 import { AuthProvider } from "../context/AuthContext";
+import { ToastProvider } from "../context/ToastContext";
 import { useTheme } from "../hooks/useTheme";
 
 const queryClient = new QueryClient({
@@ -79,8 +80,10 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <AuthProvider>
-              <StatusBar style="light" />
-              <ThemedStack />
+              <ToastProvider>
+                <StatusBar style="light" />
+                <ThemedStack />
+              </ToastProvider>
             </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>

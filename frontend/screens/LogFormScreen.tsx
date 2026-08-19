@@ -33,6 +33,7 @@ import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
 import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie } from "../hooks/useSearch";
 import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
+import { useToast } from "../context/ToastContext";
 import { StarRating } from "../components/ui/StarRating";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
@@ -651,6 +652,7 @@ export function LogFormScreen() {
   const { mutateAsync: upsertVenueRating } = useUpsertVenueRating();
   const { data: existingLog, isLoading: isLoadingExisting } = useMovieLog(editId ?? "");
   const existingVenueRating = useVenueRating(editId ?? "");
+  const { showToast } = useToast();
   const isPending = isCreating || isUpdating;
 
   // Form state — blank for a new entry; replaced wholesale once the
@@ -804,6 +806,13 @@ export function LogFormScreen() {
           },
         });
       }
+
+      // The Save button already blocks itself with a spinner while
+      // isPending — the gap was that nothing ever confirmed the save
+      // actually landed once it did. A toast fired right as navigation
+      // happens closes that without adding a second wait on top of the
+      // one that already existed.
+      showToast(isEditing ? "Changes saved" : "Log saved");
 
       // router.back() alone strands the user on this form whenever there's
       // no actual navigation history to go back to — a direct link, a

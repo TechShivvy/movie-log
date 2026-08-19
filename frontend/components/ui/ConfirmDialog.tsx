@@ -20,7 +20,7 @@
  * returned.
  */
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 
 interface ConfirmDialogProps {
@@ -59,7 +59,12 @@ export function ConfirmDialog({
   // ── Web ────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      <div className="dialog-backdrop" onClick={onCancel}>
+      // Backdrop click is a dismiss gesture — disabled mid-request so the
+      // dialog can't be dismissed out from under a delete that's still
+      // actually in flight (the whole point of blocking here instead of
+      // firing-and-navigating: the user should never lose sight of a
+      // destructive action before it's actually done).
+      <div className="dialog-backdrop" onClick={loading ? undefined : onCancel}>
         <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 340 } as React.CSSProperties}>
           <div className="dialog-title">{title}</div>
           {message && <div className="dialog-body">{message}</div>}
@@ -75,7 +80,8 @@ export function ConfirmDialog({
               onClick={onConfirm}
               disabled={loading}
             >
-              {loading ? "…" : confirmLabel}
+              {loading && <span className="spin">◌</span>}
+              {loading ? "Working…" : confirmLabel}
             </button>
           </div>
         </div>
@@ -85,8 +91,8 @@ export function ConfirmDialog({
 
   // ── Native ─────────────────────────────────────────────────────────────────
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.overlay} onPress={onCancel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => !loading && onCancel()}>
+      <Pressable style={styles.overlay} onPress={() => !loading && onCancel()}>
         {/* Swallow taps inside the card so they don't bubble to the
             overlay's onPress and dismiss the dialog. */}
         <Pressable style={[styles.dialog, { backgroundColor: theme.surface }]} onPress={() => {}}>
@@ -105,10 +111,11 @@ export function ConfirmDialog({
             <Pressable
               onPress={onConfirm}
               disabled={loading}
-              style={[styles.btn, { borderColor: confirmColor }]}
+              style={[styles.btn, { borderColor: confirmColor, flexDirection: "row", alignItems: "center", gap: 6 }]}
             >
+              {loading && <ActivityIndicator size="small" color={confirmColor} />}
               <Text style={{ color: confirmColor, fontSize: 14, fontWeight: "600" }}>
-                {loading ? "…" : confirmLabel}
+                {loading ? "Working…" : confirmLabel}
               </Text>
             </Pressable>
           </View>
