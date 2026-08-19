@@ -5,40 +5,75 @@
  *   Hero: height:160px; background:linear-gradient(135deg, accent-900, surface)
  *   Avatar row: 96px/26px border-radius/4px border-bg, name/username, Edit Profile btn
  *   Stats row: 4 cards (Films, Following, Followers, ★ avg)
- *   Favorites: 4-col grid (max-width:520px)
- *   Tabs: Logs/Reviews/Theatres (border-bottom:2px accent on active)
+ *   Tabs: Logs/Favorites/Theatres (border-bottom:2px accent on active)
  *   Logs grid: 6-col (web), 3-col (mobile)
  *
  * Mobile:
  *   Hero 140px + avatar overlapping + stats row
  *   2-col logs grid
+ *
+ * Tabs redesigned from the original Logs/Reviews/Theatres: "Reviews" was
+ * just "logs with notes in them" - a filtered subset of Logs, not a
+ * distinct category, and "Theatres" was a permanent stub ("Venues you've
+ * visited will appear here."). Favorites (favorite_position, a real
+ * backend feature - PUT/DELETE /movie-logs/{id}/favorite, capped at 4)
+ * had zero UI anywhere despite this file's own header comment describing
+ * a "Favorites" section that was never actually built - that's the
+ * natural replacement for Reviews. Theatres is now real: grouped
+ * client-side from the same own-logs list already fetched here, no
+ * extra request, one card per distinct theatre_id linking to its detail
+ * page.
  */
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
-  Image,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { PencilSimple, GearSix } from "phosphor-react-native";
+import { PencilSimple, GearSix, CaretRight } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { Avatar } from "../components/ui/Avatar";
 import { PosterCard } from "../components/ui/PosterCard";
 import type { MovieLog } from "../types";
 
-type Tab = "logs" | "reviews" | "theatres";
+type Tab = "logs" | "favorites" | "theatres";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "logs",     label: "Logs" },
-  { id: "reviews",  label: "Reviews" },
-  { id: "theatres", label: "Theatres" },
+  { id: "logs",      label: "Logs" },
+  { id: "favorites", label: "Favorites" },
+  { id: "theatres",  label: "Theatres" },
 ];
+
+// One row per distinct theatre_id among the caller's own logs — the
+// theatre's own real name isn't fetched here (no extra request); the
+// most recent visit's own free-typed `theater` text stands in for
+// display, same as every other place a log surfaces a venue name
+// without a dedicated theatre fetch.
+interface VisitedTheatre {
+  theatreId: string;
+  name: string;
+  visitCount: number;
+}
+
+function groupTheatres(logs: MovieLog[]): VisitedTheatre[] {
+  const byId = new Map<string, VisitedTheatre>();
+  for (const log of logs) {
+    if (!log.theatre_id) continue;
+    const existing = byId.get(log.theatre_id);
+    if (existing) {
+      existing.visitCount += 1;
+    } else {
+      byId.set(log.theatre_id, { theatreId: log.theatre_id, name: log.theater || "Unnamed theatre", visitCount: 1 });
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.visitCount - a.visitCount);
+}
 
 // ─── Stat pill ────────────────────────────────────────────────────────────────
 
@@ -59,40 +94,89 @@ function StatCard({ value, label, theme }: { value: string | number; label: stri
   );
 }
 
+// ─── Theatre row ────────────────────────────────────────────────────────────
+
+function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPress: () => void }) {
+  if (Platform.OS === "web") {
+    return (
+      <div className="tapc" onClick={onPress} style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 0", borderBottom: `1px solid ${theme.divider}`, cursor: "pointer",
+      } as React.CSSProperties}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{t.name}</div>
+          <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
+            {t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}
+          </div>
+        </div>
+        <CaretRight size={16} color={`${theme.text}44`} />
+      </div>
+    );
+  }
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+      <View>
+        <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{t.name}</Text>
+        <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}</Text>
+      </View>
+      <CaretRight size={16} color={`${theme.text}44`} />
+    </Pressable>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export function ProfileScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("logs");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: logs, isLoading } = useMovieLogs({ archived: false });
+  const { data: logs, isLoading, refetch } = useMovieLogs({ archived: false });
   const count    = logs?.length ?? 0;
   const avgRating = logs?.length
     ? (logs.filter((l) => l.rating != null).reduce((a, l) => a + (l.rating ?? 0), 0) /
        Math.max(1, logs.filter((l) => l.rating != null).length)).toFixed(1)
     : "—";
 
+  const favorites = useMemo(
+    () => (logs ?? []).filter((l) => l.favorite_position != null).sort((a, b) => (a.favorite_position ?? 0) - (b.favorite_position ?? 0)),
+    [logs]
+  );
+  const theatres = useMemo(() => groupTheatres(logs ?? []), [logs]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   // Placeholder user — in real app would come from useAuth
   const user = { display_name: "You", username: "you", avatar_url: undefined };
+
+  const openLog = (id: string) => router.push(`/(app)/log/${id}` as any);
+  const openVenue = (id: string) => router.push(`/(app)/venue/${id}` as any);
+
+  const logsForTab = activeTab === "favorites" ? favorites : logs ?? [];
 
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
-      // width:"100%" alongside maxWidth: without it this div shrink-wrapped
-      // to its content's width instead of filling out to the 1000px cap —
-      // the "You"/"@you" name block and the Settings/Edit profile buttons,
-      // meant to sit at opposite ends of a wide space-between row, ended up
-      // crushed together on the left with barely a gap. LibraryScreen's
-      // equivalent root div already carries width:"100%" for the same
-      // reason; this one didn't.
+      // width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
+      // same shrink-wrap-instead-of-filling bug as every other screen
+      // below this maxWidth+margin:auto shape. "You"/"@you" name block and
+      // the Settings/Edit profile buttons, meant to sit at opposite ends
+      // of a wide space-between row, ended up crushed together on the
+      // left with barely a gap without it.
       <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Hero banner */}
         <div style={{
           height: 160,
           background: `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
           position: "relative",
-          borderRadius: "0 0 0 0",
         } as React.CSSProperties} />
 
         <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
@@ -149,36 +233,39 @@ export function ProfileScreen() {
           </div>
 
           {/* Content */}
-          {activeTab === "logs" && (
-            isLoading ? (
-              <div style={{ textAlign: "center", padding: 40, color: theme.accent } as React.CSSProperties}>
-                <span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span>
-              </div>
-            ) : (logs?.length ?? 0) === 0 ? (
+          {isLoading ? (
+            <div style={{ textAlign: "center", padding: 40, color: theme.accent } as React.CSSProperties}>
+              <span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span>
+            </div>
+          ) : activeTab === "theatres" ? (
+            theatres.length === 0 ? (
               <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
-                <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-                <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No logs yet. Start by logging a film!</p>
+                <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎦</div>
+                <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No theatres linked to your logs yet.</p>
               </div>
             ) : (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(6, 1fr)",
-                gap: 14,
-              } as React.CSSProperties}>
-                {(logs ?? []).map((log) => (
-                  <PosterCard key={log.id} log={log} onPress={() => router.push(`/(app)/log/${log.id}` as any)} />
+              <div>
+                {theatres.map((t) => (
+                  <TheatreRow key={t.theatreId} t={t} theme={theme} onPress={() => openVenue(t.theatreId)} />
                 ))}
               </div>
             )
-          )}
-          {activeTab === "reviews" && (
-            <div className="card" style={{ color: `${theme.text}66`, fontSize: 14 } as React.CSSProperties}>
-              Reviews with written notes will appear here.
+          ) : logsForTab.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
+              <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
+              <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>
+                {activeTab === "favorites" ? "No favorites yet — star up to 4 logs from their detail page." : "No logs yet. Start by logging a film!"}
+              </p>
             </div>
-          )}
-          {activeTab === "theatres" && (
-            <div className="card" style={{ color: `${theme.text}66`, fontSize: 14 } as React.CSSProperties}>
-              Venues you've visited will appear here.
+          ) : (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(6, 1fr)",
+              gap: 14,
+            } as React.CSSProperties}>
+              {logsForTab.map((log) => (
+                <PosterCard key={log.id} log={log} onPress={() => openLog(log.id)} />
+              ))}
             </div>
           )}
         </div>
@@ -188,7 +275,11 @@ export function ProfileScreen() {
 
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ paddingBottom: 100 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: "transparent" }}
+      contentContainerStyle={{ paddingBottom: 100 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
+    >
       {/* Hero */}
       <View style={{
         height: 140,
@@ -247,33 +338,36 @@ export function ProfileScreen() {
           ))}
         </View>
 
-        {/* Logs grid — 3-col on mobile */}
-        {activeTab === "logs" && (
-          isLoading ? (
-            <ActivityIndicator color={theme.accent} size="large" style={{ paddingTop: 40 }} />
-          ) : (logs?.length ?? 0) === 0 ? (
+        {/* Content */}
+        {isLoading ? (
+          <ActivityIndicator color={theme.accent} size="large" style={{ paddingTop: 40 }} />
+        ) : activeTab === "theatres" ? (
+          theatres.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-              <Text style={{ fontSize: 36 }}>🎬</Text>
-              <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>No logs yet</Text>
+              <Text style={{ fontSize: 36 }}>🎦</Text>
+              <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>No theatres linked to your logs yet.</Text>
             </View>
           ) : (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {(logs ?? []).map((log) => (
-                <View key={log.id} style={{ width: "30%" }}>
-                  <PosterCard log={log} width={100} onPress={() => router.push(`/(app)/log/${log.id}` as any)} />
-                </View>
+            <View>
+              {theatres.map((t) => (
+                <TheatreRow key={t.theatreId} t={t} theme={theme} onPress={() => openVenue(t.theatreId)} />
               ))}
             </View>
           )
-        )}
-        {activeTab === "reviews" && (
-          <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: `${theme.text}66`, fontSize: 14 }}>Reviews with written notes will appear here.</Text>
+        ) : logsForTab.length === 0 ? (
+          <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
+            <Text style={{ fontSize: 36 }}>🎬</Text>
+            <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>
+              {activeTab === "favorites" ? "No favorites yet" : "No logs yet"}
+            </Text>
           </View>
-        )}
-        {activeTab === "theatres" && (
-          <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: `${theme.text}66`, fontSize: 14 }}>Venues you've visited will appear here.</Text>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {logsForTab.map((log) => (
+              <View key={log.id} style={{ width: "30%" }}>
+                <PosterCard log={log} width={100} onPress={() => openLog(log.id)} />
+              </View>
+            ))}
           </View>
         )}
       </View>
