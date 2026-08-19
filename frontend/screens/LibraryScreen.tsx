@@ -78,6 +78,20 @@ function LogPoster({ log, ...rest }: { log: MovieLog } & Omit<React.ComponentPro
 const FILTERS = ["All", "IMAX", "This year", "5 stars", "FDFS", "Archived"] as const;
 type Filter = (typeof FILTERS)[number];
 
+// The count line under the filter row always said "N films logged" no
+// matter which chip was active — true for "All" but misleading for the
+// rest ("12 films logged" while looking at only the 5-star ones reads as
+// "you've logged 12 films" full stop, not "12 of your logged films are
+// 5-star"). One phrase per filter instead.
+const FILTER_PHRASE: Record<Filter, string> = {
+  "All":        "logged",
+  "IMAX":       "in IMAX",
+  "This year":  "this year",
+  "5 stars":    "rated 5 stars",
+  "FDFS":       "FDFS",
+  "Archived":   "archived",
+};
+
 // These chips/toggles were <span>/<label onClick> — unreachable by keyboard,
 // invisible to a screen reader as controls. `<button>` fixes both for free
 // (native focus, Enter/Space activation, the app's own global
@@ -207,7 +221,7 @@ export function LibraryScreen() {
               Your library
             </div>
             <h1 className="lib-title" style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
-              {shown.length} {shown.length === 1 ? "film" : "films"} logged
+              {shown.length} {shown.length === 1 ? "film" : "films"} {FILTER_PHRASE[filter]}
             </h1>
           </div>
 

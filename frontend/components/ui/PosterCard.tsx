@@ -10,10 +10,12 @@
  * Native: Pressable + LinearGradient overlay.
  */
 import React from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
-import { hueFromTitle } from "./Poster";
+import { useMovie } from "../../hooks/useSearch";
+import { tmdbPosterUrl } from "../../lib/tmdb";
+import { Poster } from "./Poster";
 import type { MovieLog } from "../../types";
 
 interface PosterCardProps {
@@ -23,58 +25,31 @@ interface PosterCardProps {
   width?: number;
 }
 
-/** Gradient CSS for web (matches design JS poster() function) */
-function posterGradientCss(hue: number, dark = true): string {
-  const [l1, l2] = dark ? [20, 8] : [26, 12];
-  return `linear-gradient(155deg, hsl(${hue} 42% ${l1}%), hsl(${(hue + 30) % 360} 38% ${l2}%))`;
-}
-
-/** HSL → hex for native */
-function hslToHex(h: number, s: number, l: number): string {
-  const sn = s / 100, ln = l / 100;
-  const a = sn * Math.min(ln, 1 - ln);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = ln - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
+// Every card here used to hard-code the hue-gradient placeholder, even for
+// a log whose movie_id links to a catalog entry with real artwork —
+// nothing here ever looked the artwork up (the component's own old
+// comment said as much: "a real fix is a follow-up, not part of this
+// drift-correction pass"). LibraryScreen's LogPoster got this fix
+// earlier; this shared component — used by ProfileScreen, SearchScreen,
+// and FeedScreen — didn't, which is why posters looked broken specifically
+// on those screens and nowhere else. Delegates to the shared Poster
+// primitive (gradient/real-image/loading-state logic, hue derivation) now
+// instead of re-implementing its own copy of all of that.
 export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
   const { theme } = useTheme();
-  // `movie` can be null/undefined (a log doesn't strictly require a title
-  // server-side... actually it does, but defensive here too, matching
-  // LogDetailScreen/FeedScreen's same guard) — hueFromTitle handles it.
-  const hue = hueFromTitle(log.movie);
+  const { data: movie, isLoading } = useMovie(log.movie_id);
+  const posterUrl = tmdbPosterUrl(movie?.poster_path, "w342");
   const h = Math.round((width ?? 120) * 1.5);
-  // No poster image support yet — a log's `movie_id` links to the optional
-  // TMDB-backed catalog (schemas/movies.py's Movie.poster_path), but that
-  // catalog row isn't embedded in the log response, so resolving a real
-  // poster here would need a separate GET /movies/{movie_id} per card.
-  // Always falls back to the gradient for now; a real fix is a follow-up,
-  // not part of this drift-correction pass.
-  const posterUrl: string | undefined = undefined;
 
   // ── Web ────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
-    const grad = posterGradientCss(hue);
     return (
       <div
         className="gridcard lift tapc"
         onClick={onPress}
         style={{ display: "flex", flexDirection: "column", gap: 6 } as React.CSSProperties}
       >
-        {/* Poster */}
-        <div
-          className="poster"
-          style={{
-            aspectRatio: "2/3",
-            background: posterUrl
-              ? `url(${posterUrl}) center/cover no-repeat`
-              : grad,
-          } as React.CSSProperties}
-        >
+        <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={isLoading} style={{ aspectRatio: "2/3" } as React.CSSProperties}>
           {/* Star rating badge */}
           {log.rating != null && (
             <div style={{
@@ -100,7 +75,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
               </div>
             )}
           </div>
-        </div>
+        </Poster>
 
         {/* Below poster: title + format */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 } as React.CSSProperties}>
@@ -118,22 +93,12 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
   }
 
   // ── Native ─────────────────────────────────────────────────────────────────
-  const c1 = hslToHex(hue, 42, 20);
-  const c2 = hslToHex((hue + 30) % 360, 38, 8);
-
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, { width, height: h, opacity: pressed ? 0.85 : 1 }]}
     >
-      {/* Poster */}
-      <View style={[styles.poster, { width, height: h }]}>
-        {posterUrl ? (
-          <Image source={{ uri: posterUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        ) : (
-          <LinearGradient colors={[c1, c2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-        )}
-
+      <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={isLoading} style={{ width, height: h }}>
         {/* Star badge */}
         {log.rating != null && (
           <View style={[styles.starBadge, { backgroundColor: `${theme.bg}cc` }]}>
@@ -156,7 +121,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
             </Text>
           )}
         </LinearGradient>
-      </View>
+      </Poster>
 
       {/* Title + format below poster */}
       <View style={styles.footer}>
@@ -173,7 +138,6 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 
 const styles = StyleSheet.create({
   card:        { flexDirection: "column", gap: 6 },
-  poster:      { borderRadius: 8, overflow: "hidden", position: "relative" },
   starBadge:   { position: "absolute", top: 8, right: 8, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
   starText:    { fontSize: 11, color: "#fff", fontWeight: "600" },
   overlay:     { position: "absolute", inset: 0, justifyContent: "flex-end", padding: 12 },

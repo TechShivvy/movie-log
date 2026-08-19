@@ -11,12 +11,30 @@ export const logKeys = {
 };
 
 // ─── Fetch all logs ───────────────────────────────────────────────────────────
-export function useMovieLogs(params?: { archived?: boolean; visibility?: string }) {
+export function useMovieLogs(params?: { archived?: boolean; visibility?: string; movieId?: string; theatreId?: string; screenId?: string }) {
   return useQuery({
     queryKey: logKeys.list(params),
     queryFn: async () => {
       if (DEMO_MODE) return MOCK_LOGS;
-      const { data } = await api.get<MovieLog[]>("/movie-logs", { params });
+      // The backend's actual query param is `archived_only` (and
+      // `movie_id`/`theatre_id`/`screen_id`, snake_case) — this hook's own
+      // params stay camelCase/`archived` to match this codebase's call-site
+      // convention, translated here. Sending `archived` literally (the old
+      // behavior) was silently ignored server-side: FastAPI just never
+      // bound it to anything, so every caller — Library's filter chips,
+      // Profile, Feed — always got the same default (non-archived-only)
+      // set back regardless of what was actually asked for. That's why the
+      // Library "Archived" filter chip never showed anything: the
+      // underlying fetch never actually requested archived rows.
+      const { archived, movieId, theatreId, screenId, ...rest } = params ?? {};
+      const apiParams = {
+        ...rest,
+        ...(archived !== undefined ? { archived_only: archived } : {}),
+        ...(movieId ? { movie_id: movieId } : {}),
+        ...(theatreId ? { theatre_id: theatreId } : {}),
+        ...(screenId ? { screen_id: screenId } : {}),
+      };
+      const { data } = await api.get<MovieLog[]>("/movie-logs", { params: apiParams });
       return data;
     },
   });

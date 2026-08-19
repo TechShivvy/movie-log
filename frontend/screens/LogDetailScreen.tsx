@@ -348,7 +348,23 @@ export function LogDetailScreen() {
 
   const vcol = visColor(log.visibility);
   const handleLike = () => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller });
-  const handleArchive = () => archiveLog.mutate({ id: log.id, archive: !log.is_archived });
+  // Archiving just flips is_archived and the log silently drops out of
+  // Library's default view — with no confirmation of any kind, that read
+  // as "the button doesn't do anything" (compounded by the real
+  // useMovieLogs `archived`/`archived_only` param bug that also made the
+  // Archived filter chip never show the log again either — fixed
+  // separately in useMovieLogs.ts). The toast is what actually tells the
+  // user their tap did something.
+  const handleArchive = () => {
+    const archive = !log.is_archived;
+    archiveLog.mutate(
+      { id: log.id, archive },
+      {
+        onSuccess: () => showToast(archive ? "Log archived" : "Log unarchived"),
+        onError: () => showToast("Couldn't update — try again"),
+      }
+    );
+  };
   // router.back() alone strands a user with nowhere to go if this screen
   // was opened directly (a deep link, a shared URL, a fresh tab) rather
   // than navigated to from within the app — there's no history to go back
