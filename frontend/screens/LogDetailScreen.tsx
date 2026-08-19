@@ -14,7 +14,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   Pressable,
@@ -53,6 +52,7 @@ import { useVenueRating } from "../hooks/useVenueRating";
 import { useMovie } from "../hooks/useSearch";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { hueFromTitle } from "../components/ui/Poster";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import type { Comment, MovieLog } from "../types";
@@ -354,10 +354,11 @@ export function LogDetailScreen() {
   const goBackOrHome = () => (router.canGoBack() ? router.back() : router.replace("/"));
   // No confirmation dialog existed anywhere for Delete — it wasn't even
   // reachable in the UI before this pass despite DELETE /movie-logs/{id}
-  // being a real, working endpoint. Native uses Alert.alert, the same
-  // pattern SettingsScreen's own delete-account already uses; web uses the
-  // app's existing .dialog-backdrop/.dialog classes (designCss.ts), not a
-  // new one.
+  // being a real, working endpoint. Both platforms now go through the
+  // shared ConfirmDialog (see components/ui/ConfirmDialog.tsx) instead of
+  // native Alert.alert — which is a documented hard no-op on web
+  // (react-native-web's Alert.alert does literally nothing), and even on
+  // native was bare unstyled OS chrome with no relation to the app's theme.
   //
   // Deliberately mutateAsync + await, not mutate(id, {onSuccess}) — the
   // per-call onSuccess never actually fired in testing (confirmed via a
@@ -371,16 +372,7 @@ export function LogDetailScreen() {
     await deleteLog.mutateAsync(log.id);
     goBackOrHome();
   };
-  const handleDelete = () => {
-    if (Platform.OS === "web") {
-      setConfirmingDelete(true);
-      return;
-    }
-    Alert.alert("Delete this log?", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => { void doDelete(); } },
-    ]);
-  };
+  const handleDelete = () => setConfirmingDelete(true);
   const confirmDelete = () => {
     setConfirmingDelete(false);
     void doDelete();
@@ -407,6 +399,22 @@ export function LogDetailScreen() {
   // those regardless — nothing to resolve, not a bug.
   const posterUrl = tmdbPosterUrl(movieCatalog?.poster_path, "w500");
 
+  // Built once, dropped into whichever of the two platform-branch return
+  // trees below actually renders — ConfirmDialog itself renders nothing
+  // when !visible, so this is a no-op node the rest of the time.
+  const deleteDialog = (
+    <ConfirmDialog
+      visible={confirmingDelete}
+      title="Delete this log?"
+      message="This can't be undone."
+      confirmLabel="Delete"
+      destructive
+      loading={deleteLog.isPending}
+      onConfirm={confirmDelete}
+      onCancel={() => setConfirmingDelete(false)}
+    />
+  );
+
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
     return (
@@ -424,25 +432,7 @@ export function LogDetailScreen() {
           Back
         </button>
 
-        {confirmingDelete && (
-          <div className="dialog-backdrop" onClick={() => setConfirmingDelete(false)}>
-            <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 340 } as React.CSSProperties}>
-              <div className="dialog-title">Delete this log?</div>
-              <div className="dialog-body">This can't be undone.</div>
-              <div className="dialog-actions">
-                <button className="btn btn-secondary" onClick={() => setConfirmingDelete(false)}>Cancel</button>
-                <button
-                  className="btn btn-primary"
-                  style={{ color: "#EF4444", borderColor: "#EF4444" } as React.CSSProperties}
-                  onClick={confirmDelete}
-                  disabled={deleteLog.isPending}
-                >
-                  {deleteLog.isPending ? "Deleting…" : "Delete"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {deleteDialog}
 
         {/* Two-column on desktop/tablet; stacked, poster on top, below 768px. */}
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 20 : 32, alignItems: isMobile ? "stretch" : "flex-start" } as React.CSSProperties}>
@@ -624,7 +614,9 @@ export function LogDetailScreen() {
   const c2Native = `hsl(${(hue + 30) % 360}, 38%, 8%)`;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 80 }}>
+    <>
+      {deleteDialog}
+      <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Hero poster — 340px */}
       <View style={{ width: "100%", height: 340, position: "relative" }}>
         {posterUrl ? (
@@ -827,6 +819,7 @@ export function LogDetailScreen() {
           </Text>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }

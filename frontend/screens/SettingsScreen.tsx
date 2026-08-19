@@ -16,7 +16,6 @@
  */
 import React, { useState } from "react";
 import {
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -24,6 +23,7 @@ import {
   View,
 } from "react-native";
 import { CheckCircle, Palette, User, Lock, Robot, Database, Trash } from "phosphor-react-native";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useTheme } from "../hooks/useTheme";
 import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
@@ -262,6 +262,12 @@ function WebAiSection({ theme }: any) {
 // ─── Data / Danger Zone — Web ─────────────────────────────────────────────────
 
 function WebDataSection({ theme }: any) {
+  // Account deletion isn't implemented on the backend yet. This used to
+  // be window.confirm/alert — plain unthemed browser chrome, unlike
+  // every other dialog in the app — replaced with the same ConfirmDialog
+  // LogDetailScreen's delete flow uses.
+  const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
   return (
     <div>
       <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Data</h3>
@@ -286,12 +292,30 @@ function WebDataSection({ theme }: any) {
         <button
           className="btn"
           style={{ backgroundColor: theme.error, color: "#fff", border: "none" } as React.CSSProperties}
-          onClick={() => window.confirm("Are you sure? This cannot be undone.") && alert("Account deletion — coming soon.")}
+          onClick={() => setConfirmingDeleteAccount(true)}
         >
           <Trash size={14} color="#fff" />
           Delete account
         </button>
       </div>
+      <ConfirmDialog
+        visible={confirmingDeleteAccount}
+        title="Delete account"
+        message="Are you sure? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { setConfirmingDeleteAccount(false); setShowComingSoon(true); }}
+        onCancel={() => setConfirmingDeleteAccount(false)}
+      />
+      <ConfirmDialog
+        visible={showComingSoon}
+        title="Coming soon"
+        message="Account deletion is not yet available."
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setShowComingSoon(false)}
+        onCancel={() => setShowComingSoon(false)}
+      />
     </div>
   );
 }
@@ -367,6 +391,14 @@ function NativeAiSection({ theme }: any) {
 // ─── Data section — Native ────────────────────────────────────────────────────
 
 function NativeDataSection({ theme }: any) {
+  // Account deletion isn't implemented on the backend yet. This used to
+  // be Alert.alert, which is a documented hard no-op on web
+  // (react-native-web's Alert.alert does nothing) — this screen also has
+  // a web branch (WebDataSection), so that path silently did nothing at
+  // all there. Replaced with the same ConfirmDialog LogDetailScreen's
+  // delete flow uses, which works identically on both platforms.
+  const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
+  const [showComingSoon, setShowComingSoon] = useState(false);
   return (
     <View style={{ gap: 14 }}>
       {/* Export */}
@@ -401,10 +433,7 @@ function NativeDataSection({ theme }: any) {
           Permanently delete your account and all data. This cannot be undone.
         </Text>
         <Pressable
-          onPress={() => Alert.alert("Delete account", "Are you sure? This cannot be undone.", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Delete", style: "destructive", onPress: () => Alert.alert("Coming soon", "Account deletion is not yet available.") },
-          ])}
+          onPress={() => setConfirmingDeleteAccount(true)}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -420,6 +449,24 @@ function NativeDataSection({ theme }: any) {
           <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>Delete account</Text>
         </Pressable>
       </View>
+      <ConfirmDialog
+        visible={confirmingDeleteAccount}
+        title="Delete account"
+        message="Are you sure? This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { setConfirmingDeleteAccount(false); setShowComingSoon(true); }}
+        onCancel={() => setConfirmingDeleteAccount(false)}
+      />
+      <ConfirmDialog
+        visible={showComingSoon}
+        title="Coming soon"
+        message="Account deletion is not yet available."
+        confirmLabel="OK"
+        hideCancel
+        onConfirm={() => setShowComingSoon(false)}
+        onCancel={() => setShowComingSoon(false)}
+      />
     </View>
   );
 }

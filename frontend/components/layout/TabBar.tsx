@@ -1,22 +1,29 @@
 /**
- * TabBar — ported from docs/design/CineLog Mobile.dc.html (lines 558-568).
+ * TabBar — mobile bottom nav.
  *
- *   bar     flex; align-items:center; justify-content:space-around;
- *           padding:8px 6px 22px; border-top:1px solid divider
- *   tab     column; gap:3px; padding:4px 10px
- *           icon 22px, label 10px
- *           colour = accent when active, else text at 45%
- *   centre  54x54 circle, margin-top:-24px, accent bg, bg-coloured
- *           ph-bold ph-plus @26px,
- *           box-shadow 0 6px 20px accent 45%
+ * Redesigned from the original literal port of docs/design/CineLog
+ * Mobile.dc.html (lines 558-568): that spec's `box-shadow:0 6px 20px
+ * accent@45%` glow around the centre FAB is a real soft-blurred CSS
+ * shadow on web, but React Native has no way to render it — shadow*
+ * props are iOS-only and Android's `elevation` is a flat grey drop
+ * shadow with no colour or blur at all. The original fabGlow worked
+ * around that with a flat 35%-opacity accent circle sitting behind the
+ * button — which doesn't fade, so it reads as a second hard-edged ring
+ * around the FAB rather than a glow (confirmed on a real device). Now
+ * built as a true radial gradient (react-native-svg) that fades to
+ * fully transparent at its edge, so there's no ring to see, on every
+ * renderer this runs on.
  *
- * Active mapping mirrors tabColor():
- *   library ← detail | movie | venue | stats
- *   profile ← settings | notifications
+ * Also: flat theme.surface + a 1px top line didn't share any visual
+ * language with the rest of the app (Sidebar's rounded, elevated cards
+ * and `accent@13%` active-pill treatment) — the bar is now an elevated
+ * surfaceHigh panel with rounded top corners and the same active-pill
+ * pattern Sidebar uses for its nav items.
  */
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
+import Svg, { Defs, RadialGradient, Stop, Circle } from "react-native-svg";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
 
@@ -26,6 +33,10 @@ const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] =
   { icon: "magnifying-glass", label: "Search",  href: "/(app)/search" },
   { icon: "user",             label: "Profile", href: "/(app)/profile", owns: ["/settings", "/notifications"] },
 ];
+
+const FAB_SIZE = 62;   // was 54 — "make the plus bigger than other sections"
+const FAB_ICON = 30;   // was 26
+const GLOW_SIZE = 108; // fully-faded radius well past the button's edge
 
 export function TabBar() {
   const { theme } = useTheme();
@@ -55,30 +66,45 @@ export function TabBar() {
     const active = isActive(t);
     return (
       <Pressable key={t.href} onPress={() => router.push(t.href as any)} style={styles.tab}>
-        <Icon name={t.icon} size={22} color={active ? theme.accent : inactive} />
+        {/* Same accent@13% active-pill Sidebar uses for its nav items —
+            the one piece of shared visual language the old flat-icon
+            tabs had none of. */}
+        <View style={[styles.tabPill, active && { backgroundColor: `${theme.accent}21` }]}>
+          <Icon name={t.icon} size={22} color={active ? theme.accent : inactive} />
+        </View>
         <Text style={{ fontSize: 10, color: active ? theme.accent : inactive }}>{t.label}</Text>
       </Pressable>
     );
   };
 
   return (
-    <View style={[styles.bar, { borderTopColor: theme.divider, backgroundColor: theme.surface }]}>
+    <View style={[styles.bar, { backgroundColor: theme.surfaceHigh, shadowColor: "#000" }]}>
       {left.map(renderTab)}
 
-      {/* box-shadow: 0 6px 20px accent@45% from the design. RN's shadow*
-          props are iOS-only, and Android's `elevation` only ever draws a
-          flat grey shadow — neither produces a colored glow. A translucent
-          halo layer behind the button reproduces it on both platforms. */}
       <View style={styles.fabWrap}>
-        <View
+        <Svg
           pointerEvents="none"
-          style={[styles.fabGlow, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
-        />
+          width={GLOW_SIZE}
+          height={GLOW_SIZE}
+          style={{ position: "absolute", top: (FAB_SIZE - GLOW_SIZE) / 2, left: (FAB_SIZE - GLOW_SIZE) / 2 }}
+        >
+          <Defs>
+            <RadialGradient id="fabGlow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor={theme.accent} stopOpacity={0.5} />
+              <Stop offset="45%" stopColor={theme.accent} stopOpacity={0.22} />
+              <Stop offset="100%" stopColor={theme.accent} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={GLOW_SIZE / 2} cy={GLOW_SIZE / 2} r={GLOW_SIZE / 2} fill="url(#fabGlow)" />
+        </Svg>
         <Pressable
           onPress={() => router.push("/(app)/log/new" as any)}
-          style={[styles.fab, { backgroundColor: theme.accent, shadowColor: theme.accent }]}
+          style={[
+            styles.fab,
+            { width: FAB_SIZE, height: FAB_SIZE, borderRadius: FAB_SIZE / 2, backgroundColor: theme.accent, shadowColor: theme.accent },
+          ]}
         >
-          <Icon name="plus" weight="bold" size={26} color={theme.bg} />
+          <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
         </Pressable>
       </View>
 
@@ -95,49 +121,35 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingHorizontal: 6,
     paddingBottom: 22,
-    borderTopWidth: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    // Elevated panel, floating over content, instead of a hairline top
+    // border — matches the --shadow-md card language used everywhere
+    // else (Sidebar cards, dialogs), just cast upward since this sits
+    // at the bottom edge of the screen.
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 12,
   },
-  tab: { alignItems: "center", gap: 3, paddingVertical: 4, paddingHorizontal: 10 },
+  tab: { alignItems: "center", gap: 3, paddingVertical: 2, paddingHorizontal: 6 },
+  tabPill: {
+    width: 38, height: 30, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+  },
   fabWrap: {
-    width: 54,
-    height: 54,
-    marginTop: -24,
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    marginTop: -(FAB_SIZE / 2 + 6),
     alignItems: "center",
     justifyContent: "center",
   },
-  // Oversized, low-opacity, same-color circle sitting behind the button —
-  // the "glow". Real blur isn't available without a native blur view, so
-  // this approximates it with a soft-edged halo instead. Needs explicit
-  // top/left to actually center: an absolutely-positioned view with none
-  // of top/left/right/bottom set is NOT reliably centered by the parent's
-  // alignItems/justifyContent on every renderer (Yoga does honor it, but
-  // react-native-web renders this as plain CSS absolute positioning, which
-  // never does) — since TabBar now also mounts on narrow web viewports,
-  // this rendered anchored to fabWrap's top-left corner there: a lopsided
-  // blob instead of a halo. (78-54)/2 = 12 centers the larger circle over
-  // the button on every renderer, not just the ones with Yoga's semantics.
-  fabGlow: {
-    position: "absolute",
-    top: -12,
-    left: -12,
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    opacity: 0.35,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 6,
-  },
   fab: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
-    shadowRadius: 20,
+    shadowRadius: 16,
     elevation: 8,
   },
 });
