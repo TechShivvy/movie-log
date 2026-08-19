@@ -403,7 +403,7 @@ export function LibraryScreen() {
             Your library
           </Text>
           <Text style={{ fontSize: 27, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4 }}>
-            {shown.length} {shown.length === 1 ? "film" : "films"} logged
+            {shown.length} {shown.length === 1 ? "film" : "films"} {FILTER_PHRASE[filter]}
           </Text>
         </View>
         <Pressable
