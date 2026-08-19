@@ -15,7 +15,7 @@ services:
   - type: web
     runtime: static
     name: cinelog-web
-    branch: main
+    branch: claude/frontend-hardening-react-expo-6l8r1y
     rootDir: frontend
     buildCommand: npm install && npm run build:web
     staticPublishPath: dist
