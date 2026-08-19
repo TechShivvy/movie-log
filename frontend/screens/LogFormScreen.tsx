@@ -16,6 +16,7 @@
  *   All fields vertical
  */
 import React, { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   Image,
@@ -657,6 +658,7 @@ export function LogFormScreen() {
   const { mutateAsync: createLog, isPending: isCreating } = useCreateLog();
   const { mutateAsync: updateLog, isPending: isUpdating } = useUpdateLog();
   const { mutateAsync: createMovie } = useCreateMovie();
+  const qc = useQueryClient();
   const { mutateAsync: upsertVenueRating } = useUpsertVenueRating();
   const { data: existingLog, isLoading: isLoadingExisting } = useMovieLog(editId ?? "");
   const existingVenueRating = useVenueRating(editId ?? "");
@@ -735,11 +737,27 @@ export function LogFormScreen() {
     // with just the free-typed title and no catalog link, same as before.
     try {
       const movie = await createMovie(m.tmdb_id);
-      if (movie) setFs((p) => ({ ...p, movieId: movie.id }));
+      if (movie) {
+        setFs((p) => ({ ...p, movieId: movie.id }));
+        // createMovie's response IS a full Movie — poster_path included —
+        // but useMovie(movieId) (what Library/LogDetail actually read the
+        // poster from) has no way to know that; it only ever fires its
+        // own fresh GET /movies/{id} the first time something asks for
+        // this id, which is exactly what happened right after saving:
+        // navigate to Library, LogPoster mounts, calls useMovie(movie_id)
+        // for an id nothing has ever primed the cache for, so it's a
+        // real network round trip (catalog GET, ~1s, more on a cold
+        // backend) before the poster can even start loading from TMDB's
+        // CDN on top of that — the "only hue" window right after saving.
+        // Priming the cache with what this call already has in hand
+        // skips that first round trip entirely for the log being created
+        // right now.
+        qc.setQueryData(["movies", movie.id], movie);
+      }
     } catch {
       // swallowed deliberately — see comment above
     }
-  }, [createMovie]);
+  }, [createMovie, qc]);
 
   const pickVenue = useCallback((v: TheatreMatchCandidate) => {
     setFs((p) => ({ ...p, venueId: v.id, venueName: v.name }));
