@@ -1,17 +1,18 @@
 /**
  * StarRating — design spec: Phosphor Star icons, 26px, accent colour.
  *
- * Half-star support: the backend accepts ratings in 0.5 steps (0.5-5,
- * schemas/movie_logs.py's _check_half_star) and readonly displays already
- * rendered a half-filled star correctly, but there was no way to actually
- * *set* a half value from this component — every tap/click only ever
- * produced a whole number 1-5, on both platforms. Each star is now two
- * invisible half-width tap zones (left = n-0.5, right = n) layered over
- * one icon that shows empty/half/full — same structure on web and native,
- * rather than web using continuous mouse-position tracking and native
- * using discrete zones; one interaction model to reason about.
+ * Interaction (Letterboxd/Google-style single tap-target per star, not
+ * a left/right split): tapping star N sets the rating to N (full).
+ * Tapping the SAME star again — it's already at N — steps it down to
+ * N-0.5 (half). Tapping it a third time — already at N-0.5 — clears to
+ * 0. Tapping any other star always jumps straight to that star's full
+ * value. A left/right-half-zone version of this shipped first but was
+ * explicitly rejected: fewer, larger tap targets per star (one, not
+ * two) matches how Letterboxd/Google actually behave and is easier to
+ * hit accurately on a phone.
  *
- * Web: CSS hover preview via the same half-zone split.
+ * Web: CSS hover preview — shows what the pending tap on the hovered
+ * star would produce, using the same cycle rule as an actual click.
  * Native: Pressable row with Phosphor Star/StarHalf icons.
  */
 import React, { useState } from "react";
@@ -34,15 +35,23 @@ function starWeight(n: number, active: number): "fill" | "regular" | "half" {
   return "regular";
 }
 
+/** full -> half -> clear -> full, tapping a different star always jumps to its full value. */
+function nextValue(current: number, n: number): number {
+  if (current === n) return n - 0.5;
+  if (current === n - 0.5) return 0;
+  return n;
+}
+
 export function StarRating({ value, onChange, size = "normal", readonly = false }: StarRatingProps) {
   const { theme } = useTheme();
-  const [hovered, setHovered] = useState(0);
+  const [hoveredStar, setHoveredStar] = useState<number | null>(null);
   const px = SIZE_PX[size];
-  const active = hovered || value;
+  const previewValue = hoveredStar != null ? nextValue(value, hoveredStar) : null;
+  const active = previewValue ?? value;
 
   function pick(n: number) {
     if (readonly) return;
-    onChange?.(n === value ? 0 : n);
+    onChange?.(nextValue(value, n));
   }
 
   // ── Web ────────────────────────────────────────────────────────────────────
@@ -53,33 +62,17 @@ export function StarRating({ value, onChange, size = "normal", readonly = false 
           const weight = starWeight(n, active);
           const filled = weight !== "regular";
           return (
-            <div
+            <span
               key={n}
-              style={{
-                position: "relative", width: px, height: px, flexShrink: 0,
-                color: filled ? theme.accent : theme.divider,
-              } as React.CSSProperties}
+              onMouseEnter={() => !readonly && setHoveredStar(n)}
+              onMouseLeave={() => !readonly && setHoveredStar(null)}
+              onClick={() => pick(n)}
+              style={{ display: "flex", cursor: readonly ? "default" : "pointer" } as React.CSSProperties}
             >
               {weight === "half"
                 ? <StarHalf size={px} weight="fill" color={theme.accent} />
                 : <Star size={px} weight={weight === "fill" ? "fill" : "regular"} color={filled ? theme.accent : theme.divider} />}
-              {!readonly && (
-                <>
-                  <span
-                    onMouseEnter={() => setHovered(n - 0.5)}
-                    onMouseLeave={() => setHovered(0)}
-                    onClick={() => pick(n - 0.5)}
-                    style={{ position: "absolute", inset: "0 50% 0 0", cursor: "pointer" } as React.CSSProperties}
-                  />
-                  <span
-                    onMouseEnter={() => setHovered(n)}
-                    onMouseLeave={() => setHovered(0)}
-                    onClick={() => pick(n)}
-                    style={{ position: "absolute", inset: "0 0 0 50%", cursor: "pointer" } as React.CSSProperties}
-                  />
-                </>
-              )}
-            </div>
+            </span>
           );
         })}
       </div>
@@ -93,19 +86,11 @@ export function StarRating({ value, onChange, size = "normal", readonly = false 
         const weight = starWeight(n, value);
         const filled = weight !== "regular";
         return (
-          <View key={n} style={{ width: px + 4, height: px + 4, padding: 2 }}>
-            <View style={{ position: "relative", width: px, height: px }}>
-              {weight === "half"
-                ? <StarHalf size={px} weight="fill" color={theme.accent} />
-                : <Star size={px} weight={weight === "fill" ? "fill" : "regular"} color={filled ? theme.accent : theme.divider} />}
-              {!readonly && (
-                <>
-                  <Pressable onPress={() => pick(n - 0.5)} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: px / 2 }} />
-                  <Pressable onPress={() => pick(n)} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: px / 2 }} />
-                </>
-              )}
-            </View>
-          </View>
+          <Pressable key={n} onPress={() => pick(n)} disabled={readonly} style={{ padding: 2 }}>
+            {weight === "half"
+              ? <StarHalf size={px} weight="fill" color={theme.accent} />
+              : <Star size={px} weight={weight === "fill" ? "fill" : "regular"} color={filled ? theme.accent : theme.divider} />}
+          </Pressable>
         );
       })}
     </View>
