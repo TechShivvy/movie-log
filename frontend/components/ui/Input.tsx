@@ -33,19 +33,70 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
 
   // ── Web ────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
+    // This component's own prop contract is TextInputProps — every real
+    // caller passes onChangeText/keyboardType/secureTextEntry/returnKeyType,
+    // the RN idiom, never onChange/type. This branch used to spread `rest`
+    // straight onto a plain DOM <input>/<textarea>, which doesn't
+    // understand any of those: no onChange handler ever reached the DOM at
+    // all (onChangeText isn't a real event), so a controlled `value` with
+    // no working way to change it made every field genuinely read-only —
+    // invisible as long as nothing ever rendered this branch, which
+    // changed once screens started reusing their native branch (built
+    // against this exact prop contract) on web too. Bridges the actual
+    // subset every caller in this codebase uses, rather than spreading
+    // blind and hoping DOM attributes happen to line up.
+    const {
+      value, onChangeText, placeholder, secureTextEntry, keyboardType,
+      autoCapitalize, autoComplete, returnKeyType, onSubmitEditing,
+      onFocus, onBlur, maxLength, numberOfLines, editable, autoFocus,
+    } = rest as any;
+
+    const type = secureTextEntry ? "password"
+      : keyboardType === "email-address" ? "email"
+      : "text";
+    // inputMode is the correct way to hint a numeric keyboard on web —
+    // type="number" brings its own spinner arrows and blocks non-digit
+    // characters HTML5-validation-style, neither of which this design
+    // wants (e.g. a free-typed "±10" delta field).
+    const inputMode =
+      keyboardType === "numeric" || keyboardType === "number-pad" ? "numeric"
+      : keyboardType === "decimal-pad" ? "decimal"
+      : keyboardType === "email-address" ? "email"
+      : undefined;
+
     const Tag = multiline ? "textarea" : "input";
     return (
       <div className="field" style={style as React.CSSProperties}>
         {label && <label>{label}</label>}
         <Tag
+          ref={ref as any}
           className={`input${error ? " input-error" : ""}`}
-          rows={multiline ? 4 : undefined}
+          rows={multiline ? (numberOfLines ?? 4) : undefined}
+          type={multiline ? undefined : type}
+          inputMode={inputMode}
+          value={value ?? ""}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          disabled={editable === false}
+          autoFocus={autoFocus}
+          autoCapitalize={autoCapitalize}
+          autoComplete={autoComplete}
+          // returnKeyType's closest real web equivalent — hints the
+          // on-screen keyboard's enter key label/icon (mobile Safari and
+          // Chrome both honor it) — plus onKeyDown below actually wires
+          // Enter to onSubmitEditing, which enterKeyHint alone doesn't do.
+          enterKeyHint={returnKeyType}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChangeText?.(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if (e.key === "Enter" && !multiline) onSubmitEditing?.();
+          }}
           style={
             error
               ? ({ borderColor: "#EF4444" } as React.CSSProperties)
               : {}
           }
-          {...(rest as any)}
         />
         {error && (
           <span style={{ fontSize: 12, color: "#EF4444", marginTop: 4, display: "block" } as React.CSSProperties}>
