@@ -1,0 +1,261 @@
+/**
+ * VenueDetailScreen — theatre home page: name (nickname-aware), address,
+ * map, status badge, aggregate ratings, a private note, browsable screens,
+ * admin nickname editing, and the same three-scope log pattern as
+ * MovieDetailScreen (see ScopedLogGrid).
+ */
+import React, { useState } from "react";
+import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { MapPin, PencilSimple, Star } from "phosphor-react-native";
+import { useTheme } from "../hooks/useTheme";
+import { useAuth } from "../hooks/useAuth";
+import { useMe } from "../hooks/useMe";
+import {
+  useTheatre, useTheatreStats, useTheatreReviews, useTheatreScreens,
+  useTheatreNote, useSetTheatreNote, useSetTheatreNickname,
+} from "../hooks/useSearch";
+import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useFeed } from "../hooks/useFeed";
+import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
+import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
+import { venueDisplayName, venueMapsUrl, venueMapsEmbedUrl } from "../lib/venue";
+import type { MovieLog, Screen } from "../types";
+
+const STATUS_LABEL: Record<string, string> = { open: "Open", closed: "Closed", renovation: "Renovation" };
+
+function StatusBadge({ status, theme }: { status: string; theme: any }) {
+  const color = status === "open" ? "#4CAF50" : status === "closed" ? theme.error : theme.accent;
+  const label = STATUS_LABEL[status] ?? status;
+  return Platform.OS === "web" ? (
+    <span className="tag" style={{ background: `${color}22`, color, fontWeight: 600 } as React.CSSProperties}>{label}</span>
+  ) : (
+    <View style={{ backgroundColor: `${color}22`, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+      <Text style={{ color, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+    </View>
+  );
+}
+
+export function VenueDetailScreen() {
+  const { theme } = useTheme();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { data: me } = useMe();
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  const { data: theatre, isLoading: theatreLoading } = useTheatre(id);
+  const { data: stats } = useTheatreStats(id);
+  const { data: screens, isLoading: screensLoading } = useTheatreScreens(id);
+  const { data: mineLogs, isLoading: mineLoading } = useMovieLogs({ theatreId: id });
+  const { data: followingLogs, isLoading: followingLoading } = useFeed({ theatreId: id, limit: 50 });
+  const { data: publicLogs, isLoading: publicLoading } = useTheatreReviews(id);
+  const { data: note, isLoading: noteLoading } = useTheatreNote(id);
+  const setNote = useSetTheatreNote(id);
+  const setNickname = useSetTheatreNickname(id);
+
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState("");
+  const [addressDraft, setAddressDraft] = useState("");
+
+  const openLog = (log: MovieLog) => router.push(`/(app)/log/${log.id}` as any);
+  const openScreen = (screen: Screen) => router.push(`/(app)/venue/${id}/screen/${screen.id}` as any);
+
+  const tabs = [
+    { id: "mine" as LogScope, label: "Your logs", logs: mineLogs, loading: mineLoading, emptyText: "You haven't logged a visit here yet." },
+    { id: "following" as LogScope, label: "Following", logs: followingLogs, loading: followingLoading, emptyText: "No logs from people you follow yet.", signedOutText: "Sign in to see logs from people you follow." },
+    { id: "public" as LogScope, label: "Public", logs: publicLogs, loading: publicLoading, emptyText: "No public reviews yet." },
+  ];
+
+  if (theatreLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
+        {Platform.OS === "web"
+          ? <span className="spin" style={{ fontSize: 28, color: theme.accent } as React.CSSProperties}>◌</span>
+          : <Text style={{ color: theme.text }}>Loading…</Text>}
+      </View>
+    );
+  }
+  if (!theatre) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
+        <Text style={{ fontSize: 16, color: theme.text }}>Theatre not found.</Text>
+      </View>
+    );
+  }
+
+  const displayName = venueDisplayName(theatre);
+  const displayAddress = theatre.nickname_address || theatre.formatted_address;
+  const mapsUrl = venueMapsUrl(theatre);
+  const embedUrl = venueMapsEmbedUrl(theatre);
+  const ratingText = stats?.overall_avg != null ? stats.overall_avg.toFixed(1) : null;
+
+  const startEditNickname = () => {
+    setNicknameDraft(theatre.nickname ?? "");
+    setAddressDraft(theatre.nickname_address ?? "");
+    setEditingNickname(true);
+  };
+  const saveNickname = () => {
+    setNickname.mutate(
+      { nickname: nicknameDraft.trim(), nickname_address: addressDraft.trim() },
+      { onSuccess: () => setEditingNickname(false) }
+    );
+  };
+
+  const header = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" } as React.CSSProperties}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: theme.text, margin: 0, letterSpacing: -0.5 } as React.CSSProperties}>
+          {displayName}
+        </h1>
+        <StatusBadge status={theatre.status} theme={theme} />
+        {me?.is_admin && (
+          <button className="btn btn-secondary" style={{ marginLeft: "auto", fontSize: 12 } as React.CSSProperties} onClick={startEditNickname}>
+            <PencilSimple size={13} />
+            Edit nickname
+          </button>
+        )}
+      </div>
+      {theatre.chain && <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>{theatre.chain}</div>}
+      {displayAddress && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 13, color: `${theme.text}88`, marginBottom: 16 } as React.CSSProperties}>
+          <MapPin size={14} color={`${theme.text}66`} style={{ marginTop: 2, flexShrink: 0 } as any} />
+          {mapsUrl ? <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ color: "inherit" } as React.CSSProperties}>{displayAddress}</a> : displayAddress}
+        </div>
+      )}
+      {ratingText && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 15, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
+          ★ {ratingText}
+          <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: 13 } as React.CSSProperties}>overall rating</span>
+        </div>
+      )}
+      {editingNickname && (
+        <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
+          <div style={{ fontSize: 12, color: `${theme.text}88`, marginBottom: 8 } as React.CSSProperties}>
+            Nickname is an alternate label shown instead of "{theatre.name}" — not a correction, only visible when set.
+          </div>
+          <input className="input" value={nicknameDraft} onChange={(e) => setNicknameDraft(e.target.value)} placeholder="Nickname" style={{ marginBottom: 8 } as React.CSSProperties} />
+          <input className="input" value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="Alternate address" style={{ marginBottom: 10 } as React.CSSProperties} />
+          <div style={{ display: "flex", gap: 8 } as React.CSSProperties}>
+            <button className="btn btn-primary" onClick={saveNickname} disabled={setNickname.isPending}>Save</button>
+            <button className="btn btn-secondary" onClick={() => setEditingNickname(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {embedUrl && (
+        <iframe src={embedUrl} style={{ width: "100%", height: 220, border: "none", borderRadius: 12, marginBottom: 20 } as React.CSSProperties} loading="lazy" />
+      )}
+    </>
+  );
+
+  const screensSection = (
+    <div style={{ marginBottom: 28 } as React.CSSProperties}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Screens</h3>
+      {screensLoading ? null : (screens?.length ?? 0) === 0 ? (
+        <div style={{ color: `${theme.text}55`, fontSize: 13 } as React.CSSProperties}>No screens recorded yet.</div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 } as React.CSSProperties}>
+          {screens!.map((s) => (
+            <div key={s.id} className="tag tag-neutral tapc" onClick={() => openScreen(s)} style={{ cursor: "pointer" } as React.CSSProperties}>
+              {s.name}{s.screen_type ? ` · ${s.screen_type}` : ""}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Web ────────────────────────────────────────────────────────────────────
+  if (Platform.OS === "web") {
+    return (
+      <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
+        {header}
+        <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
+        {screensSection}
+        <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
+      </div>
+    );
+  }
+
+  // ── Native ─────────────────────────────────────────────────────────────────
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, flexShrink: 1 }}>{displayName}</Text>
+        <StatusBadge status={theatre.status} theme={theme} />
+      </View>
+      {theatre.chain && <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 }}>{theatre.chain}</Text>}
+      {displayAddress && (
+        <Pressable onPress={() => mapsUrl && Linking.openURL(mapsUrl)} style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
+          <MapPin size={14} color={`${theme.text}66`} style={{ marginTop: 2 }} />
+          <Text style={{ fontSize: 13, color: `${theme.text}88`, flex: 1 }}>{displayAddress}</Text>
+        </Pressable>
+      )}
+      {ratingText && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
+          <Star size={16} color={theme.accent} weight="fill" />
+          <Text style={{ fontSize: 15, color: theme.accent, fontWeight: "700" }}>{ratingText}</Text>
+          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>overall rating</Text>
+        </View>
+      )}
+      {me?.is_admin && !editingNickname && (
+        <Pressable onPress={startEditNickname} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
+          <PencilSimple size={13} color={theme.accent} />
+          <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>Edit nickname</Text>
+        </Pressable>
+      )}
+      {editingNickname && (
+        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <Text style={{ fontSize: 12, color: `${theme.text}88`, marginBottom: 8 }}>
+            Nickname is an alternate label shown instead of "{theatre.name}" — not a correction, only visible when set.
+          </Text>
+          <View style={{ gap: 8 }}>
+            <TextInputLike theme={theme} value={nicknameDraft} onChangeText={setNicknameDraft} placeholder="Nickname" />
+            <TextInputLike theme={theme} value={addressDraft} onChangeText={setAddressDraft} placeholder="Alternate address" />
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+            <Pressable onPress={saveNickname} style={{ backgroundColor: theme.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 }}>
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>Save</Text>
+            </Pressable>
+            <Pressable onPress={() => setEditingNickname(false)} style={{ borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.divider }}>
+              <Text style={{ color: theme.text, fontSize: 13, fontWeight: "700" }}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
+
+      <View style={{ marginBottom: 20 }}>
+        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 10 }}>Screens</Text>
+        {screensLoading ? null : (screens?.length ?? 0) === 0 ? (
+          <Text style={{ color: `${theme.text}55`, fontSize: 13 }}>No screens recorded yet.</Text>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {screens!.map((s) => (
+              <Pressable key={s.id} onPress={() => openScreen(s)} style={{ backgroundColor: theme.surfaceHigh, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 }}>
+                <Text style={{ color: theme.text, fontSize: 13 }}>{s.name}{s.screen_type ? ` · ${s.screen_type}` : ""}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
+    </ScrollView>
+  );
+}
+
+// Minimal themed text input for the native nickname-edit form — not worth
+// pulling in the full Input.tsx component here (that one carries a label/
+// error layout this inline two-field form doesn't need).
+function TextInputLike({ theme, value, onChangeText, placeholder }: { theme: any; value: string; onChangeText: (v: string) => void; placeholder: string }) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={`${theme.text}44`}
+      style={{ backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.divider, color: theme.text, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
+    />
+  );
+}
