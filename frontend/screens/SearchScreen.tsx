@@ -19,19 +19,21 @@ import {
 import { useRouter } from "expo-router";
 import { MagnifyingGlass } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
-import { useMovieSearch } from "../hooks/useSearch";
+import { useMovieSearch, useVenueSearch, useCreateMovie } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
-import type { MovieLog } from "../types";
+import { venueDisplayName } from "../lib/venue";
+import type { MovieLog, TheatreMatchCandidate } from "../types";
 
-type Scope = "all" | "logs" | "people";
+type Scope = "all" | "logs" | "theatres" | "people";
 
 const SCOPES: { id: Scope; label: string }[] = [
-  { id: "all",    label: "All" },
-  { id: "logs",   label: "In your logs" },
-  { id: "people", label: "People" },
+  { id: "all",      label: "All" },
+  { id: "logs",     label: "In your logs" },
+  { id: "theatres", label: "Theatres" },
+  { id: "people",   label: "People" },
 ];
 
 export function SearchScreen() {
@@ -42,7 +44,20 @@ export function SearchScreen() {
 
   const debouncedQuery = useDebouncedValue(query, 300);
   const { data: movieResults, isLoading: moviesLoading } = useMovieSearch(debouncedQuery);
+  const { data: theatreResults, isLoading: theatresLoading } = useVenueSearch(debouncedQuery);
   const { data: logs }                                    = useMovieLogs({ archived: false });
+  const { mutateAsync: createMovie } = useCreateMovie();
+
+  // A bare search hit only carries a tmdb_id, not our own catalog id —
+  // the movie detail route needs a real one to fetch by. Dedupes-into-
+  // catalog first, same call LogFormScreen's pickMovie already makes when
+  // picking a search result there (returns the existing row if this
+  // tmdb_id was already linked by anyone, never creates a duplicate).
+  const openMovie = async (m: { tmdb_id: number }) => {
+    const movie = await createMovie(m.tmdb_id);
+    if (movie) router.push(`/(app)/movie/${movie.id}` as any);
+  };
+  const openTheatre = (t: TheatreMatchCandidate) => router.push(`/(app)/venue/${t.id}` as any);
 
   // Filter own logs by title
   const logMatches: MovieLog[] = query
@@ -134,7 +149,7 @@ export function SearchScreen() {
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
                   {movieResults?.slice(0, 8).map((m) => (
-                    <div key={m.tmdb_id} className="tapc" style={{
+                    <div key={m.tmdb_id} className="tapc" onClick={() => openMovie(m)} style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 14,
@@ -165,6 +180,29 @@ export function SearchScreen() {
               </div>
             )}
 
+            {/* Theatre search results */}
+            {(scope === "all" || scope === "theatres") && (theatreResults?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 28 } as React.CSSProperties}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
+                  Theatres
+                </h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
+                  {theatreResults?.slice(0, 8).map((t) => (
+                    <div key={t.id} className="tapc" onClick={() => openTheatre(t)} style={{
+                      padding: "10px 0",
+                      borderBottom: `1px solid ${theme.divider}`,
+                      cursor: "pointer",
+                    } as React.CSSProperties}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{venueDisplayName(t)}</div>
+                      {t.city && (
+                        <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{t.city}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* People section */}
             {(scope === "all" || scope === "people") && (
               <div style={{ marginTop: 28 } as React.CSSProperties}>
@@ -175,7 +213,7 @@ export function SearchScreen() {
               </div>
             )}
 
-            {logMatches.length === 0 && (movieResults?.length ?? 0) === 0 && !moviesLoading && (
+            {logMatches.length === 0 && (movieResults?.length ?? 0) === 0 && (theatreResults?.length ?? 0) === 0 && !moviesLoading && !theatresLoading && (
               <div style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
                 <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No results for "{query}"</p>
               </div>
@@ -243,14 +281,22 @@ export function SearchScreen() {
           <Text style={{ fontSize: 36 }}>🔍</Text>
           <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>Type to search</Text>
         </View>
-      ) : moviesLoading ? (
+      ) : moviesLoading || theatresLoading ? (
         <View style={{ flex: 1, alignItems: "center", paddingTop: 40 }}>
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : (
         <FlatList
-          data={[...logMatches.slice(0, 5), ...(movieResults?.slice(0, 10) ?? [])]}
-          keyExtractor={(item, i) => `${i}`}
+          // A discriminated union instead of the old `"movie" in item`
+          // sniff test — that only ever told a MovieLog apart from a
+          // MovieSearchResult, and silently broke the moment a third
+          // shape (theatre results) joined the same merged list.
+          data={[
+            ...logMatches.slice(0, 5).map((log) => ({ kind: "log" as const, log })),
+            ...(movieResults?.slice(0, 10) ?? []).map((movie) => ({ kind: "movie" as const, movie })),
+            ...(theatreResults?.slice(0, 6) ?? []).map((theatre) => ({ kind: "theatre" as const, theatre })),
+          ]}
+          keyExtractor={(item, i) => `${item.kind}-${i}`}
           contentContainerStyle={{ padding: 16 }}
           ListEmptyComponent={
             <Text style={{ color: `${theme.text}44`, fontSize: 14, textAlign: "center", paddingTop: 40 }}>
@@ -258,9 +304,8 @@ export function SearchScreen() {
             </Text>
           }
           renderItem={({ item }) => {
-            // Check if it's a MovieLog or MovieSearchResult
-            if ("movie" in item) {
-              const log = item as MovieLog;
+            if (item.kind === "log") {
+              const log = item.log;
               return (
                 <Pressable
                   onPress={() => router.push(`/(app)/log/${log.id}` as any)}
@@ -283,23 +328,38 @@ export function SearchScreen() {
                 </Pressable>
               );
             }
-            const movie = item as any;
+            if (item.kind === "theatre") {
+              const t = item.theatre;
+              return (
+                <Pressable
+                  onPress={() => openTheatre(t)}
+                  style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{venueDisplayName(t)}</Text>
+                  {t.city && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.city}</Text>}
+                </Pressable>
+              );
+            }
+            const movie = item.movie;
             const year = releaseYear(movie.release_date);
             return (
-              <View style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.divider,
-              }}>
+              <Pressable
+                onPress={() => openMovie(movie)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  paddingVertical: 10,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.divider,
+                }}
+              >
                 <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{movie.title}</Text>
                   {year && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{year}</Text>}
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />
