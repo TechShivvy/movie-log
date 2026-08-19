@@ -70,7 +70,23 @@ type RawTheme = Pick<Theme, "key" | "label" | "bg" | "surface" | "text" | "accen
 function buildTheme(raw: RawTheme): Theme {
   return {
     ...raw,
-    accent100:   blend(raw.accent, 0.30, "#ffffff"),
+    // Design source (CineLog Web.dc.html) hardcodes this as
+    // mix(accent, 30%, #ffffff) unconditionally — meant to read as light
+    // text over the dark-ish accent800 background every OTHER theme
+    // produces (accent blended only 26% into a dark bg stays dark). That
+    // source itself already knows Champagne is the one light theme (it
+    // branches on `t.key !== "champagne"` for other things) but never
+    // special-cased this formula: for Champagne, accent800 blends into a
+    // *light* bg and stays light, while accent100 still blends toward
+    // white — both end up nearly the same pale cream, so tag-accent's
+    // "5 stars"/"All"-style filled chips render as invisible near-white
+    // text on a near-white chip (confirmed via computed styles: bg
+    // rgb(234,219,195) vs text rgb(234,220,197)). Blending toward
+    // raw.text instead of a fixed white fixes Champagne (raw.text is
+    // dark there, giving real contrast against the light accent800) and
+    // is a no-op change everywhere else (every other theme's raw.text is
+    // already light, so this still lands close to white).
+    accent100:   blend(raw.accent, 0.30, raw.text),
     accent700:   blend(raw.accent, 0.60, "#000000"),
     accent800:   blend(raw.accent, 0.26, raw.bg),
     accent900:   blend(raw.accent, 0.15, raw.bg),

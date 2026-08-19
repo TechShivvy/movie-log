@@ -155,7 +155,19 @@ figcaption {
 }
 .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* box-shadow, not outline, for the focus ring: outline draws outside the
+   border box and is inconsistently clipped by an ancestor's
+   overflow:hidden across browsers, while box-shadow always is — and
+   outline only follows the FOCUSED element's own border-radius, not a
+   parent's. A lot of "rounded" controls here (.seg-opt inside .seg,
+   chips/tags inside their row, the grid/list view toggle) are actually
+   square elements whose corners are visually rounded off by a wrapping
+   container's overflow:hidden, not by their own border-radius — outline
+   drew a full sharp-cornered rectangle poking out past that rounded
+   wrapper on click for every one of them. box-shadow, being clipped the
+   same way any other painted content is, stays inside the shape the
+   user actually sees. */
+:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-accent); }
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
 
 /* — rules — Nocturne signature: fades to transparent 48px at both ends — */
@@ -203,7 +215,12 @@ figcaption {
   border: 1.5px solid var(--color-divider); border-radius: var(--radius-md);
 }
 .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
-.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+/* border-color change is already a clear, correctly-rounded focus
+   signal on a text field — the global box-shadow ring on top of it
+   (which native date/time inputs' internal calendar-icon widget also
+   fights with, since that part of the control isn't stylable at all)
+   is redundant noise here, so it's suppressed for .input specifically. */
+.input:focus-visible { border-color: var(--color-accent); box-shadow: none; }
 textarea.input { min-height: 90px; resize: vertical; }
 .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
 .radio input, .seg-opt input {
@@ -286,6 +303,14 @@ textarea.input { min-height: 90px; resize: vertical; }
 .clg-scroll::-webkit-scrollbar-thumb { background: var(--color-neutral-800); border-radius: 8px; }
 .tapc { cursor: pointer; }
 .poster { position: relative; border-radius: var(--radius-md); overflow: hidden; }
+/* A poster whose real artwork is still resolving (catalog lookup, then
+   the TMDB CDN fetch — commonly 1-3s, more on a cold backend) shows the
+   same hue-gradient placeholder a log with genuinely no linked movie
+   does, with nothing to tell them apart — reads as "no poster" rather
+   than "give it a second". The pulse is the only signal there is that
+   this placeholder is transient. */
+.poster-loading { animation: clgPosterPulse 1.6s ease-in-out infinite; }
+@keyframes clgPosterPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .lift { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .16s ease; }
 .lift:hover { transform: translateY(-3px); }
 .gridcard .poster { transition: transform .16s cubic-bezier(.2,.7,.3,1); }
