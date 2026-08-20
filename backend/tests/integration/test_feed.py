@@ -9,7 +9,7 @@ rights on the underlying movie_logs table).
 import uuid
 
 import pytest
-from conftest import THEATRE_TEST_TAG
+from conftest import THEATRE_TEST_TAG, theatre_place_payload
 
 
 async def _set_username_and_privacy(client, headers, visibility='public'):
@@ -37,13 +37,16 @@ async def test_feed_shows_only_public_logs_from_followed_accounts(client, make_u
     assert follow.json()['status'] == 'accepted'
 
     public_log = await client.post(
-        '/api/v1/movie-logs', headers=followed_headers, json={'movie': 'Feed Public', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=followed_headers,
+        json={'movie': 'Feed Public', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     private_log = await client.post(
-        '/api/v1/movie-logs', headers=followed_headers, json={'movie': 'Feed Private', 'visibility': 'private'},
+        '/api/v1/movie-logs', headers=followed_headers,
+        json={'movie': 'Feed Private', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
     anon_log = await client.post(
-        '/api/v1/movie-logs', headers=followed_headers, json={'movie': 'Feed Anon', 'visibility': 'anonymous'},
+        '/api/v1/movie-logs', headers=followed_headers,
+        json={'movie': 'Feed Anon', 'visibility': 'anonymous', 'theatre_place': theatre_place_payload()},
     )
 
     feed = await client.get('/api/v1/public/feed', headers=viewer_headers)
@@ -60,7 +63,8 @@ async def test_feed_never_includes_the_callers_own_logs(client, make_user):
     headers = {'Authorization': f'Bearer {token}'}
     await _set_username_and_privacy(client, headers, 'public')
     own_log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'My Own Public Log', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'My Own Public Log', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     feed = await client.get('/api/v1/public/feed', headers=headers)
     assert own_log.json()['id'] not in [entry['id'] for entry in feed.json()]
@@ -78,7 +82,8 @@ async def test_feed_excludes_a_followed_but_not_accessible_account(client, make_
 
     target_username = await _set_username_and_privacy(client, target_headers, 'private')
     await client.post(
-        '/api/v1/movie-logs', headers=target_headers, json={'movie': 'Pending Follow Log', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=target_headers,
+        json={'movie': 'Pending Follow Log', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     follow = await client.post(f'/api/v1/public/follows/{target_username}', headers=viewer_headers)
     assert follow.json()['status'] == 'pending'  # never accepted
@@ -114,7 +119,10 @@ async def test_feed_movie_id_theatre_id_screen_id_filters(client, make_user):
     )
     elsewhere = await client.post(
         '/api/v1/movie-logs', headers=followed_headers,
-        json={'movie': 'Feed Filter Elsewhere', 'visibility': 'public'},
+        json={
+            'movie': 'Feed Filter Elsewhere', 'visibility': 'public',
+            'theatre_place': theatre_place_payload(),
+        },
     )
 
     filtered = await client.get(

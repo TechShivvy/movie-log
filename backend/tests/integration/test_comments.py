@@ -7,6 +7,7 @@ log was wrongly rejected before the fix).
 """
 
 import pytest
+from conftest import theatre_place_payload
 
 
 @pytest.mark.asyncio
@@ -17,7 +18,8 @@ async def test_comment_and_reply_round_trip_with_username(client, make_user):
     commenter_headers = {'Authorization': f'Bearer {commenter_token}'}
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Comment Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Comment Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -48,7 +50,8 @@ async def test_reply_to_a_reply_rejected(client, make_user):
     other_headers = {'Authorization': f'Bearer {other_token}'}
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Reply Depth Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Reply Depth Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     top = await client.post(
@@ -76,7 +79,8 @@ async def test_soft_delete_leaves_replies_intact(client, make_user):
     other_headers = {'Authorization': f'Bearer {other_token}'}
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Delete Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Delete Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     top = await client.post(
@@ -105,7 +109,7 @@ async def test_commenting_on_a_private_log_404s(client, make_user):
     other_id, other_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Private No Comments', 'visibility': 'private'},
+        json={'movie': 'Private No Comments', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
     response = await client.post(
         '/api/v1/comments', headers={'Authorization': f'Bearer {other_token}'},
@@ -129,7 +133,8 @@ async def test_a_genuine_stranger_can_comment_on_a_real_public_log(client, make_
 
     # Owner's account stays at its default (private) — never set to public.
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'RLS Regression Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'RLS Regression Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 

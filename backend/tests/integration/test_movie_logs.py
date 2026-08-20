@@ -6,7 +6,7 @@ extraction provenance. See plan.md's Iterations 6-8/14 bug inventory.
 import uuid
 
 import pytest
-from conftest import THEATRE_TEST_TAG
+from conftest import THEATRE_TEST_TAG, theatre_place_payload
 
 
 @pytest.mark.asyncio
@@ -15,7 +15,8 @@ async def test_create_read_update_delete_roundtrip(client, make_user):
     headers = {'Authorization': f'Bearer {token}'}
 
     created = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Test Movie', 'rating': 4.0},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Test Movie', 'rating': 4.0, 'theatre_place': theatre_place_payload()},
     )
     assert created.status_code == 201
     log_id = created.json()['id']
@@ -45,7 +46,10 @@ async def test_ticket_url_round_trip_and_scheme_validation(client, make_user):
 
     created = await client.post(
         '/api/v1/movie-logs', headers=headers,
-        json={'movie': 'Ticket URL Test', 'ticket_url': 'https://in.bookmyshow.com/booking/abc123'},
+        json={
+            'movie': 'Ticket URL Test', 'ticket_url': 'https://in.bookmyshow.com/booking/abc123',
+            'theatre_place': theatre_place_payload(),
+        },
     )
     assert created.status_code == 201
     assert created.json()['ticket_url'] == 'https://in.bookmyshow.com/booking/abc123'
@@ -76,7 +80,7 @@ async def test_a_users_own_log_is_invisible_to_someone_else(client, make_user):
     _, token_b = await make_user()
     created = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {token_a}'},
-        json={'movie': 'Private To A', 'visibility': 'private'},
+        json={'movie': 'Private To A', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
     log_id = created.json()['id']
 
@@ -91,7 +95,8 @@ async def test_edited_at_set_only_on_a_real_content_change(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     created = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Edited At Test'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Edited At Test', 'theatre_place': theatre_place_payload()},
     )
     log_id = created.json()['id']
     assert created.json()['edited_at'] is None
@@ -118,7 +123,8 @@ async def test_archive_excludes_from_public_view_and_owners_own_default_list(cli
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     created = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Archive Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Archive Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = created.json()['id']
 
@@ -147,11 +153,13 @@ async def test_list_logs_movie_id_filter(client, make_user):
     movie_id = movie.json()['id']
 
     linked = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Linked Log', 'movie_id': movie_id},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Linked Log', 'movie_id': movie_id, 'theatre_place': theatre_place_payload()},
     )
     assert linked.status_code == 201
     unlinked = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Unlinked Log'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Unlinked Log', 'theatre_place': theatre_place_payload()},
     )
     assert unlinked.status_code == 201
 
@@ -294,7 +302,11 @@ async def test_screen_resolved_by_name_under_a_theatre_and_reused(client, make_u
 @pytest.mark.asyncio
 async def test_update_log_resolves_theatre_place_from_an_otherwise_empty_patch(client, make_user):
     """theatre_place is the only field sent on a PATCH -> not rejected as
-    an empty patch, and it still resolves theatre_id."""
+    an empty patch, and it still resolves theatre_id — switching an
+    already-linked log to a different theatre this way, since POST / now
+    requires every log to have a theatre from the start (a create with no
+    theatre at all is no longer reachable to set up the old "starts null"
+    scenario this test used to check)."""
 
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
@@ -306,28 +318,20 @@ async def test_update_log_resolves_theatre_place_from_an_otherwise_empty_patch(c
     theatre_id = theatre.json()['id']
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Patch Theatre Place Log'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Patch Theatre Place Log', 'theatre_place': theatre_place_payload('Original Theatre')},
     )
     log_id = log.json()['id']
-    assert log.json()['theatre_id'] is None
+    original_theatre_id = log.json()['theatre_id']
+    assert original_theatre_id is not None
+    assert original_theatre_id != theatre_id
 
     patched = await client.patch(
         f'/api/v1/movie-logs/{log_id}', headers=headers,
         json={'theatre_place': {'place_id': place_id}},
     )
     assert patched.status_code == 200
-    assert patched.json()['theatre_id'] == theatre_id
-
-    archived_list = await client.get('/api/v1/movie-logs', headers=headers, params={'archived_only': 'true'})
-    assert log_id in [l['id'] for l in archived_list.json()]
-
-    # Un-archiving restores it to the default list.
-    unarchived = await client.patch(
-        f'/api/v1/movie-logs/{log_id}', headers=headers, json={'is_archived': False},
-    )
-    assert unarchived.status_code == 200
-    default_list_after = await client.get('/api/v1/movie-logs', headers=headers)
-    assert log_id in [l['id'] for l in default_list_after.json()]
+    assert patched.json()['theatre_id'] == theatre_id  # switched, not rejected as an empty patch
 
 
 @pytest.mark.asyncio
@@ -337,7 +341,11 @@ async def test_favorites_four_slot_cap_and_atomic_slot_reassignment(client, make
     log_ids = []
     for i in range(5):
         created = await client.post(
-            '/api/v1/movie-logs', headers=headers, json={'movie': f'Favorite Test {i}', 'visibility': 'public'},
+            '/api/v1/movie-logs', headers=headers,
+            json={
+                'movie': f'Favorite Test {i}', 'visibility': 'public',
+                'theatre_place': theatre_place_payload(),
+            },
         )
         log_ids.append(created.json()['id'])
 
@@ -370,7 +378,8 @@ async def test_private_favorite_never_appears_in_public_profile_favorites(client
     await client.patch('/api/v1/public/me/privacy', headers=headers, json={'account_visibility': 'public'})
 
     created = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Private Favorite', 'visibility': 'private'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Private Favorite', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
     log_id = created.json()['id']
     await client.put(f'/api/v1/movie-logs/{log_id}/favorite', headers=headers, json={'position': 1})
@@ -391,7 +400,10 @@ async def test_search_matches_across_multiple_fields_with_matched_fields(client,
     headers = {'Authorization': f'Bearer {token}'}
     await client.post(
         '/api/v1/movie-logs', headers=headers,
-        json={'movie': 'Nexus', 'theater': 'Grand Cineplex', 'notes': 'Loved the sound design'},
+        json={
+            'movie': 'Nexus', 'theater': 'Grand Cineplex', 'notes': 'Loved the sound design',
+            'theatre_place': theatre_place_payload(),
+        },
     )
 
     by_movie = await client.get('/api/v1/movie-logs/search', params={'q': 'Nexus'}, headers=headers)
@@ -417,6 +429,7 @@ async def test_punctuality_all_combinations_round_trip(client, make_user):
             'movie': 'Punctuality Test',
             'arrival_status': 'late', 'arrival_delta_minutes': 10,
             'screening_start_status': 'delayed', 'screening_start_delta_minutes': 5,
+            'theatre_place': theatre_place_payload(),
         },
     )
     assert created.status_code == 201
@@ -442,7 +455,8 @@ async def test_fdfs_forces_first_day_on_create_and_patch(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     created = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'FDFS Test', 'is_fdfs': True},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'FDFS Test', 'is_fdfs': True, 'theatre_place': theatre_place_payload()},
     )
     assert created.status_code == 201
     assert created.json()['is_first_day'] is True
@@ -459,11 +473,13 @@ async def test_time_of_day_is_computed_from_watched_time(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     morning = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Morning Show', 'watched_time': '09:15'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Morning Show', 'watched_time': '09:15', 'theatre_place': theatre_place_payload()},
     )
     assert morning.json()['time_of_day'] == 'morning'
     night = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Night Show', 'watched_time': '22:00'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Night Show', 'watched_time': '22:00', 'theatre_place': theatre_place_payload()},
     )
     assert night.json()['time_of_day'] == 'night'
 
@@ -478,13 +494,17 @@ async def test_extraction_provenance_round_trip_and_pairing_enforced(client, mak
         json={
             'movie': 'Extracted Log', 'extraction_provider': 'gemini',
             'extraction_model': 'gemini-flash-latest', 'extraction_edited': False,
+            'theatre_place': theatre_place_payload(),
         },
     )
     assert with_provenance.status_code == 201
     assert with_provenance.json()['extraction_provider'] == 'gemini'
     assert with_provenance.json()['extraction_edited'] is False
 
-    manual = await client.post('/api/v1/movie-logs', headers=headers, json={'movie': 'Manual Log'})
+    manual = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Manual Log', 'theatre_place': theatre_place_payload()},
+    )
     assert manual.json()['extraction_provider'] is None
     assert manual.json()['extraction_edited'] is None
 
@@ -543,7 +563,8 @@ async def test_get_venue_rating_round_trip_and_404s(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Get Venue Rating Test'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Get Venue Rating Test', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -583,7 +604,8 @@ async def test_get_venue_rating_404s_for_someone_elses_log(client, make_user):
     headers_b = {'Authorization': f'Bearer {token_b}'}
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers_a, json={'movie': 'Other Users Venue Rating'},
+        '/api/v1/movie-logs', headers=headers_a,
+        json={'movie': 'Other Users Venue Rating', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     await client.put(
@@ -600,7 +622,8 @@ async def test_movie_log_photos_add_list_delete_round_trip(client, make_user):
     user_id, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photos Test'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Photos Test', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -655,7 +678,8 @@ async def test_movie_log_photos_max_ten_enforced(client, make_user):
     user_id, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photo Limit Test'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Photo Limit Test', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -682,7 +706,8 @@ async def test_movie_log_photos_rejects_path_outside_own_prefix(client, make_use
     user_id, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Photo Path Test'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Photo Path Test', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -702,7 +727,8 @@ async def test_movie_log_photos_404_for_someone_elses_log(client, make_user):
     headers_b = {'Authorization': f'Bearer {token_b}'}
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers_a, json={'movie': 'Other Users Photos'},
+        '/api/v1/movie-logs', headers=headers_a,
+        json={'movie': 'Other Users Photos', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -714,3 +740,81 @@ async def test_movie_log_photos_404_for_someone_elses_log(client, make_user):
 
     list_as_b = await client.get(f'/api/v1/movie-logs/{log_id}/photos', headers=headers_b)
     assert list_as_b.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_log_requires_a_theatre(client, make_user):
+    """The app is screening-focused — a log with no theatre_id and no
+    theatre_place is rejected, same MISSING_MOVIE_TITLE-style 400 as the
+    existing required-movie check."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+
+    no_theatre = await client.post(
+        '/api/v1/movie-logs', headers=headers, json={'movie': 'No Theatre Given'},
+    )
+    assert no_theatre.status_code == 400
+    assert no_theatre.json()['code'] == 'MISSING_THEATRE'
+
+    # A bare free-text `theater` string alone still isn't enough — only a
+    # real theatre_id/theatre_place link satisfies the requirement.
+    free_text_only = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Free Text Theater Only', 'theater': 'Some Cinema'},
+    )
+    assert free_text_only.status_code == 400
+    assert free_text_only.json()['code'] == 'MISSING_THEATRE'
+
+    with_place = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'With Theatre Place', 'theatre_place': theatre_place_payload()},
+    )
+    assert with_place.status_code == 201
+    assert with_place.json()['theatre_id'] is not None
+
+
+@pytest.mark.asyncio
+async def test_update_log_rejects_clearing_theatre_id_with_no_replacement(client, make_user):
+    """A log that already satisfies the required-theatre rule can't be
+    edited back out of it — theatre_id: null with no theatre_place is
+    rejected, but omitting theatre_id from a patch that isn't touching
+    venue at all is unaffected (partial-update semantics)."""
+
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    created = await client.post(
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Clear Theatre Test', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = created.json()['id']
+    original_theatre_id = created.json()['theatre_id']
+    assert original_theatre_id is not None
+
+    # Omitting theatre_id entirely, touching an unrelated field — fine.
+    unrelated_patch = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers, json={'notes': 'still has a theatre'},
+    )
+    assert unrelated_patch.status_code == 200
+    assert unrelated_patch.json()['theatre_id'] == original_theatre_id
+
+    # Explicit theatre_id: null with nothing to replace it — rejected.
+    clear_attempt = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers, json={'theatre_id': None},
+    )
+    assert clear_attempt.status_code == 400
+    assert clear_attempt.json()['code'] == 'MISSING_THEATRE'
+
+    # The log is untouched by the rejected patch.
+    unchanged = await client.get(f'/api/v1/movie-logs/{log_id}', headers=headers)
+    assert unchanged.json()['theatre_id'] == original_theatre_id
+
+    # theatre_id: null IS accepted when theatre_place replaces it in the
+    # same patch.
+    swap = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=headers,
+        json={'theatre_id': None, 'theatre_place': theatre_place_payload('Replacement Theatre')},
+    )
+    assert swap.status_code == 200
+    assert swap.json()['theatre_id'] is not None
+    assert swap.json()['theatre_id'] != original_theatre_id

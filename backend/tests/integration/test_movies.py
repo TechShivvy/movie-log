@@ -11,6 +11,7 @@ be. They're skipped (not marked opt-in) if TMDB_API_KEY isn't configured.
 
 import pytest
 from config import settings
+from conftest import theatre_place_payload
 
 
 @pytest.mark.asyncio
@@ -79,7 +80,7 @@ async def test_log_with_no_movie_id_still_works(client, make_user):
     _, token = await make_user()
     response = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {token}'},
-        json={'movie': 'Free-Typed Only'},
+        json={'movie': 'Free-Typed Only', 'theatre_place': theatre_place_payload()},
     )
     assert response.status_code == 201
     assert response.json()['movie_id'] is None

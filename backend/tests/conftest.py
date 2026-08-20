@@ -300,6 +300,23 @@ async def admin_user(make_user) -> AsyncIterator[tuple[str, str]]:
 THEATRE_TEST_TAG = ' [pytest]'
 
 
+def theatre_place_payload(name_prefix: str = 'Log Test Theatre') -> dict:
+    """A minimal inline `theatre_place` (see MovieLogInput.theatre_place)
+    for tests that just need POST/PATCH /movie-logs' required-theatre check
+    (routers/movie_logs.py) satisfied and don't care which venue — same
+    Places-unconfigured/lookup-failure fallback path as
+    test_venues.py's own falls-back-to-submitted-data test, just packaged
+    as the inline shape movie-log create/update accepts instead of a
+    separate POST /venues/theatres call. Tagged with THEATRE_TEST_TAG so
+    _cleanup_test_theatres below removes the ad-hoc theatre (and any log
+    still referencing it) at session end, same as every other test-created
+    theatre."""
+    return {
+        'place_id': f'pytest-{uuid.uuid4().hex[:10]}',
+        'name': f'{name_prefix}{THEATRE_TEST_TAG}',
+    }
+
+
 @pytest.fixture(scope='session', autouse=True)
 def _cleanup_test_theatres() -> AsyncIterator[None]:
     yield

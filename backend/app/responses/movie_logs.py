@@ -244,6 +244,15 @@ responses = {
                                 'message': 'movie title is required when creating a log.',
                             },
                         },
+                        'missing_theatre': {
+                            'summary': 'No theatre_id and no theatre_place given (or '
+                            'theatre_place failed to resolve to a theatre)',
+                            'value': {
+                                'code': 'MISSING_THEATRE',
+                                'message': 'A theatre is required when creating a log — '
+                                'set theatre_id, or theatre_place to resolve/create one.',
+                            },
+                        },
                         'invalid_image_path': {
                             'summary': 'ticket_image_path outside the caller\'s own prefix',
                             'value': {
@@ -390,8 +399,8 @@ responses = {
             },
         },
         400: {
-            'description': 'Empty patch body, or theatre_id/screen_id in the patch '
-            "doesn't reference an existing row.",
+            'description': 'Empty patch body, theatre_id cleared with no replacement, '
+            "or theatre_id/screen_id in the patch doesn't reference an existing row.",
             'content': {
                 'application/json': {
                     'examples': {
@@ -400,6 +409,15 @@ responses = {
                             'value': {
                                 'code': 'BAD_REQUEST',
                                 'message': 'No fields provided to update.',
+                            },
+                        },
+                        'missing_theatre': {
+                            'summary': 'theatre_id: null sent with no theatre_place to '
+                            'replace it — every log requires a real venue link',
+                            'value': {
+                                'code': 'MISSING_THEATRE',
+                                'message': 'A theatre is required — clearing theatre_id '
+                                'needs a theatre_place to replace it with.',
                             },
                         },
                         'invalid_theatre_or_screen_id': {

@@ -158,12 +158,14 @@ async def list_logs(
     response_model=MovieLog,
     status_code=201,
     tags=['Movie Logs'],
-    description='Create a movie log for the caller. `movie` is the only required '
-    'field; everything else — including linking to a theatre/screen via '
-    '`theatre_id`/`screen_id` (or resolving one inline via `theatre_place`, see its '
-    'own description), or sharing it via `visibility` (private/anonymous/public — '
-    'see GET /venues/theatres/{id}/reviews) — can be set now or added later with '
-    'PATCH.',
+    description='Create a movie log for the caller. `movie` and a real venue link '
+    'are both required — the app is screening-focused, a log with no theatre '
+    'attached is incomplete. Give either `theatre_id` (an existing theatre) or '
+    '`theatre_place` (resolved/created inline, see its own description); a bare '
+    '`theater` free-text string with neither is not enough. Everything else — '
+    '`screen_id`/`screen`, or sharing it via `visibility` (private/anonymous/'
+    'public — see GET /venues/theatres/{id}/reviews) — can be set now or added '
+    'later with PATCH.',
     response_description='The created log.',
     responses=responses['create_log'],
     operation_id='CreateMovieLog',
@@ -182,6 +184,20 @@ async def create_log(
             'movie title is required when creating a log.',
         )
     await _resolve_theatre_and_screen(current_user, row, payload.theatre_place)
+    if not row.get('theatre_id'):
+        # The row-level check after resolution is the real enforcement
+        # point, regardless of how a caller got here — no theatre_id and
+        # no theatre_place, or a theatre_place that somehow failed to
+        # resolve to one (shouldn't normally happen given
+        # resolve_or_create_theatre's own fallback behavior). Deliberately
+        # app-layer only: existing rows already have a null theatre_id, so
+        # a DB-level NOT NULL would break them.
+        raise APIError(
+            status.HTTP_400_BAD_REQUEST,
+            'MISSING_THEATRE',
+            'A theatre is required when creating a log — set theatre_id, or '
+            'theatre_place to resolve/create one.',
+        )
     _enforce_image_prefix(current_user.user_id, row.get('ticket_image_path'))
     row['user_id'] = current_user.user_id
     LOGGER.info('create_log user={}', _uid(current_user.user_id))
@@ -327,7 +343,11 @@ async def get_log(
     response_model=MovieLog,
     tags=['Movie Logs'],
     description='Partially update a log — only send the fields you want to change. '
-    'At least one field (including `theatre_place` alone) is required.',
+    'At least one field (including `theatre_place` alone) is required. Omitting '
+    'theatre_id entirely (a patch that isn\'t touching venue at all) is always '
+    'fine, but explicitly sending `theatre_id: null` with no `theatre_place` to '
+    "replace it is rejected — every log requires a real venue link (see POST /), "
+    "so an existing one can't be edited back out of that.",
     response_description='The updated log.',
     responses=responses['update_log'],
     operation_id='UpdateMovieLog',
@@ -344,6 +364,18 @@ async def update_log(
     if not patch and not payload.theatre_place:
         raise APIError(400, 'BAD_REQUEST', 'No fields provided to update.')
     await _resolve_theatre_and_screen(current_user, patch, payload.theatre_place)
+    if 'theatre_id' in patch and not patch['theatre_id']:
+        # An explicit theatre_id: null with nothing to replace it — same
+        # requirement POST / enforces on create, just checked here so an
+        # already-compliant log can't be edited back out of it. Omitting
+        # theatre_id from the patch entirely never reaches this branch
+        # (exclude_unset means it's simply absent from `patch`).
+        raise APIError(
+            status.HTTP_400_BAD_REQUEST,
+            'MISSING_THEATRE',
+            'A theatre is required — clearing theatre_id needs a theatre_place '
+            'to replace it with.',
+        )
     _enforce_image_prefix(current_user.user_id, patch.get('ticket_image_path'))
 
     row = await supabase_rest.update_movie_log(

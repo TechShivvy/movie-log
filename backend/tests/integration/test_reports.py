@@ -4,6 +4,7 @@ one, so reporting can't be used to probe existence" rule from Iteration 1.
 """
 
 import pytest
+from conftest import theatre_place_payload
 
 
 @pytest.mark.asyncio
@@ -12,7 +13,7 @@ async def test_reporting_a_public_log_succeeds(client, make_user):
     reporter_id, reporter_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Report Test', 'visibility': 'public'},
+        json={'movie': 'Report Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     report = await client.post(
         '/api/v1/reports', headers={'Authorization': f'Bearer {reporter_token}'},
@@ -32,7 +33,7 @@ async def test_reporting_a_private_log_404s_same_as_nonexistent(client, make_use
     reporter_headers = {'Authorization': f'Bearer {reporter_token}'}
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Private Report Test', 'visibility': 'private'},
+        json={'movie': 'Private Report Test', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
 
     real_private = await client.post(
@@ -62,7 +63,7 @@ async def test_admin_can_triage_and_remove_reported_content(client, make_user, a
 
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Admin Triage Test', 'visibility': 'public'},
+        json={'movie': 'Admin Triage Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     report = await client.post(

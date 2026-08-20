@@ -9,7 +9,7 @@ import base64
 import uuid
 
 import pytest
-from conftest import real_ticket_image_bytes
+from conftest import real_ticket_image_bytes, theatre_place_payload
 
 
 async def _set_username(client, headers):
@@ -45,7 +45,8 @@ async def test_comment_and_like_produce_enriched_notifications(client, make_user
     await _set_username(client, commenter_headers)
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Notif Enrichment Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Notif Enrichment Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     await client.post(
@@ -67,7 +68,8 @@ async def test_commenting_on_your_own_log_does_not_self_notify(client, make_user
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=headers, json={'movie': 'Self Notify Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=headers,
+        json={'movie': 'Self Notify Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     await client.post(
         '/api/v1/comments', headers=headers, json={'movie_log_id': log.json()['id'], 'text': 'Commenting on my own'},
@@ -101,7 +103,8 @@ async def test_mark_read_omits_the_enriched_fields(client, make_user):
     commenter_id, commenter_token = await make_user()
     owner_headers = {'Authorization': f'Bearer {owner_token}'}
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Mark Read Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Mark Read Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     await client.post(
         '/api/v1/comments', headers={'Authorization': f'Bearer {commenter_token}'},

@@ -6,6 +6,7 @@ liked" with "doesn't exist"), and liked_by_caller being always-false on
 """
 
 import pytest
+from conftest import theatre_place_payload
 
 
 @pytest.mark.asyncio
@@ -18,7 +19,7 @@ async def test_liking_someone_elses_log_returns_the_correct_count(client, make_u
     liker_id, liker_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Like Test', 'visibility': 'public'},
+        json={'movie': 'Like Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
 
@@ -35,7 +36,7 @@ async def test_liking_twice_is_a_no_op_not_a_double_count(client, make_user):
     liker_id, liker_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Double Like Test', 'visibility': 'public'},
+        json={'movie': 'Double Like Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     liker_headers = {'Authorization': f'Bearer {liker_token}'}
@@ -53,7 +54,7 @@ async def test_unliking_when_not_liked_is_a_no_op(client, make_user):
     other_id, other_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Unlike Noop Test', 'visibility': 'public'},
+        json={'movie': 'Unlike Noop Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     unlike = await client.delete(
@@ -72,7 +73,7 @@ async def test_double_comment_like_is_a_no_op_not_a_404(client, make_user):
     commenter_id, commenter_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Comment Like Test', 'visibility': 'public'},
+        json={'movie': 'Comment Like Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     comment = await client.post(
         '/api/v1/comments', headers={'Authorization': f'Bearer {commenter_token}'},
@@ -115,7 +116,8 @@ async def test_liked_by_caller_correct_on_own_profile_logs(client, make_user):
     await client.patch('/api/v1/public/me/privacy', headers=owner_headers, json={'account_visibility': 'public'})
 
     log = await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Liked By Caller Test', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Liked By Caller Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     log_id = log.json()['id']
     await client.post(f'/api/v1/movie-logs/{log_id}/like', headers=owner_headers)
@@ -145,7 +147,7 @@ async def test_liking_a_private_log_404s(client, make_user):
     other_id, other_token = await make_user()
     log = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
-        json={'movie': 'Private Like Test', 'visibility': 'private'},
+        json={'movie': 'Private Like Test', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
     )
     response = await client.post(
         f'/api/v1/movie-logs/{log.json()["id"]}/like', headers={'Authorization': f'Bearer {other_token}'},

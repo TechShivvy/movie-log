@@ -5,6 +5,7 @@ and the list_followers missing-LEFT-JOIN regression from Iteration 2.
 import uuid
 
 import pytest
+from conftest import theatre_place_payload
 
 
 async def _set_username_and_privacy(client, headers, visibility='public'):
@@ -73,7 +74,8 @@ async def test_private_account_stays_invisible_even_to_an_accepted_follower(clie
     follower_username = await _set_username_and_privacy(client, follower_headers, 'public')
 
     await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Private Account Log', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Private Account Log', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
 
     follow = await client.post(f'/api/v1/public/follows/{owner_username}', headers=follower_headers)
@@ -102,7 +104,8 @@ async def test_switching_private_to_followers_only_unlocks_content_with_no_new_f
 
     owner_username = await _set_username_and_privacy(client, owner_headers, 'followers_only')
     await client.post(
-        '/api/v1/movie-logs', headers=owner_headers, json={'movie': 'Unlock Test Log', 'visibility': 'public'},
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Unlock Test Log', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
     )
     follower_username = await _set_username_and_privacy(client, follower_headers, 'public')
 

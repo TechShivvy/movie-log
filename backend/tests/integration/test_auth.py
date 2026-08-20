@@ -148,7 +148,7 @@ async def test_account_deletion_cascade(client, make_user):
 
     private_log = await client.post(
         '/api/v1/movie-logs', headers=owner_headers,
-        json={'movie': 'Private Test Log', 'visibility': 'private'},
+        json={'movie': 'Private Test Log', 'visibility': 'private', 'theatre_id': theatre_id},
     )
     assert private_log.status_code == 201
     private_log_id = private_log.json()['id']

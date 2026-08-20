@@ -19,7 +19,7 @@ routers/movie_metadata.py's apply_auto_insert). Two kinds of test here:
 import base64
 
 import pytest
-from conftest import real_ticket_image_bytes
+from conftest import real_ticket_image_bytes, theatre_place_payload
 from schemas.movie_metadata import MovieMetadata
 from services.auto_insert import auto_insert_log
 
@@ -91,7 +91,10 @@ async def test_auto_insert_log_cannot_be_spoofed_via_writable_fields(client, mak
     user_id, token = await make_user()
     response = await client.post(
         '/api/v1/movie-logs', headers={'Authorization': f'Bearer {token}'},
-        json={'movie': 'Spoof Test', 'auto_inserted': True, 'extraction_batch_id': 'not-even-a-uuid'},
+        json={
+            'movie': 'Spoof Test', 'auto_inserted': True, 'extraction_batch_id': 'not-even-a-uuid',
+            'theatre_place': theatre_place_payload(),
+        },
     )
     assert response.status_code == 201
     assert response.json().get('auto_inserted') is not True
