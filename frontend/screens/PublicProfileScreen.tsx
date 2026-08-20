@@ -82,16 +82,19 @@ export function PublicProfileScreen() {
           fade overlay despite coming later in the markup, since CSS
           stacks positioned elements above static ones regardless of DOM
           order. */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16, padding: "0 32px", position: "relative" } as React.CSSProperties}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16 } as React.CSSProperties}>
+      {/* flexWrap + ellipsis — same fix as ProfileScreen.tsx's own hero:
+          an unbounded long name ran into (or past) the Follow button at
+          narrow widths, with no way to shrink or wrap. */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 16, padding: "0 32px", position: "relative" } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
           <Avatar name={displayName} uri={avatar} size="xl" />
-          <div style={{ marginBottom: 4 } as React.CSSProperties}>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px" } as React.CSSProperties}>{displayName}</h2>
-            <span style={{ fontSize: 13, color: `${theme.text}55` } as React.CSSProperties}>@{profile.username}</span>
+          <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>{displayName}</h2>
+            <span style={{ fontSize: 13, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>@{profile.username}</span>
           </div>
         </div>
         {!isOwnProfile && (
-          <button className={isFollowing ? "btn btn-secondary" : "btn btn-primary"} onClick={toggleFollow} style={{ marginBottom: 4 } as React.CSSProperties}>
+          <button className={isFollowing ? "btn btn-secondary" : "btn btn-primary"} onClick={toggleFollow} style={{ marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
             {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
             {isFollowing ? "Following" : "Follow"}
           </button>
@@ -174,8 +177,12 @@ export function PublicProfileScreen() {
             </Pressable>
           )}
         </View>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{displayName}</Text>
-        <Text style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: 12 }}>@{profile.username}</Text>
+        {/* numberOfLines — same fix as ProfileScreen.tsx's own hero: an
+            unbounded name wrapped to multiple lines and grew tall enough
+            to visually collide with the Follow button sitting right
+            above it. */}
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{displayName}</Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: 12 }}>@{profile.username}</Text>
         {profile.bio && <Text style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{profile.bio}</Text>}
 
         {!profile.can_view_content ? (
