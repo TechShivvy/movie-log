@@ -47,7 +47,8 @@ import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
-import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment } from "../hooks/useSocial";
+import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment, useLogLikes, useCommentLikes } from "../hooks/useSocial";
+import { LikesListModal } from "../components/social/LikesListModal";
 import { useAuth } from "../hooks/useAuth";
 import { useVenueRating } from "../hooks/useVenueRating";
 import { useMovie } from "../hooks/useSearch";
@@ -126,6 +127,8 @@ function CommentItem({
   const likeComment = useLikeComment(logId);
   const deleteComment = useDeleteComment(logId);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [showLikes, setShowLikes] = useState(false);
+  const { data: commentLikes, isLoading: commentLikesLoading } = useCommentLikes(comment.id, showLikes);
 
   const isOwn = !!user && comment.user_id === user.id;
   const isDeleted = !!comment.deleted_at;
@@ -156,8 +159,21 @@ function CommentItem({
         {!isDeleted && (
           <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
             <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
-              <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>♥ {comment.like_count ?? 0}</Text>
+              <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>
+                ♥{" "}
+                {comment.like_count ? (
+                  // Nested Pressable — same "innermost responder wins"
+                  // pattern as the log's own like count; opens who-liked
+                  // instead of toggling the like.
+                  <Text onPress={(e: any) => { e?.stopPropagation?.(); setShowLikes(true); }} style={{ textDecorationLine: "underline" }}>
+                    {comment.like_count}
+                  </Text>
+                ) : (
+                  comment.like_count ?? 0
+                )}
+              </Text>
             </Pressable>
+            <LikesListModal visible={showLikes} entries={commentLikes} isLoading={commentLikesLoading} onClose={() => setShowLikes(false)} />
             {depth === 0 && (
               <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
                 <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
@@ -375,7 +391,9 @@ export function LogDetailScreen() {
   // early-returns below) — useMovie's own `enabled: !!movieId` check
   // handles that, same pattern as venueRating above.
   const { data: movieCatalog, isLoading: isMovieLoading } = useMovie(log?.movie_id);
-  const { data: comments = [] } = useComments(id ?? "");
+  const { data: comments = [], loadMore: loadMoreComments, hasMore: hasMoreComments, isFetching: isFetchingComments } = useComments(id ?? "");
+  const [showLogLikes, setShowLogLikes] = useState(false);
+  const { data: logLikes, isLoading: logLikesLoading } = useLogLikes(id, showLogLikes);
   const addComment = useAddComment(id ?? "");
 
   const [commentText, setCommentText] = useState("");
@@ -515,6 +533,14 @@ export function LogDetailScreen() {
       onCancel={() => setConfirmingDelete(false)}
     />
   );
+  const likesModal = (
+    <LikesListModal
+      visible={showLogLikes}
+      entries={logLikes}
+      isLoading={logLikesLoading}
+      onClose={() => setShowLogLikes(false)}
+    />
+  );
 
   // ── Web layout ─────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -534,6 +560,7 @@ export function LogDetailScreen() {
         </button>
 
         {deleteDialog}
+        {likesModal}
 
         {/* Two-column on desktop/tablet; stacked, poster on top, below 768px. */}
         <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 20 : 32, alignItems: isMobile ? "stretch" : "flex-start" } as React.CSSProperties}>
@@ -566,7 +593,16 @@ export function LogDetailScreen() {
               style={{ marginTop: 12 } as React.CSSProperties}
             >
               <Heart size={14} weight={log.liked_by_caller ? "fill" : "regular"} />
-              {log.like_count} {log.like_count === 1 ? "like" : "likes"}
+              {log.like_count > 0 ? (
+                <span
+                  onClick={(e) => { e.stopPropagation(); setShowLogLikes(true); }}
+                  style={{ textDecoration: "underline" } as React.CSSProperties}
+                >
+                  {log.like_count} {log.like_count === 1 ? "like" : "likes"}
+                </span>
+              ) : (
+                <span>{log.like_count} likes</span>
+              )}
             </button>
           </div>
 
@@ -748,6 +784,16 @@ export function LogDetailScreen() {
                   No comments yet. Be the first!
                 </p>
               )}
+              {hasMoreComments && (
+                <button
+                  className="btn btn-secondary btn-block"
+                  onClick={loadMoreComments}
+                  disabled={isFetchingComments}
+                  style={{ marginTop: 4 } as React.CSSProperties}
+                >
+                  {isFetchingComments ? "Loading…" : "Load more comments"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -892,9 +938,20 @@ export function LogDetailScreen() {
             }}
           >
             <Heart size={16} color={log.liked_by_caller ? theme.accent : theme.text} weight={log.liked_by_caller ? "fill" : "regular"} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text }}>
-              {log.like_count} {log.like_count === 1 ? "like" : "likes"}
-            </Text>
+            {log.like_count > 0 ? (
+              // Nested Pressable — RN gives the innermost matched
+              // responder the touch, so tapping the count opens the
+              // likes list without also toggling the outer Like button.
+              <Pressable onPress={() => setShowLogLikes(true)} hitSlop={6}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text, textDecorationLine: "underline" }}>
+                  {log.like_count} {log.like_count === 1 ? "like" : "likes"}
+                </Text>
+              </Pressable>
+            ) : (
+              <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text }}>
+                0 likes
+              </Text>
+            )}
           </Pressable>
           {/* A transparent-fill button outlined only in divider-colour
               read as barely-there against the page — same fix as the
@@ -994,6 +1051,17 @@ export function LogDetailScreen() {
           <Text style={{ color: theme.text, opacity: 0.4, fontSize: 14, textAlign: "center", paddingVertical: 24 }}>
             No comments yet. Be the first!
           </Text>
+        )}
+        {hasMoreComments && (
+          <Pressable
+            onPress={loadMoreComments}
+            disabled={isFetchingComments}
+            style={{ paddingVertical: 12, alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, marginTop: 4 }}
+          >
+            <Text style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}>
+              {isFetchingComments ? "Loading…" : "Load more comments"}
+            </Text>
+          </Pressable>
         )}
       </View>
       </ScrollView>

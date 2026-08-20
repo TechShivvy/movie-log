@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse } from "../types";
@@ -95,18 +96,49 @@ function patchLogInEveryCache(
 // movie_log_id — NOT nested under /movie-logs/{id}/comments.
 // See backend routers/comments.py for the rationale.
 
+const COMMENTS_PAGE_SIZE = 20;
+const COMMENTS_MAX_LIMIT = 100; // GET /comments' own le=100 cap
+
+/**
+ * "Load more" grows `limit` and refetches from offset=0 each time,
+ * rather than a real cursor/offset-paginated useInfiniteQuery — GET
+ * /comments only paginates top-level comments (each one's replies come
+ * nested inline, one level, regardless of page), so an offset-based
+ * page boundary can land mid-thread. Refetching a growing single page
+ * is a few more bytes per "Load more" tap in exchange for never
+ * splitting a top-level comment from its own replies, and — just as
+ * important — keeps the cache under the exact same `["comments", logId]`
+ * key every other comment mutation here already patches directly
+ * (useAddComment/useLikeComment/useDeleteComment all setQueryData this
+ * literal key); a real useInfiniteQuery's paged `{pages, pageParams}`
+ * shape would silently break all of that instant-cache-priming code.
+ * hasMore is a heuristic (got back a full page => probably more) since
+ * the endpoint returns no total count, same convention reviews lists
+ * use elsewhere in this app.
+ */
 export function useComments(logId: string) {
-  return useQuery({
+  const [limit, setLimit] = useState(COMMENTS_PAGE_SIZE);
+  const query = useQuery({
     queryKey: ["comments", logId],
     queryFn: async () => {
       if (DEMO_MODE) return [] as Comment[];
       const { data } = await api.get<Comment[]>("/comments", {
-        params: { movie_log_id: logId },
+        params: { movie_log_id: logId, limit },
       });
       return data;
     },
     enabled: !!logId,
   });
+  const { refetch } = query;
+  useEffect(() => {
+    if (limit > COMMENTS_PAGE_SIZE) refetch();
+  }, [limit, refetch]);
+
+  return {
+    ...query,
+    loadMore: () => setLimit((l) => Math.min(l + COMMENTS_PAGE_SIZE, COMMENTS_MAX_LIMIT)),
+    hasMore: (query.data?.length ?? 0) >= limit && limit < COMMENTS_MAX_LIMIT,
+  };
 }
 
 export function useAddComment(logId: string) {
@@ -293,6 +325,43 @@ export function useLikeLog() {
       // variables (just logId/liked) don't carry.
       qc.invalidateQueries({ predicate: (q) => q.queryKey.includes("reviews") });
     },
+  });
+}
+
+// "Who liked this" — GET .../likes, added alongside the existing
+// POST/DELETE .../like pair (backend commit cfbb60a; not yet confirmed
+// live as of this writing — see the backend handoff notes). A single
+// page (no "load more" here, unlike comments) — a likes list is a
+// lighter, more disposable view than a comment thread, and 50 covers
+// the overwhelming majority of logs; can grow into the same
+// growing-limit pattern useComments uses if that turns out to matter.
+export interface LikeEntry {
+  user_id: string;
+  username?: string;
+  display_name?: string;
+  avatar_path?: string;
+  liked_at: string;
+}
+
+export function useLogLikes(logId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["movie-logs", logId, "likes"],
+    queryFn: async () => {
+      const { data } = await api.get<LikeEntry[]>(`/movie-logs/${logId}/likes`, { params: { limit: 50 } });
+      return data;
+    },
+    enabled: !DEMO_MODE && !!logId && enabled,
+  });
+}
+
+export function useCommentLikes(commentId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["comments", commentId, "likes"],
+    queryFn: async () => {
+      const { data } = await api.get<LikeEntry[]>(`/comments/${commentId}/likes`, { params: { limit: 50 } });
+      return data;
+    },
+    enabled: !DEMO_MODE && !!commentId && enabled,
   });
 }
 
