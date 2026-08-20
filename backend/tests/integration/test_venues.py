@@ -207,6 +207,50 @@ async def test_theatre_nickname_admin_only_independent_fields_and_match_ranking(
 
 
 @pytest.mark.asyncio
+async def test_match_theatres_short_chain_prefix_finds_a_long_name(client, make_user, admin_user):
+    """Regression for a live-verified bug: plain similarity() compares the
+    whole query against the whole target, so a short chain-name prefix
+    ('PVR') against a real long theatre name ('PVR VR Chennai Anna Nagar')
+    used to come back empty even though the full name matched with
+    similarity 1. match_theatres now also ranks/filters on word_similarity,
+    which finds the best-matching word-boundary substring instead of
+    comparing the two strings as wholes."""
+
+    admin_id, admin_token = admin_user
+    chain = f'Zq{uuid.uuid4().hex[:4]}'.upper()  # a short, unique "chain name" prefix
+    name = f'{chain} Multiplex Grand City Mall Downtown Cinema{THEATRE_TEST_TAG}'
+    theatre = await client.post(
+        '/api/v1/venues/theatres', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'name': name, 'place_id': f'wordsim-{uuid.uuid4().hex[:8]}', 'city': 'X', 'country': 'US'},
+    )
+    theatre_id = theatre.json()['id']
+
+    short_match = await client.post(
+        '/api/v1/venues/theatres/match', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'query': chain},
+    )
+    assert short_match.status_code == 200
+    assert theatre_id in [m['id'] for m in short_match.json()]
+
+    # Full-name matching (the pre-existing similarity() path) still works —
+    # this fix is additive, not a replacement.
+    full_match = await client.post(
+        '/api/v1/venues/theatres/match', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'query': name},
+    )
+    assert theatre_id in [m['id'] for m in full_match.json()]
+
+    # An unrelated short query must not match — the added word_similarity
+    # condition shouldn't turn this into a "3 random letters matches
+    # everything" search.
+    unrelated_match = await client.post(
+        '/api/v1/venues/theatres/match', headers={'Authorization': f'Bearer {admin_token}'},
+        json={'query': 'Xyz'},
+    )
+    assert theatre_id not in [m['id'] for m in unrelated_match.json()]
+
+
+@pytest.mark.asyncio
 async def test_venue_status_admin_only_and_never_hides_from_search(client, make_user, admin_user):
     _, non_admin_token = await make_user()
     admin_id, admin_token = admin_user
