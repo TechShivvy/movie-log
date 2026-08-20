@@ -363,6 +363,7 @@ export function LogDetailScreen() {
   const headingFamily = fontFamily(fontConfig, "heading", 700);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
 
   const { data: log, isLoading, error } = useMovieLog(id ?? "");
   const archiveLog = useArchiveLog();
@@ -400,6 +401,13 @@ export function LogDetailScreen() {
   }
 
   const vcol = visColor(log.visibility);
+  // Edit/Archive/Delete only ever make sense on your own log — now that
+  // GET /movie-logs/{id} can return someone else's public log too (see
+  // useMovieLogs.ts), those actions would otherwise render for a log the
+  // backend will reject any write against (update_log/delete_log stay
+  // owner-only by design). log.user_id is itself null on an anonymous
+  // log, which correctly falls through to "not mine" here too.
+  const isOwnLog = !!user && !!log.user_id && log.user_id === user.id;
   const handleLike = () => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller });
   // Archiving just flips is_archived and the log silently drops out of
   // Library's default view — with no confirmation of any kind, that read
@@ -624,34 +632,36 @@ export function LogDetailScreen() {
                   additionally gets an error-tinted fill/border so its
                   destructive weight is visible without having to hover
                   to discover the red icon color. */}
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 } as React.CSSProperties}>
-                <button
-                  className="btn btn-icon"
-                  title="Edit"
-                  onClick={() => router.push(`/log/new?edit=${log.id}` as never)}
-                  style={{ backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
-                >
-                  <PencilSimple size={17} />
-                </button>
-                <button
-                  className="btn btn-icon"
-                  title={log.is_archived ? "Unarchive" : "Archive"}
-                  onClick={handleArchive}
-                  style={log.is_archived
-                    ? { color: theme.accent, backgroundColor: `${theme.accent}1a`, border: `1px solid ${theme.accent}` } as React.CSSProperties
-                    : { backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
-                >
-                  <Archive size={17} weight={log.is_archived ? "fill" : "regular"} />
-                </button>
-                <button
-                  className="btn btn-icon"
-                  title="Delete"
-                  onClick={handleDelete}
-                  style={{ color: theme.error, backgroundColor: `${theme.error}15`, border: `1px solid ${theme.error}55` } as React.CSSProperties}
-                >
-                  <Trash size={17} />
-                </button>
-              </div>
+              {isOwnLog && (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 } as React.CSSProperties}>
+                  <button
+                    className="btn btn-icon"
+                    title="Edit"
+                    onClick={() => router.push(`/log/new?edit=${log.id}` as never)}
+                    style={{ backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
+                  >
+                    <PencilSimple size={17} />
+                  </button>
+                  <button
+                    className="btn btn-icon"
+                    title={log.is_archived ? "Unarchive" : "Archive"}
+                    onClick={handleArchive}
+                    style={log.is_archived
+                      ? { color: theme.accent, backgroundColor: `${theme.accent}1a`, border: `1px solid ${theme.accent}` } as React.CSSProperties
+                      : { backgroundColor: theme.surfaceHigh, border: `1px solid ${theme.divider}` } as React.CSSProperties}
+                  >
+                    <Archive size={17} weight={log.is_archived ? "fill" : "regular"} />
+                  </button>
+                  <button
+                    className="btn btn-icon"
+                    title="Delete"
+                    onClick={handleDelete}
+                    style={{ color: theme.error, backgroundColor: `${theme.error}15`, border: `1px solid ${theme.error}55` } as React.CSSProperties}
+                  >
+                    <Trash size={17} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Title — links to the catalog movie page when this log has
@@ -891,28 +901,32 @@ export function LogDetailScreen() {
               matching web buttons: a real surfaceHigh fill so these
               three are findable at a glance, not just on a hover state
               touch doesn't even have; Delete gets an error tint. */}
-          <Pressable
-            onPress={() => router.push(`/log/new?edit=${log.id}` as never)}
-            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surfaceHigh }}
-          >
-            <PencilSimple size={17} color={theme.text} />
-          </Pressable>
-          <Pressable
-            onPress={handleArchive}
-            style={{
-              width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1,
-              borderColor: log.is_archived ? theme.accent : theme.divider,
-              backgroundColor: log.is_archived ? `${theme.accent}1a` : theme.surfaceHigh,
-            }}
-          >
-            <Archive size={17} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
-          </Pressable>
-          <Pressable
-            onPress={handleDelete}
-            style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: `${theme.error}55`, backgroundColor: `${theme.error}15` }}
-          >
-            <Trash size={17} color={theme.error} />
-          </Pressable>
+          {isOwnLog && (
+            <>
+              <Pressable
+                onPress={() => router.push(`/log/new?edit=${log.id}` as never)}
+                style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surfaceHigh }}
+              >
+                <PencilSimple size={17} color={theme.text} />
+              </Pressable>
+              <Pressable
+                onPress={handleArchive}
+                style={{
+                  width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1,
+                  borderColor: log.is_archived ? theme.accent : theme.divider,
+                  backgroundColor: log.is_archived ? `${theme.accent}1a` : theme.surfaceHigh,
+                }}
+              >
+                <Archive size={17} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
+              </Pressable>
+              <Pressable
+                onPress={handleDelete}
+                style={{ width: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: `${theme.error}55`, backgroundColor: `${theme.error}15` }}
+              >
+                <Trash size={17} color={theme.error} />
+              </Pressable>
+            </>
+          )}
         </View>
 
         <MetaList rows={buildMetaRows(log, (path) => router.push(path as any))} theme={theme} />

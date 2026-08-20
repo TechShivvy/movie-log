@@ -64,7 +64,12 @@ export type ExtractionProvider = "openrouter" | "openai" | "gemini";
 
 export interface MovieLog {
   id: string;
-  user_id: string;
+  // Optional — an anonymous log's user_id is legitimately null (the
+  // real author is deliberately unreadable there, same reasoning as
+  // username/display_name/avatar_path below). Was wrongly required
+  // until the backend fixed this alongside making GET /movie-logs/{id}
+  // visibility- rather than ownership-scoped.
+  user_id?: string;
   movie?: string;
   watched_date?: string; // YYYY-MM-DD
   watched_time?: string; // HH:MM 24h

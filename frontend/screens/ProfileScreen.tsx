@@ -27,6 +27,7 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -37,9 +38,14 @@ import {
 import { useRouter } from "expo-router";
 import { PencilSimple, GearSix, CaretRight } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useAuth } from "../hooks/useAuth";
 import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useMyProfile } from "../hooks/useProfile";
+import { useFollowers, useFollowing } from "../hooks/useSocial";
+import { avatarUrl, bannerUrl } from "../lib/storage";
 import { Avatar } from "../components/ui/Avatar";
 import { PosterCard } from "../components/ui/PosterCard";
+import { EditProfileModal } from "../components/profile/EditProfileModal";
 import type { MovieLog } from "../types";
 
 type Tab = "logs" | "favorites" | "theatres";
@@ -129,9 +135,14 @@ function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPr
 export function ProfileScreen() {
   const { theme } = useTheme();
   const router = useRouter();
+  const { user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [refreshing, setRefreshing] = useState(false);
+  const [editing, setEditing] = useState(false);
 
+  const { data: profile } = useMyProfile();
+  const { data: followers } = useFollowers(profile?.username);
+  const { data: following } = useFollowing(profile?.username);
   const { data: logs, isLoading, refetch } = useMovieLogs({ archived: false });
   const count    = logs?.length ?? 0;
   const avgRating = logs?.length
@@ -154,8 +165,16 @@ export function ProfileScreen() {
     }
   }
 
-  // Placeholder user — in real app would come from useAuth
-  const user = { display_name: "You", username: "you", avatar_url: undefined };
+  // profile is null until GET /public/me/profile responds (or forever,
+  // until the backend endpoint requested this session ships — see
+  // hooks/useProfile.ts) — email-local-part is a reasonable placeholder
+  // in the meantime, better than a literal "You".
+  const emailHandle = authUser?.email?.split("@")[0];
+  const displayName = profile?.display_name || profile?.username || emailHandle || "You";
+  const username = profile?.username || emailHandle || "—";
+  const bio = profile?.bio;
+  const avatar = avatarUrl(profile?.avatar_path);
+  const banner = bannerUrl(profile?.banner_path);
 
   const openLog = (id: string) => router.push(`/(app)/log/${id}` as any);
   const openVenue = (id: string) => router.push(`/(app)/venue/${id}` as any);
@@ -175,18 +194,18 @@ export function ProfileScreen() {
         {/* Hero banner */}
         <div style={{
           height: 160,
-          background: `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
+          background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
           position: "relative",
         } as React.CSSProperties} />
 
         <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
           {/* Avatar + name row */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 24 } as React.CSSProperties}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 12 } as React.CSSProperties}>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 16 } as React.CSSProperties}>
-              <Avatar name={user.display_name} uri={user.avatar_url} size="xl" />
+              <Avatar name={displayName} uri={avatar} size="xl" />
               <div style={{ marginBottom: 4 } as React.CSSProperties}>
-                <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px" } as React.CSSProperties}>{user.display_name}</h2>
-                <span style={{ fontSize: 13, color: `${theme.text}55` } as React.CSSProperties}>@{user.username}</span>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px" } as React.CSSProperties}>{displayName}</h2>
+                <span style={{ fontSize: 13, color: `${theme.text}55` } as React.CSSProperties}>@{username}</span>
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 4 } as React.CSSProperties}>
@@ -194,18 +213,20 @@ export function ProfileScreen() {
                 <GearSix size={14} />
                 Settings
               </button>
-              <button className="btn btn-secondary">
+              <button className="btn btn-secondary" onClick={() => setEditing(true)}>
                 <PencilSimple size={14} />
                 Edit profile
               </button>
             </div>
           </div>
 
+          {bio && <p style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 1.5, margin: "0 0 20px" } as React.CSSProperties}>{bio}</p>}
+
           {/* Stats row */}
           <div style={{ display: "flex", gap: 10, marginBottom: 28 } as React.CSSProperties}>
             <StatCard value={count} label="Films" theme={theme} />
-            <StatCard value={0} label="Following" theme={theme} />
-            <StatCard value={0} label="Followers" theme={theme} />
+            <StatCard value={following?.length ?? 0} label="Following" theme={theme} />
+            <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} />
             <StatCard value={avgRating} label="★ avg rating" theme={theme} />
           </div>
 
@@ -269,6 +290,7 @@ export function ProfileScreen() {
             </div>
           )}
         </div>
+        <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
       </div>
     );
   }
@@ -285,13 +307,21 @@ export function ProfileScreen() {
         height: 140,
         backgroundColor: theme.accent900,
         position: "relative",
-      }} />
+      }}>
+        {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
+      </View>
 
       {/* Avatar overlapping hero */}
       <View style={{ paddingHorizontal: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
-          <Avatar name={user.display_name} uri={user.avatar_url} size="xl" />
+          <Avatar name={displayName} uri={avatar} size="xl" />
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
+            <Pressable
+              onPress={() => setEditing(true)}
+              style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
+            >
+              <PencilSimple size={16} color={theme.text} />
+            </Pressable>
             <Pressable
               onPress={() => router.push("/(app)/settings" as any)}
               style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
@@ -301,14 +331,15 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{user.display_name}</Text>
-        <Text style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: 16 }}>@{user.username}</Text>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{displayName}</Text>
+        <Text style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>@{username}</Text>
+        {bio && <Text style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
 
         {/* Stats row */}
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 24 }}>
           <StatCard value={count} label="Films" theme={theme} />
-          <StatCard value={0} label="Following" theme={theme} />
-          <StatCard value={0} label="Followers" theme={theme} />
+          <StatCard value={following?.length ?? 0} label="Following" theme={theme} />
+          <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} />
           <StatCard value={avgRating} label="★ avg" theme={theme} />
         </View>
 
@@ -371,6 +402,7 @@ export function ProfileScreen() {
           </View>
         )}
       </View>
+      <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
     </ScrollView>
   );
 }

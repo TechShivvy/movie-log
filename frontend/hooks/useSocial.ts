@@ -35,6 +35,22 @@ export function useFollowers(username: string | undefined) {
   });
 }
 
+// Mirrors useFollowers above — who this username follows, rather than
+// who follows them. Used for the "Following" stat card on a profile
+// (own or public); list length is the count, same derive-from-list-
+// length reasoning as the followers count (no dedicated count field
+// exists anywhere on PublicProfile).
+export function useFollowing(username: string | undefined) {
+  return useQuery({
+    queryKey: ["public-profile", username, "following"],
+    queryFn: async () => {
+      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/following`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!username,
+  });
+}
+
 /**
  * A liked/logged-in-cache MovieLog can be sitting in any number of
  * differently-shaped query caches at once — its own detail query, the
