@@ -7,6 +7,7 @@ _PROFILE_EXAMPLE = {
     'bio': 'Telugu/Tamil cinema, always front row.',
     'account_visibility': 'public',
     'avatar_path': '11111111-1111-1111-1111-111111111111/avatar.jpg',
+    'banner_path': '11111111-1111-1111-1111-111111111111/banner.jpg',
     'profile_links': [{'label': 'Letterboxd', 'url': 'https://letterboxd.com/shivco'}],
 }
 
@@ -214,6 +215,7 @@ responses = {
                         'bio': None,
                         'account_visibility': 'private',
                         'avatar_path': None,
+                        'banner_path': None,
                         'profile_links': [],
                         'prefill_repeat_visit': False,
                     }
@@ -318,8 +320,8 @@ responses = {
             'content': {'application/json': {'example': {**_PROFILE_EXAMPLE, 'user_id': _PROFILE_EXAMPLE['user_id']}}},
         },
         400: {
-            'description': 'No fields provided, or avatar_path is not prefixed with '
-            "the caller's own user_id.",
+            'description': 'No fields provided, or avatar_path/banner_path is not '
+            "prefixed with the caller's own user_id.",
             'content': {
                 'application/json': {
                     'examples': {
@@ -332,6 +334,13 @@ responses = {
                             'value': {
                                 'code': 'INVALID_IMAGE_PATH',
                                 'message': "avatar_path must be under the caller's own user_id prefix.",
+                            },
+                        },
+                        'bad_banner_path': {
+                            'summary': 'banner_path not under the caller\'s own prefix',
+                            'value': {
+                                'code': 'INVALID_IMAGE_PATH',
+                                'message': "banner_path must be under the caller's own user_id prefix.",
                             },
                         },
                     }

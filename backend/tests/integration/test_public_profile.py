@@ -73,6 +73,54 @@ async def test_profile_update_round_trips_display_name_bio_and_links(client, mak
 
 
 @pytest.mark.asyncio
+async def test_banner_path_round_trips_and_is_returned_by_public_profile(client, make_user):
+    """banner_path mirrors avatar_path end to end: settable via PATCH
+    /me/profile, own-prefix enforced, and surfaced on GET /users/{username}
+    (get_public_profile_by_username) — but never on GET /users/search
+    (search_public_users), a detail-page-only concept by design."""
+
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    username = f'bannertest{uuid.uuid4().hex[:10]}'
+    await client.patch('/api/v1/public/me/username', headers=headers, json={'username': username})
+    await client.patch(
+        '/api/v1/public/me/privacy', headers=headers, json={'account_visibility': 'public'},
+    )
+
+    updated = await client.patch(
+        '/api/v1/public/me/profile', headers=headers,
+        json={'banner_path': f'{user_id}/banner.jpg'},
+    )
+    assert updated.status_code == 200
+    assert updated.json()['banner_path'] == f'{user_id}/banner.jpg'
+
+    profile = await client.get(f'/api/v1/public/users/{username}')
+    assert profile.status_code == 200
+    assert profile.json()['profile']['banner_path'] == f'{user_id}/banner.jpg'
+
+    search = await client.get('/api/v1/public/users/search', params={'q': username})
+    assert search.status_code == 200
+    # search_public_users never selects banner_path (it's a detail-page-only
+    # concept, unlike avatar_path which the search-results list UI needs) —
+    # PublicProfile still declares the field, so it's always null here
+    # rather than a real value, regardless of what was set above.
+    assert search.json()[0]['banner_path'] is None
+    assert search.json()[0]['avatar_path'] is None
+
+
+@pytest.mark.asyncio
+async def test_banner_path_rejects_a_foreign_prefix(client, make_user):
+    _, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    response = await client.patch(
+        '/api/v1/public/me/profile', headers=headers,
+        json={'banner_path': 'someone-elses-id/banner.jpg'},
+    )
+    assert response.status_code == 400
+    assert response.json()['code'] == 'INVALID_IMAGE_PATH'
+
+
+@pytest.mark.asyncio
 async def test_auto_insert_preference_defaults_false_and_round_trips(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}

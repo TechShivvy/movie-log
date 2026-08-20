@@ -82,6 +82,12 @@ class ProfileUpdate(BaseModel):
         '"{user_id}/avatar.jpg" — client uploads directly to Supabase '
         'Storage, this only stores the resulting path. null clears it.',
     )
+    banner_path: Optional[str] = Field(
+        default=None, max_length=512,
+        description='Storage path in the banner-images bucket, e.g. '
+        '"{user_id}/banner.jpg" — same client-uploads-direct-to-Storage '
+        'pattern as avatar_path, just a separate public bucket. null clears it.',
+    )
     profile_links: Optional[List[ProfileLink]] = Field(default=None, max_length=5)
 
     @field_validator('display_name', 'bio', mode='before')
@@ -91,9 +97,9 @@ class ProfileUpdate(BaseModel):
             return None
         return v
 
-    @field_validator('avatar_path')
+    @field_validator('avatar_path', 'banner_path')
     @classmethod
-    def _check_avatar_path(cls, v: Optional[str]) -> Optional[str]:
+    def _check_image_path(cls, v: Optional[str]) -> Optional[str]:
         return validate_storage_path(v)
 
 
@@ -196,4 +202,5 @@ class PublicProfile(BaseModel):
     bio: Optional[str] = None
     account_visibility: AccountVisibility = 'private'
     avatar_path: Optional[str] = None
+    banner_path: Optional[str] = None
     profile_links: List[ProfileLink] = Field(default_factory=list)

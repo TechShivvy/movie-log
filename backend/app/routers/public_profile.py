@@ -170,13 +170,14 @@ async def set_privacy(
 @router.patch(
     '/me/profile',
     tags=['Public'],
-    description='Update the caller\'s display_name, bio, avatar_path, and/or '
-    'profile_links (up to 5) in one call — only fields actually sent are '
-    'changed. avatar_path is a Supabase Storage path in the public '
-    'avatar-images bucket (client uploads directly to Storage; this only '
-    'stores the resulting path string, same pattern as ticket_image_path on '
-    'movie logs) — must be prefixed with the caller\'s own user_id, same rule '
-    'ticket images already enforce.',
+    description='Update the caller\'s display_name, bio, avatar_path, '
+    'banner_path, and/or profile_links (up to 5) in one call — only fields '
+    'actually sent are changed. avatar_path/banner_path are Supabase Storage '
+    'paths in their own public buckets (avatar-images / banner-images; '
+    'client uploads directly to Storage, this only stores the resulting '
+    'path string, same pattern as ticket_image_path on movie logs) — both '
+    "must be prefixed with the caller's own user_id, same rule ticket "
+    'images already enforce.',
     response_description="The caller's updated settings row.",
     responses=responses['set_profile'],
     operation_id='UpdateProfile',
@@ -197,6 +198,13 @@ async def update_profile(
             status.HTTP_400_BAD_REQUEST,
             'INVALID_IMAGE_PATH',
             "avatar_path must be under the caller's own user_id prefix.",
+        )
+    banner_path = patch.get('banner_path')
+    if banner_path and not banner_path.startswith(f'{current_user.user_id}/'):
+        raise APIError(
+            status.HTTP_400_BAD_REQUEST,
+            'INVALID_IMAGE_PATH',
+            "banner_path must be under the caller's own user_id prefix.",
         )
     return await supabase_rest.update_profile(
         current_user.access_token, current_user.user_id, patch
