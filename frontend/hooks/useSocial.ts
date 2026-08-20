@@ -1,6 +1,39 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
-import type { Comment, MovieLog } from "../types";
+import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse } from "../types";
+
+// ─── Public profile ─────────────────────────────────────────────────────────
+
+export function usePublicProfile(username: string | undefined) {
+  return useQuery({
+    queryKey: ["public-profile", username],
+    queryFn: async () => {
+      const { data } = await api.get<PublicProfileResponse>(`/public/users/${username}`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!username,
+  });
+}
+
+/**
+ * No endpoint answers "am I already following this person" directly —
+ * the accepted-follow relationship has to be derived from their
+ * followers list (an accepted follow means the caller's own user_id
+ * shows up in it; a pending request wouldn't yet, which is an accepted
+ * simplification for this pass, not a bug to chase down further right
+ * now). Used to decide the Follow/Following button's initial state on
+ * PublicProfileScreen.
+ */
+export function useFollowers(username: string | undefined) {
+  return useQuery({
+    queryKey: ["public-profile", username, "followers"],
+    queryFn: async () => {
+      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/followers`);
+      return data;
+    },
+    enabled: !DEMO_MODE && !!username,
+  });
+}
 
 /**
  * A liked/logged-in-cache MovieLog can be sitting in any number of
@@ -157,6 +190,30 @@ export function useLikeComment(logId: string) {
   });
 }
 
+/**
+ * DELETE /comments/{id} is a soft delete server-side — the row stays
+ * (deleted_at set, text nulled) so replies don't orphan, per Comment's
+ * own type comment. Patches that same shape into the cache directly
+ * (not a remove-from-list, unlike useDeleteLog — the row is still there,
+ * it just now needs to render as "[deleted]") so the placeholder shows
+ * immediately instead of after a refetch.
+ */
+export function useDeleteComment(logId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (commentId: string) => {
+      if (DEMO_MODE) return;
+      await api.delete(`/comments/${commentId}`);
+    },
+    onSuccess: (_data, commentId) => {
+      qc.setQueryData<Comment[]>(["comments", logId], (old) =>
+        old ? patchComment(old, commentId, (c) => ({ ...c, text: undefined, deleted_at: new Date().toISOString() })) : old
+      );
+      qc.invalidateQueries({ queryKey: ["comments", logId] });
+    },
+  });
+}
+
 // ─── Log Likes ───────────────────────────────────────────────────────────────
 //
 // Likes on a log ARE nested: /api/v1/movie-logs/{log_id}/like
@@ -247,7 +304,13 @@ export function useFollowUser() {
         await api.post(`/public/follows/${username}`);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+    // Was invalidating ["profile"] — a key nothing in this codebase
+    // actually queries under (usePublicProfile uses ["public-profile",
+    // username]), so this never invalidated anything real. The prefix
+    // here also covers useFollowers's ["public-profile", username,
+    // "followers"] key, which is what the Follow/Following button's
+    // state is actually derived from.
+    onSuccess: (_data, { username }) => qc.invalidateQueries({ queryKey: ["public-profile", username] }),
   });
 }
 
@@ -270,6 +333,6 @@ export function useBlockUser() {
         await api.post(`/public/blocks/${username}`);
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+    onSuccess: (_data, { username }) => qc.invalidateQueries({ queryKey: ["public-profile", username] }),
   });
 }

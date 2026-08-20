@@ -23,6 +23,7 @@ export interface PublicProfile {
   bio?: string;
   account_visibility: AccountVisibility;
   avatar_path?: string;
+  banner_path?: string;
   profile_links: ProfileLink[];
   is_blocked: boolean;
   can_view_content: boolean;

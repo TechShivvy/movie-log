@@ -47,7 +47,8 @@ import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
-import { useLikeLog, useComments, useAddComment, useLikeComment } from "../hooks/useSocial";
+import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment } from "../hooks/useSocial";
+import { useAuth } from "../hooks/useAuth";
 import { useVenueRating } from "../hooks/useVenueRating";
 import { useMovie } from "../hooks/useSearch";
 import { useToast } from "../context/ToastContext";
@@ -56,6 +57,7 @@ import { StarRating } from "../components/ui/StarRating";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { hueFromTitle } from "../components/ui/Poster";
 import { tmdbPosterUrl } from "../lib/tmdb";
+import { avatarUrl } from "../lib/storage";
 import type { Comment, MovieLog } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -119,34 +121,68 @@ function CommentItem({
   onReply: (username: string, commentId: string) => void;
 }) {
   const { theme } = useTheme();
+  const router = useRouter();
+  const { user } = useAuth();
   const likeComment = useLikeComment(logId);
+  const deleteComment = useDeleteComment(logId);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const isOwn = !!user && comment.user_id === user.id;
+  const isDeleted = !!comment.deleted_at;
+  const goToProfile = () => comment.username && router.push(`/(app)/profile/${comment.username}` as any);
 
   return (
     <View style={depth > 0 ? { marginLeft: 28, marginTop: 6 } : undefined}>
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
           {/* Comment has no display_name/avatar_url — only a flat username */}
-          <Avatar name={comment.username ?? "?"} size="sm" />
-          <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
-            {comment.username ?? "User"}
-          </Text>
+          <Pressable onPress={goToProfile} disabled={!comment.username}>
+            <Avatar name={comment.username ?? "?"} size="sm" />
+          </Pressable>
+          <Pressable onPress={goToProfile} disabled={!comment.username}>
+            <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+              {comment.username ?? "User"}
+            </Text>
+          </Pressable>
           <Text style={{ fontSize: 12, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>
         </View>
-        <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
-        <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
-          <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
-            <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>♥ {comment.like_count ?? 0}</Text>
-          </Pressable>
-          {depth === 0 && (
-            <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
-              <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
+        {isDeleted ? (
+          <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text, opacity: 0.5, fontStyle: "italic" }}>
+            [deleted]
+          </Text>
+        ) : (
+          <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
+        )}
+        {!isDeleted && (
+          <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
+            <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
+              <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>♥ {comment.like_count ?? 0}</Text>
             </Pressable>
-          )}
-        </View>
+            {depth === 0 && (
+              <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
+                <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
+              </Pressable>
+            )}
+            {isOwn && (
+              <Pressable onPress={() => setConfirmingDelete(true)}>
+                <Text style={{ fontSize: 12, color: theme.error }}>Delete</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
       {(comment.replies ?? []).map((r) => (
         <CommentItem key={r.id} comment={r} logId={logId} depth={1} onReply={onReply} />
       ))}
+      <ConfirmDialog
+        visible={confirmingDelete}
+        title="Delete comment"
+        message="This can't be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { deleteComment.mutate(comment.id); setConfirmingDelete(false); }}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </View>
   );
 }
@@ -165,12 +201,17 @@ interface MetaRowData {
   Icon: React.ComponentType<{ size?: number; color?: string }>;
   label: string;
   value?: string | null;
+  // Set only for rows with a real id to link to — an older log (or one
+  // whose venue was free-typed before theatre selection was required)
+  // can have a `theater` string with no `theatre_id` behind it, and a
+  // plain-text venue name has nowhere real to link to.
+  onPress?: () => void;
 }
 
-function buildMetaRows(log: MovieLog): MetaRowData[] {
+function buildMetaRows(log: MovieLog, onNavigate: (path: string) => void): MetaRowData[] {
   return [
-    { Icon: MapPin, label: "Venue", value: log.theater },
-    { Icon: ProjectorScreen, label: "Screen", value: log.screen },
+    { Icon: MapPin, label: "Venue", value: log.theater, onPress: log.theatre_id ? () => onNavigate(`/(app)/venue/${log.theatre_id}`) : undefined },
+    { Icon: ProjectorScreen, label: "Screen", value: log.screen, onPress: (log.theatre_id && log.screen_id) ? () => onNavigate(`/(app)/venue/${log.theatre_id}/screen/${log.screen_id}`) : undefined },
     { Icon: Armchair, label: "Seats", value: log.seats?.length ? log.seats.join(", ") : undefined },
     { Icon: Translate, label: "Language", value: log.language },
     { Icon: SealCheck, label: "Certificate", value: log.certificate },
@@ -201,7 +242,17 @@ function WebMetaList({ rows }: { rows: MetaRowData[] }) {
         >
           <r.Icon size={16} color={`${theme.text}88`} />
           <span style={{ fontSize: 12, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
-          <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{r.value}</span>
+          {r.onPress ? (
+            <span
+              onClick={r.onPress}
+              className="tapc"
+              style={{ fontSize: 14, fontWeight: 600, color: "var(--color-accent)", cursor: "pointer" } as React.CSSProperties}
+            >
+              {r.value}
+            </span>
+          ) : (
+            <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{r.value}</span>
+          )}
         </div>
       ))}
     </div>
@@ -213,21 +264,23 @@ function MetaList({ rows, theme }: { rows: MetaRowData[]; theme: any }) {
   if (!visible.length) return null;
   return (
     <View style={{ backgroundColor: theme.surface, borderRadius: 12, marginBottom: 20, overflow: "hidden" }}>
-      {visible.map((r, i) => (
-        <View
-          key={r.label}
-          style={{
-            flexDirection: "row", alignItems: "center", gap: 10,
-            paddingVertical: 11, paddingHorizontal: 14,
-            borderBottomWidth: i < visible.length - 1 ? 1 : 0,
-            borderBottomColor: theme.divider,
-          }}
-        >
-          <r.Icon size={16} color={`${theme.text}88`} />
-          <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text, flex: 1 }}>{r.value}</Text>
-        </View>
-      ))}
+      {visible.map((r, i) => {
+        const row = (
+          <View
+            style={{
+              flexDirection: "row", alignItems: "center", gap: 10,
+              paddingVertical: 11, paddingHorizontal: 14,
+              borderBottomWidth: i < visible.length - 1 ? 1 : 0,
+              borderBottomColor: theme.divider,
+            }}
+          >
+            <r.Icon size={16} color={`${theme.text}88`} />
+            <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
+            <Text style={{ fontSize: 14, fontWeight: "600", color: r.onPress ? theme.accent : theme.text, flex: 1 }}>{r.value}</Text>
+          </View>
+        );
+        return r.onPress ? <Pressable key={r.label} onPress={r.onPress}>{row}</Pressable> : <View key={r.label}>{row}</View>;
+      })}
     </View>
   );
 }
@@ -415,9 +468,18 @@ export function LogDetailScreen() {
   const handleSendComment = async () => {
     const text = commentText.trim();
     if (!text) return;
-    await addComment.mutateAsync({ text, parent_comment_id: replyTo?.commentId });
-    setCommentText("");
-    setReplyTo(null);
+    // Was a bare `await` with no try/catch — a real rejection (403 on a
+    // private log, a blocked pair, network drop) surfaced as an
+    // unhandled promise rejection: the typed text just sat there with no
+    // feedback, same silent-failure class the delete flow above this was
+    // already fixed for.
+    try {
+      await addComment.mutateAsync({ text, parent_comment_id: replyTo?.commentId });
+      setCommentText("");
+      setReplyTo(null);
+    } catch {
+      showToast("Couldn't post comment — try again", "error");
+    }
   };
 
   // Hue from title for poster gradient — `movie` can be null/undefined
@@ -502,6 +564,24 @@ export function LogDetailScreen() {
 
           {/* Content column */}
           <div style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
+            {/* Author — only ever present on a public/feed view of someone
+                else's log (username/display_name/avatar_path are flat
+                columns joined in only on those views, per MovieLog's own
+                comment); the caller's own log GET never carries them, so
+                this naturally never shows on your own logs without an
+                extra check. */}
+            {log.username && (
+              <div
+                onClick={() => router.push(`/(app)/profile/${log.username}` as any)}
+                className="tapc"
+                style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer" } as React.CSSProperties}
+              >
+                <Avatar name={log.display_name ?? log.username} uri={avatarUrl(log.avatar_path)} size="sm" />
+                <span style={{ fontSize: 13, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+                  {log.display_name ?? log.username}
+                </span>
+              </div>
+            )}
             {/* Tags (left) + owner actions (right) */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 } as React.CSSProperties}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 } as React.CSSProperties}>
@@ -574,16 +654,22 @@ export function LogDetailScreen() {
               </div>
             </div>
 
-            {/* Title */}
-            <h1 style={{
-              fontSize: 28,
-              fontWeight: 700,
-              color: theme.text,
-              margin: "0 0 8px",
-              lineHeight: 1.2,
-              letterSpacing: -0.3,
-              fontFamily: headingFamily,
-            } as React.CSSProperties}>
+            {/* Title — links to the catalog movie page when this log has
+                a real movie_id (a free-typed title with no TMDB pick
+                behind it has nowhere real to link to). */}
+            <h1
+              onClick={log.movie_id ? () => router.push(`/(app)/movie/${log.movie_id}` as any) : undefined}
+              className={log.movie_id ? "tapc" : undefined}
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                color: theme.text,
+                margin: "0 0 8px",
+                lineHeight: 1.2,
+                letterSpacing: -0.3,
+                fontFamily: headingFamily,
+                cursor: log.movie_id ? "pointer" : undefined,
+              } as React.CSSProperties}>
               {log.movie}
             </h1>
 
@@ -598,7 +684,7 @@ export function LogDetailScreen() {
               )}
             </div>
 
-            <WebMetaList rows={buildMetaRows(log)} />
+            <WebMetaList rows={buildMetaRows(log, (path) => router.push(path as any))} />
             <WebVenueRatings rating={venueRating} />
 
             {/* Notes */}
@@ -711,6 +797,19 @@ export function LogDetailScreen() {
 
       {/* Content */}
       <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        {/* Author — see web branch's identical comment above: only ever
+            present on a feed/public view of someone else's log. */}
+        {log.username && (
+          <Pressable
+            onPress={() => router.push(`/(app)/profile/${log.username}` as any)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}
+          >
+            <Avatar name={log.display_name ?? log.username} uri={avatarUrl(log.avatar_path)} size="sm" />
+            <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+              {log.display_name ?? log.username}
+            </Text>
+          </Pressable>
+        )}
         {/* Tags */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
           <View style={{ backgroundColor: visColor(log.visibility) + "22", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -743,14 +842,16 @@ export function LogDetailScreen() {
           )}
         </View>
 
-        {/* Title */}
-        <Text style={{
-          fontSize: 24,
-          fontWeight: "800",
-          color: theme.text,
-          marginBottom: 8,
-          fontFamily: headingFamily,
-        }} numberOfLines={3}>
+        {/* Title — see the web branch's identical comment on movie_id */}
+        <Text
+          onPress={log.movie_id ? () => router.push(`/(app)/movie/${log.movie_id}` as any) : undefined}
+          style={{
+            fontSize: 24,
+            fontWeight: "800",
+            color: theme.text,
+            marginBottom: 8,
+            fontFamily: headingFamily,
+          }} numberOfLines={3}>
           {log.movie}
         </Text>
 
@@ -814,7 +915,7 @@ export function LogDetailScreen() {
           </Pressable>
         </View>
 
-        <MetaList rows={buildMetaRows(log)} theme={theme} />
+        <MetaList rows={buildMetaRows(log, (path) => router.push(path as any))} theme={theme} />
         <VenueRatings rating={venueRating} theme={theme} />
 
         {/* Notes */}
