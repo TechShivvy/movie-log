@@ -848,6 +848,7 @@ export function LogDetailScreen() {
   return (
     <>
       {deleteDialog}
+      {likesModal}
       <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 80 }}>
       {/* Hero poster — 340px */}
       <View style={{ width: "100%", height: 340, position: "relative" }}>

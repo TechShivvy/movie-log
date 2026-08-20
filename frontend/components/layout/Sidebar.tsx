@@ -27,13 +27,14 @@
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { useMyProfile } from "../../hooks/useProfile";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
+import { Avatar } from "../ui/Avatar";
+import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
 import { fontFamily } from "../../constants/fonts";
 
@@ -112,7 +113,6 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   // been set via Edit Profile — showed a different handle here than on
   // ProfileScreen's own hero, right next to it in the same UI.
   const handle = profile?.username ?? session?.user?.email?.split("@")[0] ?? "guest";
-  const initial = displayName[0]?.toUpperCase() ?? "U";
 
   // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -241,16 +241,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             ) : null}
 
             <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 4px" } as React.CSSProperties}>
-              <div
-                style={{
-                  width: 32, height: 32, flex: "none", borderRadius: 10,
-                  background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent700})`,
-                  display: "grid", placeItems: "center", color: "#fff",
-                  fontFamily: headingFamily, fontSize: 14,
-                } as React.CSSProperties}
-              >
-                {initial}
-              </div>
+              {/* Shared Avatar component, not a hand-rolled one-letter
+                  circle — this used to show only displayName[0] ("S")
+                  while every other avatar in the app (via this same
+                  component) shows real two-letter initials ("ST") off
+                  the same name, and never showed the real uploaded
+                  photo even once avatar_path was set. size="sm" is the
+                  same 32px this box always was. */}
+              <Avatar name={displayName} uri={avatarUrl(profile?.avatar_path)} size="sm" />
               <div className="lbl" style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
                 <div style={{ fontSize: 13, fontFamily: headingFamily, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as React.CSSProperties}>
                   {displayName}
@@ -361,14 +359,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             onPress={() => router.push("/(app)/settings" as any)}
             style={[styles.userRow, collapsed && styles.centered]}
           >
-            <LinearGradient
-              colors={[theme.accent, theme.accent700]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatar}
-            >
-              <Text style={{ color: "#fff", fontFamily: headingFamily, fontSize: 14 }}>{initial}</Text>
-            </LinearGradient>
+            {/* Shared Avatar component — same fix as the web branch above:
+                was a hand-rolled one-letter circle, never showed the
+                real uploaded photo. */}
+            <Avatar name={displayName} uri={avatarUrl(profile?.avatar_path)} size="sm" />
             {!collapsed && (
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: headingFamily, color: theme.text }}>
@@ -404,5 +398,4 @@ const styles = StyleSheet.create({
   },
   paletteLabel: { fontSize: 10, letterSpacing: 1, opacity: 0.45, marginBottom: 7, paddingLeft: 4 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 6, paddingHorizontal: 4 },
-  avatar: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 });
