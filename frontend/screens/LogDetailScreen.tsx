@@ -47,7 +47,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
-import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment, useLogLikes, useCommentLikes } from "../hooks/useSocial";
+import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment, useEditComment, useLogLikes, useCommentLikes } from "../hooks/useSocial";
 import { LikesListModal } from "../components/social/LikesListModal";
 import { useAuth } from "../hooks/useAuth";
 import { useVenueRating } from "../hooks/useVenueRating";
@@ -126,9 +126,19 @@ function CommentItem({
   const { user } = useAuth();
   const likeComment = useLikeComment(logId);
   const deleteComment = useDeleteComment(logId);
+  const editComment = useEditComment(logId);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.text ?? "");
   const { data: commentLikes, isLoading: commentLikesLoading } = useCommentLikes(comment.id, showLikes);
+
+  const startEdit = () => { setEditText(comment.text ?? ""); setIsEditing(true); };
+  const saveEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === comment.text) { setIsEditing(false); return; }
+    editComment.mutate({ commentId: comment.id, text: trimmed }, { onSuccess: () => setIsEditing(false) });
+  };
 
   const isOwn = !!user && comment.user_id === user.id;
   const isDeleted = !!comment.deleted_at;
@@ -148,15 +158,40 @@ function CommentItem({
             </Text>
           </Pressable>
           <Text style={{ fontSize: 12, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>
+          {!!comment.edited_at && !isDeleted && (
+            <Text style={{ fontSize: 11, color: theme.text, opacity: 0.4, fontStyle: "italic" }}>(edited)</Text>
+          )}
         </View>
         {isDeleted ? (
           <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text, opacity: 0.5, fontStyle: "italic" }}>
             [deleted]
           </Text>
+        ) : isEditing ? (
+          <View style={{ gap: 8 }}>
+            <TextInput
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              autoFocus
+              style={{
+                fontSize: 14, lineHeight: 20, color: theme.text,
+                backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
+                padding: 8, minHeight: 60, textAlignVertical: "top",
+              }}
+            />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <Pressable onPress={saveEdit} disabled={editComment.isPending}>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: theme.accent }}>{editComment.isPending ? "Saving…" : "Save"}</Text>
+              </Pressable>
+              <Pressable onPress={() => setIsEditing(false)} disabled={editComment.isPending}>
+                <Text style={{ fontSize: 12, color: theme.text, opacity: 0.6 }}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
         ) : (
           <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
         )}
-        {!isDeleted && (
+        {!isDeleted && !isEditing && (
           <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
             <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
               <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>
@@ -177,6 +212,11 @@ function CommentItem({
             {depth === 0 && (
               <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
                 <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
+              </Pressable>
+            )}
+            {isOwn && (
+              <Pressable onPress={startEdit}>
+                <Text style={{ fontSize: 12, color: theme.accent }}>Edit</Text>
               </Pressable>
             )}
             {isOwn && (

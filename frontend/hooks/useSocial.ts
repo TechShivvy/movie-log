@@ -262,6 +262,24 @@ export function useDeleteComment(logId: string) {
   });
 }
 
+export function useEditComment(logId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ commentId, text }: { commentId: string; text: string }) => {
+      if (DEMO_MODE) return undefined;
+      const { data } = await api.patch<Comment>(`/comments/${commentId}`, { text });
+      return data;
+    },
+    onSuccess: (updated, { commentId }) => {
+      if (!updated) return;
+      qc.setQueryData<Comment[]>(["comments", logId], (old) =>
+        old ? patchComment(old, commentId, () => updated) : old
+      );
+      qc.invalidateQueries({ queryKey: ["comments", logId] });
+    },
+  });
+}
+
 // ─── Log Likes ───────────────────────────────────────────────────────────────
 //
 // Likes on a log ARE nested: /api/v1/movie-logs/{log_id}/like
