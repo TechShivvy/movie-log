@@ -5,7 +5,7 @@ specific comment doesn't need to know which log it's on, so a flat
 /comments/{id} avoids an awkward double prefix for those two.
 """
 
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, List, Optional
 
 from auth.supabase_auth import AuthenticatedUser, get_current_user, get_current_user_optional
 from config import settings
@@ -14,6 +14,7 @@ from loguru_setup import LOGGER
 from rate_limit import limiter
 from responses.comments import responses
 from schemas.comments import Comment, CommentInput, CommentUpdate
+from schemas.likes import Liker
 from services import supabase_rest
 from utils.errors import APIError
 
@@ -209,3 +210,33 @@ async def unlike_comment(
     )
     count = await supabase_rest.get_comment_like_count(current_user.access_token, comment_id)
     return {'like_count': count if count is not None else 0}
+
+
+@router.get(
+    '/{comment_id}/likes',
+    response_model=List[Liker],
+    tags=['Comments'],
+    description="Who liked this comment, most recent first. Visible to anyone "
+    'who could see the comment itself — a comment\'s own visibility is '
+    "entirely inherited from its parent log (currently public/anonymous and "
+    "not archived, or the caller's own log), same gate GET /comments already "
+    'applies. A comment that never satisfies that gate simply has an empty '
+    "list here rather than 404ing, same convention GET .../reviews follows. "
+    'Public — no sign-in required, but a token lets a log owner see likes on '
+    "a comment under their own no-longer-public log.",
+    response_description='Likers, most recent first.',
+    responses=responses['list_comment_likes'],
+    operation_id='ListCommentLikes',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_comment_likes(
+    request: Request,
+    comment_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
+) -> Any:
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.list_comment_likes(
+        comment_id, limit=limit, offset=offset, viewer_token=viewer_token
+    )

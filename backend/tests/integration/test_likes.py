@@ -153,3 +153,87 @@ async def test_liking_a_private_log_404s(client, make_user):
         f'/api/v1/movie-logs/{log.json()["id"]}/like', headers={'Authorization': f'Bearer {other_token}'},
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_log_likes_returns_likers_most_recent_first(client, make_user):
+    owner_id, owner_token = await make_user()
+    liker_a_id, liker_a_token = await make_user()
+    liker_b_id, liker_b_token = await make_user()
+    log = await client.post(
+        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        json={'movie': 'List Likes Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = log.json()['id']
+
+    await client.post(f'/api/v1/movie-logs/{log_id}/like', headers={'Authorization': f'Bearer {liker_a_token}'})
+    await client.post(f'/api/v1/movie-logs/{log_id}/like', headers={'Authorization': f'Bearer {liker_b_token}'})
+
+    # Public — no sign-in required.
+    likers = await client.get(f'/api/v1/movie-logs/{log_id}/likes')
+    assert likers.status_code == 200
+    body = likers.json()
+    assert len(body) == 2
+    assert [entry['user_id'] for entry in body] == [liker_b_id, liker_a_id]  # most recent first
+    assert all('liked_at' in entry for entry in body)
+
+
+@pytest.mark.asyncio
+async def test_list_log_likes_visible_to_owner_after_going_private_not_to_a_stranger(client, make_user):
+    """Same gate as the log's own GET: a like made while the log was
+    public survives a later switch to private, still visible to the
+    owner, no longer visible to anyone else — including anonymously."""
+
+    owner_id, owner_token = await make_user()
+    liker_id, liker_token = await make_user()
+    stranger_id, stranger_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Likes Privacy Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = log.json()['id']
+    await client.post(f'/api/v1/movie-logs/{log_id}/like', headers={'Authorization': f'Bearer {liker_token}'})
+
+    made_private = await client.patch(
+        f'/api/v1/movie-logs/{log_id}', headers=owner_headers, json={'visibility': 'private'},
+    )
+    assert made_private.status_code == 200
+
+    as_owner = await client.get(f'/api/v1/movie-logs/{log_id}/likes', headers=owner_headers)
+    assert as_owner.status_code == 200
+    assert [entry['user_id'] for entry in as_owner.json()] == [liker_id]
+
+    as_stranger = await client.get(
+        f'/api/v1/movie-logs/{log_id}/likes', headers={'Authorization': f'Bearer {stranger_token}'},
+    )
+    assert as_stranger.status_code == 200
+    assert as_stranger.json() == []
+
+    anon = await client.get(f'/api/v1/movie-logs/{log_id}/likes')
+    assert anon.status_code == 200
+    assert anon.json() == []
+
+
+@pytest.mark.asyncio
+async def test_list_comment_likes_returns_likers(client, make_user):
+    owner_id, owner_token = await make_user()
+    commenter_id, commenter_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    log = await client.post(
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Comment Likes List Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    comment = await client.post(
+        '/api/v1/comments', headers={'Authorization': f'Bearer {commenter_token}'},
+        json={'movie_log_id': log.json()['id'], 'text': 'Worth a like'},
+    )
+    comment_id = comment.json()['id']
+    await client.post(f'/api/v1/comments/{comment_id}/like', headers=owner_headers)
+
+    likers = await client.get(f'/api/v1/comments/{comment_id}/likes')
+    assert likers.status_code == 200
+    body = likers.json()
+    assert len(body) == 1
+    assert body[0]['user_id'] == owner_id
+    assert 'liked_at' in body[0]

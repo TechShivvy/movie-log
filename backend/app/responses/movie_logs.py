@@ -659,6 +659,28 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'list_log_likes': {
+        200: {
+            'description': 'Likers, most recent first. Empty (not 404) if the log '
+            "is not currently visible to the caller — same convention "
+            'GET /venues/theatres/{id}/reviews follows.',
+            'content': {
+                'application/json': {
+                    'example': [
+                        {
+                            'user_id': '22222222-2222-2222-2222-222222222222',
+                            'username': 'shivco_2141',
+                            'display_name': 'Shivcharan',
+                            'avatar_path': '22222222-2222-2222-2222-222222222222/avatar.jpg',
+                            'liked_at': '2026-08-20T04:00:00+00:00',
+                        }
+                    ]
+                }
+            },
+        },
+        **_VALIDATION_QUERY,
+        **_UPSTREAM,
+    },
     'delete_log': {
         204: {'description': 'Deleted — no response body.'},
         **_UNAUTHORIZED,

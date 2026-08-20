@@ -6,13 +6,14 @@ Server-managed fields (id/user_id/created_at/updated_at) are never taken from th
 client, preventing mass-assignment / cross-user writes.
 """
 
-from typing import Annotated, Any, List, Literal
+from typing import Annotated, Any, List, Literal, Optional
 
-from auth.supabase_auth import AuthenticatedUser, get_current_user
+from auth.supabase_auth import AuthenticatedUser, get_current_user, get_current_user_optional
 from config import settings
 from fastapi import APIRouter, Body, Depends, Query, Request, status
 from loguru_setup import LOGGER
 from responses.movie_logs import responses
+from schemas.likes import Liker
 from schemas.movie_logs import (
     WRITABLE_FIELDS,
     FavoritePositionUpdate,
@@ -712,6 +713,36 @@ async def unlike_log(
         current_user.access_token, log_id, current_user.user_id
     )
     return {'like_count': await supabase_rest.get_like_count(log_id)}
+
+
+@router.get(
+    '/{log_id}/likes',
+    response_model=List[Liker],
+    tags=['Movie Logs'],
+    description="Who liked this log, most recent first. Visible to anyone who "
+    'could see the log itself — currently public/anonymous-visible and not '
+    "archived, or the caller's own log regardless of its current visibility "
+    '(same gate GET .../comments already applies, not a separate rule) — a '
+    "log that never satisfies that gate simply has an empty list here rather "
+    'than 404ing, same convention GET /venues/theatres/{id}/reviews follows. '
+    'Public — no sign-in required, but a token lets an owner see likes on '
+    'their own no-longer-public log.',
+    response_description='Likers, most recent first.',
+    responses=responses['list_log_likes'],
+    operation_id='ListMovieLogLikes',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_log_likes(
+    request: Request,
+    log_id: str,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: Optional[AuthenticatedUser] = Depends(get_current_user_optional),
+) -> Any:
+    viewer_token = current_user.access_token if current_user else None
+    return await supabase_rest.list_movie_log_likes(
+        log_id, limit=limit, offset=offset, viewer_token=viewer_token
+    )
 
 
 @router.delete(

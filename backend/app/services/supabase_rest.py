@@ -1372,6 +1372,48 @@ async def get_comment_like_count(user_token: str, comment_id: str) -> Optional[i
     rows = response.json()
     return rows[0]['like_count'] if rows else None
 
+
+async def list_movie_log_likes(
+    log_id: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
+    # movie_log_likes_view repeats the log's own visibility gate (public/
+    # anonymous, or the caller's own log) — same reasoning as
+    # list_theatre_reviews reading through public_movie_log_entries rather
+    # than movie_logs directly. No existence pre-check: a nonexistent or
+    # not-currently-visible log_id just yields an empty list here, same
+    # convention list_comments/list_theatre_reviews already follow.
+    params = {
+        'select': 'user_id,username,display_name,avatar_path,liked_at',
+        'movie_log_id': f'eq.{log_id}',
+        'order': 'liked_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _optional_auth_get(
+        '/movie_log_likes_view', viewer_token, 'list_movie_log_likes', params=params
+    )
+    return response.json()
+
+
+async def list_comment_likes(
+    comment_id: str, *, limit: int, offset: int, viewer_token: Optional[str] = None
+) -> list[dict]:
+    # Same shape as list_movie_log_likes, one hop further — comment_likes_view
+    # inherits its gate from the comment's parent log, same join
+    # movie_log_comments_view already uses.
+    params = {
+        'select': 'user_id,username,display_name,avatar_path,liked_at',
+        'comment_id': f'eq.{comment_id}',
+        'order': 'liked_at.desc',
+        'limit': str(limit),
+        'offset': str(offset),
+    }
+    response = await _optional_auth_get(
+        '/comment_likes_view', viewer_token, 'list_comment_likes', params=params
+    )
+    return response.json()
+
+
 async def get_extraction_batch(user_token: str, user_id: str, batch_id: str) -> Optional[dict[str, Any]]:
     """RLS-scoped read (extraction_batches_select_own) — writes to this
     table are service-role-only (services/extraction_batches.py), this

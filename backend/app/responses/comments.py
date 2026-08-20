@@ -183,4 +183,24 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'list_comment_likes': {
+        200: {
+            'description': 'Likers, most recent first. Empty (not 404) if the '
+            "comment/its parent log isn't currently visible to the caller.",
+            'content': {
+                'application/json': {
+                    'example': [
+                        {
+                            'user_id': '11111111-1111-1111-1111-111111111111',
+                            'username': 'shivco_2141',
+                            'display_name': 'Shivcharan',
+                            'avatar_path': '11111111-1111-1111-1111-111111111111/avatar.jpg',
+                            'liked_at': '2026-08-20T04:00:00+00:00',
+                        }
+                    ]
+                }
+            },
+        },
+        **_UPSTREAM,
+    },
 }
