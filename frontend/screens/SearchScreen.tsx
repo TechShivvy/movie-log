@@ -2,11 +2,18 @@
  * SearchScreen — pixel-accurate match to design spec.
  *
  * Web layout (padding:28px 32px 40px; max-width:820px):
- *   h1 + scope chips + "In your logs" section + "People" section
+ *   h1 + scope chips + "In your logs" section + "Movies" + "Theatres" + "People"
  *
  * Mobile: search bar + tabs + results list
+ *
+ * Scope chips actually filter results now — previously `scope` only
+ * styled the active chip; the native FlatList's merged `data` array was
+ * built from all three sources unconditionally, and the web "Movies"
+ * section was gated on `scope === "logs"` (nonsensical — catalog movie
+ * results have nothing to do with "your logs"). Movies now has its own
+ * scope, matching the other three categories' shape.
  */
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -19,19 +26,21 @@ import {
 import { useRouter } from "expo-router";
 import { MagnifyingGlass } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
-import { useMovieSearch, useVenueSearch, useCreateMovie } from "../hooks/useSearch";
+import { useMovieSearch, useVenueSearch, useCreateMovie, useCreateTheatre, useSearchPlaces } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
-import { venueDisplayName } from "../lib/venue";
-import type { MovieLog, TheatreMatchCandidate } from "../types";
+import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
+import { useToast } from "../context/ToastContext";
+import type { MovieLog, TheatreMatchCandidate, TheatrePlaceSuggestion } from "../types";
 
-type Scope = "all" | "logs" | "theatres" | "people";
+type Scope = "all" | "logs" | "movies" | "theatres" | "people";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all",      label: "All" },
   { id: "logs",     label: "In your logs" },
+  { id: "movies",   label: "Movies" },
   { id: "theatres", label: "Theatres" },
   { id: "people",   label: "People" },
 ];
@@ -39,6 +48,7 @@ const SCOPES: { id: Scope; label: string }[] = [
 export function SearchScreen() {
   const { theme } = useTheme();
   const router = useRouter();
+  const { showToast } = useToast();
   const [query, setQuery]   = useState("");
   const [scope, setScope]   = useState<Scope>("all");
 
@@ -47,6 +57,32 @@ export function SearchScreen() {
   const { data: theatreResults, isLoading: theatresLoading } = useVenueSearch(debouncedQuery);
   const { data: logs }                                    = useMovieLogs({ archived: false });
   const { mutateAsync: createMovie } = useCreateMovie();
+
+  // Google Places fallback, same explicit-tap shape as LogFormScreen's
+  // theatre field (billed API, so a deliberate tap, not auto-fired off
+  // the debounce) — SearchScreen never had an escape hatch for a theatre
+  // nobody's logged yet, unlike the log form's own theatre field.
+  const [placesResults, setPlacesResults] = useState<TheatrePlaceSuggestion[]>([]);
+  const [placesSearched, setPlacesSearched] = useState(false);
+  const [placesToken, setPlacesToken] = useState<string | null>(null);
+  const searchPlaces = useSearchPlaces();
+  const createTheatre = useCreateTheatre();
+
+  const handleSearchPlaces = useCallback(async () => {
+    const q = debouncedQuery.trim();
+    if (q.length < 3) return;
+    const token = placesToken ?? randomSessionToken();
+    if (!placesToken) setPlacesToken(token);
+    try {
+      const results = await searchPlaces.mutateAsync({ query: q, sessionToken: token });
+      setPlacesResults(results);
+    } catch {
+      showToast("Couldn't reach Google Places — try again", "error");
+      setPlacesResults([]);
+    } finally {
+      setPlacesSearched(true);
+    }
+  }, [debouncedQuery, placesToken, searchPlaces, showToast]);
 
   // A bare search hit only carries a tmdb_id, not our own catalog id —
   // the movie detail route needs a real one to fetch by. Dedupes-into-
@@ -58,11 +94,47 @@ export function SearchScreen() {
     if (movie) router.push(`/(app)/movie/${movie.id}` as any);
   };
   const openTheatre = (t: TheatreMatchCandidate) => router.push(`/(app)/venue/${t.id}` as any);
+  const openPlace = async (p: TheatrePlaceSuggestion) => {
+    try {
+      const theatre = await createTheatre.mutateAsync(p);
+      if (theatre) router.push(`/(app)/venue/${theatre.id}` as any);
+    } catch {
+      showToast("Couldn't add that theatre — try again", "error");
+    }
+  };
 
-  // Filter own logs by title
-  const logMatches: MovieLog[] = query
-    ? (logs ?? []).filter((l) => (l.movie ?? "").toLowerCase().includes(query.toLowerCase()))
+  // Filter own logs by title — debouncedQuery, matching every other
+  // source here (used to filter on the raw, un-debounced query, so this
+  // section re-filtered on every keystroke while the others waited).
+  const logMatches: MovieLog[] = debouncedQuery
+    ? (logs ?? []).filter((l) => (l.movie ?? "").toLowerCase().includes(debouncedQuery.toLowerCase()))
     : [];
+
+  const showLogs     = scope === "all" || scope === "logs";
+  const showMovies   = scope === "all" || scope === "movies";
+  const showTheatres = scope === "all" || scope === "theatres";
+  const showPeople   = scope === "all" || scope === "people";
+
+  const venueQueryTooShort = debouncedQuery.trim().length > 0 && debouncedQuery.trim().length < 3;
+
+  const hasAnyResults =
+    (showLogs && logMatches.length > 0) ||
+    (showMovies && (movieResults?.length ?? 0) > 0) ||
+    (showTheatres && (theatreResults?.length ?? 0) > 0 || placesResults.length > 0);
+  const stillLoading = (showMovies && moviesLoading) || (showTheatres && theatresLoading);
+
+  const placesFooter = (
+    <div className="tapc" onClick={handleSearchPlaces} style={{
+      padding: "10px 0",
+      borderTop: `1px solid ${theme.divider}`,
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: 600,
+      color: theme.accent,
+    } as React.CSSProperties}>
+      {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
+    </div>
+  );
 
   // ── Web ─────────────────────────────────────────────────────────────────────
   if (Platform.OS === "web") {
@@ -90,7 +162,11 @@ export function SearchScreen() {
           <input
             className="input"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPlacesResults([]);
+              setPlacesSearched(false);
+            }}
             placeholder="Search movies, logs, or people…"
             style={{ paddingLeft: 36, width: "100%", boxSizing: "border-box" } as React.CSSProperties}
             autoFocus
@@ -98,7 +174,7 @@ export function SearchScreen() {
         </div>
 
         {/* Scope chips */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 24 } as React.CSSProperties}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" } as React.CSSProperties}>
           {SCOPES.map((s) => (
             <button
               key={s.id}
@@ -120,7 +196,7 @@ export function SearchScreen() {
         ) : (
           <>
             {/* In your logs section */}
-            {(scope === "all" || scope === "logs") && logMatches.length > 0 && (
+            {showLogs && logMatches.length > 0 && (
               <div style={{ marginBottom: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   In your logs
@@ -142,8 +218,8 @@ export function SearchScreen() {
             )}
 
             {/* Movie search results */}
-            {(scope === "all" || scope === "logs") && (movieResults?.length ?? 0) > 0 && (
-              <div>
+            {showMovies && (movieResults?.length ?? 0) > 0 && (
+              <div style={{ marginBottom: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   Movies
                 </h3>
@@ -181,11 +257,16 @@ export function SearchScreen() {
             )}
 
             {/* Theatre search results */}
-            {(scope === "all" || scope === "theatres") && (theatreResults?.length ?? 0) > 0 && (
-              <div style={{ marginTop: 28 } as React.CSSProperties}>
+            {showTheatres && (
+              <div style={{ marginBottom: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   Theatres
                 </h3>
+                {venueQueryTooShort && (theatreResults?.length ?? 0) === 0 && (
+                  <p style={{ fontSize: 13, color: `${theme.text}55`, margin: "0 0 10px" } as React.CSSProperties}>
+                    Keep typing — 3+ characters to match your library…
+                  </p>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
                   {theatreResults?.slice(0, 8).map((t) => (
                     <div key={t.id} className="tapc" onClick={() => openTheatre(t)} style={{
@@ -194,17 +275,28 @@ export function SearchScreen() {
                       cursor: "pointer",
                     } as React.CSSProperties}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{venueDisplayName(t)}</div>
-                      {t.city && (
-                        <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{t.city}</div>
+                      {(t.formatted_address || t.city) && (
+                        <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{t.formatted_address || t.city}</div>
                       )}
                     </div>
                   ))}
+                  {placesResults.map((p) => (
+                    <div key={p.place_id} className="tapc" onClick={() => openPlace(p)} style={{
+                      padding: "10px 0",
+                      borderBottom: `1px solid ${theme.divider}`,
+                      cursor: "pointer",
+                    } as React.CSSProperties}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{p.main_text ?? p.description}</div>
+                      <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{p.secondary_text ?? "via Google"}</div>
+                    </div>
+                  ))}
+                  {placesFooter}
                 </div>
               </div>
             )}
 
             {/* People section */}
-            {(scope === "all" || scope === "people") && (
+            {showPeople && (
               <div style={{ marginTop: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
                 <div className="card" style={{ color: `${theme.text}55`, fontSize: 13 } as React.CSSProperties}>
@@ -213,7 +305,7 @@ export function SearchScreen() {
               </div>
             )}
 
-            {logMatches.length === 0 && (movieResults?.length ?? 0) === 0 && (theatreResults?.length ?? 0) === 0 && !moviesLoading && !theatresLoading && (
+            {!hasAnyResults && !stillLoading && (
               <div style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
                 <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No results for "{query}"</p>
               </div>
@@ -242,7 +334,11 @@ export function SearchScreen() {
           <MagnifyingGlass size={16} color={`${theme.text}66`} />
           <TextInput
             value={query}
-            onChangeText={setQuery}
+            onChangeText={(t) => {
+              setQuery(t);
+              setPlacesResults([]);
+              setPlacesSearched(false);
+            }}
             placeholder="Search movies, logs…"
             placeholderTextColor={`${theme.text}44`}
             style={{ flex: 1, color: theme.text, fontSize: 15, paddingVertical: 10 }}
@@ -251,7 +347,7 @@ export function SearchScreen() {
         </View>
 
         {/* Scope chips */}
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           {SCOPES.map((s) => (
             <Pressable
               key={s.id}
@@ -281,7 +377,7 @@ export function SearchScreen() {
           <Text style={{ fontSize: 36 }}>🔍</Text>
           <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>Type to search</Text>
         </View>
-      ) : moviesLoading || theatresLoading ? (
+      ) : stillLoading ? (
         <View style={{ flex: 1, alignItems: "center", paddingTop: 40 }}>
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
@@ -290,11 +386,16 @@ export function SearchScreen() {
           // A discriminated union instead of the old `"movie" in item`
           // sniff test — that only ever told a MovieLog apart from a
           // MovieSearchResult, and silently broke the moment a third
-          // shape (theatre results) joined the same merged list.
+          // shape (theatre results) joined the same merged list. Each
+          // source is now filtered in only when its own scope (or "all")
+          // is active — this used to build the full merged list
+          // unconditionally, so the scope chips only ever restyled
+          // themselves and never actually filtered anything.
           data={[
-            ...logMatches.slice(0, 5).map((log) => ({ kind: "log" as const, log })),
-            ...(movieResults?.slice(0, 10) ?? []).map((movie) => ({ kind: "movie" as const, movie })),
-            ...(theatreResults?.slice(0, 6) ?? []).map((theatre) => ({ kind: "theatre" as const, theatre })),
+            ...(showLogs ? logMatches.slice(0, 5).map((log) => ({ kind: "log" as const, log })) : []),
+            ...(showMovies ? (movieResults?.slice(0, 10) ?? []).map((movie) => ({ kind: "movie" as const, movie })) : []),
+            ...(showTheatres ? (theatreResults?.slice(0, 6) ?? []).map((theatre) => ({ kind: "theatre" as const, theatre })) : []),
+            ...(showTheatres ? placesResults.map((place) => ({ kind: "place" as const, place })) : []),
           ]}
           keyExtractor={(item, i) => `${item.kind}-${i}`}
           contentContainerStyle={{ padding: 16 }}
@@ -302,6 +403,15 @@ export function SearchScreen() {
             <Text style={{ color: `${theme.text}44`, fontSize: 14, textAlign: "center", paddingTop: 40 }}>
               No results for "{query}"
             </Text>
+          }
+          ListFooterComponent={
+            showTheatres ? (
+              <Pressable onPress={handleSearchPlaces} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                  {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
+                </Text>
+              </Pressable>
+            ) : null
           }
           renderItem={({ item }) => {
             if (item.kind === "log") {
@@ -336,7 +446,19 @@ export function SearchScreen() {
                   style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{venueDisplayName(t)}</Text>
-                  {t.city && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.city}</Text>}
+                  {(t.formatted_address || t.city) && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.formatted_address || t.city}</Text>}
+                </Pressable>
+              );
+            }
+            if (item.kind === "place") {
+              const p = item.place;
+              return (
+                <Pressable
+                  onPress={() => openPlace(p)}
+                  style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{p.main_text ?? p.description}</Text>
+                  <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{p.secondary_text ?? "via Google"}</Text>
                 </Pressable>
               );
             }

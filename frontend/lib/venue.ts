@@ -34,3 +34,23 @@ export function venueMapsEmbedUrl(v: Pick<Theatre, "lat" | "lng">): string | und
   if (v.lat == null || v.lng == null) return undefined;
   return `https://www.google.com/maps?q=${v.lat},${v.lng}&output=embed`;
 }
+
+/**
+ * Shared with SearchScreen (originally LogFormScreen-only) — both screens
+ * offer the same explicit-tap Google Places fallback once the local
+ * trigram match comes up short.
+ */
+export function placesFooterLabel(searching: boolean, searched: boolean, resultCount: number): string {
+  if (searching) return "Searching Google Places…";
+  if (searched) return resultCount > 0 ? "Search Google Places again" : "No results on Google Places — search again";
+  return "Search Google Places";
+}
+
+export function randomSessionToken(): string {
+  // Just needs to be unique per venue-search session, not cryptographically
+  // secure — this only ever groups Google Places Autocomplete requests for
+  // billing, never used as an auth/security token. No crypto.randomUUID()
+  // here on purpose: Hermes (this app's RN JS engine) doesn't polyfill
+  // WebCrypto, and pulling in a package just for this would be overkill.
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}

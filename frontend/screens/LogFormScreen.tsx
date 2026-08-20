@@ -41,7 +41,7 @@ import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { AITicketModal } from "../modals/AITicketModal";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
-import { venueDisplayName } from "../lib/venue";
+import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
 import type {
   Format,
   LogVisibility,
@@ -75,24 +75,6 @@ const SCREENING_START_OPTS = [
   { label: "Cancelled", value: "cancelled" },
 ];
 
-// Shared copy for the sticky Google Places row under the Theatre dropdown —
-// always present and always tappable (never just disappears once the local
-// match list has something in it), so "this isn't the theatre I meant" is
-// never a dead end.
-function placesFooterLabel(searching: boolean, searched: boolean, resultCount: number): string {
-  if (searching) return "Searching Google Places…";
-  if (searched) return resultCount > 0 ? "Search Google Places again" : "No results on Google Places — search again";
-  return "Search Google Places";
-}
-
-function randomSessionToken(): string {
-  // Just needs to be unique per venue-search session, not cryptographically
-  // secure — this only ever groups Google Places Autocomplete requests for
-  // billing, never used as an auth/security token. No crypto.randomUUID()
-  // here on purpose: Hermes (this app's RN JS engine) doesn't polyfill
-  // WebCrypto, and pulling in a package just for this would be overkill.
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
 
 function todayIso(): string {
   // watched_date is a plain YYYY-MM-DD, not an instant — building it from
