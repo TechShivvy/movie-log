@@ -32,7 +32,7 @@ import { CameraPlus, Robot, Sparkle, ArrowLeft, X } from "phosphor-react-native"
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
-import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie, useSearchPlaces, useCreateTheatre } from "../hooks/useSearch";
+import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie, useSearchPlaces, useCreateTheatreManual } from "../hooks/useSearch";
 import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../context/ToastContext";
@@ -41,6 +41,7 @@ import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { AITicketModal } from "../modals/AITicketModal";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
+import { venueDisplayName } from "../lib/venue";
 import type {
   Format,
   LogVisibility,
@@ -286,6 +287,14 @@ function WebForm({
   searchingPlaces,
   handleSearchPlaces,
   pickPlace,
+  showManualAdd,
+  setShowManualAdd,
+  manualName,
+  setManualName,
+  manualCity,
+  setManualCity,
+  handleAddManually,
+  addingManually,
   setFs,
   setErrors,
   handleSubmit,
@@ -458,14 +467,15 @@ function WebForm({
 
         {/* Venue — left col */}
         <div className="field" style={{ position: "relative" } as React.CSSProperties}>
-          <label>Theatre</label>
+          <label>Theatre <span style={{ color: "var(--color-error)" } as React.CSSProperties}>*</span></label>
           <input
-            className="input"
+            className={`input${errors.venueName ? " error" : ""}`}
             value={venueQuery}
             placeholder="Search theatre…"
             onChange={(e) => {
               setVenueQuery(e.target.value);
-              setFs((p: FormState) => ({ ...p, venueName: e.target.value }));
+              setFs((p: FormState) => ({ ...p, venueName: e.target.value, venueId: undefined }));
+              setErrors((p: any) => ({ ...p, venueName: undefined }));
             }}
             // Delayed rather than immediate — an immediate hide on blur
             // fires before a click on a dropdown row has a chance to
@@ -474,10 +484,19 @@ function WebForm({
             // click a beat to land before the dropdown actually closes.
             // pickVenue/pickPlace both already close it synchronously too;
             // this is only what makes tapping *outside* the field close it.
+            // Doesn't apply while the "Add manually" mini-form is open —
+            // that form's own inputs need real focus to be typed into,
+            // which this same blur would otherwise close the whole
+            // dropdown (and unmount the form) out from under; the
+            // dropdown's own visibility condition below stays open via
+            // showManualAdd regardless of what this sets.
             onBlur={() => setTimeout(() => setShowVenueSuggestions(false), 150)}
             autoComplete="off"
           />
-          {showVenueSuggestions && venueQuery.trim().length > 2 && (
+          {errors.venueName && (
+            <span style={{ color: "var(--color-error)", fontSize: 12 } as React.CSSProperties}>{errors.venueName}</span>
+          )}
+          {(showManualAdd || (showVenueSuggestions && venueQuery.trim().length > 2)) && (
             <div style={{
               position: "absolute",
               top: "100%",
@@ -492,65 +511,126 @@ function WebForm({
               display: "flex",
               flexDirection: "column",
             } as React.CSSProperties}>
-              {/* Scrolls independently once local matches + Places results
-                  together run past ~5 rows — the Google row below stays
-                  put rather than being one more thing to scroll past. */}
-              <div style={{ maxHeight: 230, overflowY: "auto" } as React.CSSProperties}>
-                {venueSearchLoading && (
-                  <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
-                    Searching your library…
+              {showManualAdd ? (
+                /* Replaces the whole dropdown body while active — a
+                   focused single-task form rather than cluttering it
+                   alongside the scroll area and the other footer option. */
+                <div style={{ padding: "10px 14px 14px" } as React.CSSProperties}>
+                  <div style={{ fontSize: 12, color: "var(--color-text)", opacity: 0.7, marginBottom: 8 } as React.CSSProperties}>
+                    Not on Google Places either? Add it directly.
                   </div>
-                )}
-                {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-                  <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
-                    No matches in your library
+                  <input
+                    className="input"
+                    placeholder="Theatre name"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    style={{ marginBottom: 8 } as React.CSSProperties}
+                  />
+                  <input
+                    className="input"
+                    placeholder="City"
+                    value={manualCity}
+                    onChange={(e) => setManualCity(e.target.value)}
+                    style={{ marginBottom: 10 } as React.CSSProperties}
+                  />
+                  <div style={{ display: "flex", gap: 8 } as React.CSSProperties}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleAddManually}
+                      disabled={addingManually || !manualName.trim() || !manualCity.trim()}
+                    >
+                      {addingManually ? "Adding…" : "Add"}
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setShowManualAdd(false)}>Cancel</button>
                   </div>
-                )}
-                {(venueSuggestions?.length ?? 0) > 0 && venueSuggestions.map((v: TheatreMatchCandidate) => (
+                </div>
+              ) : (
+                <>
+                  {/* Scrolls independently once local matches + Places
+                      results together run past ~5 rows — the sticky
+                      footer below stays put rather than being one more
+                      thing to scroll past. */}
+                  <div style={{ maxHeight: 230, overflowY: "auto" } as React.CSSProperties}>
+                    {venueSearchLoading && (
+                      <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                        Searching…
+                      </div>
+                    )}
+                    {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
+                      <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                        No matches found
+                      </div>
+                    )}
+                    {(venueSuggestions?.length ?? 0) > 0 && venueSuggestions.map((v: TheatreMatchCandidate) => (
+                      <div
+                        key={v.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickVenue(v)}
+                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                        className="tapc"
+                      >
+                        <div>{venueDisplayName(v)}</div>
+                        {(v.formatted_address || v.city) && (
+                          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{v.formatted_address || v.city}</div>
+                        )}
+                      </div>
+                    ))}
+                    {placesResults.length > 0 && placesResults.map((p: TheatrePlaceSuggestion) => (
+                      <div
+                        key={p.place_id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickPlace(p)}
+                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                        className="tapc"
+                      >
+                        <div>{p.main_text ?? p.description}</div>
+                        {p.secondary_text && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{p.secondary_text}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Sticky footer — always here, not just when the local
+                      list comes up empty, so "not the one I meant" always
+                      has somewhere to go even when local matches did show
+                      up. Two options: search Google, or (if that's empty
+                      too) add it directly — theatre is required to save
+                      now, so this is the one field that always needs to
+                      end somewhere real. */}
                   <div
-                    key={v.id}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pickVenue(v)}
-                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                    onClick={searchingPlaces ? undefined : handleSearchPlaces}
+                    style={{
+                      padding: "10px 14px",
+                      cursor: searchingPlaces ? "default" : "pointer",
+                      fontSize: 13,
+                      color: "var(--color-accent)",
+                      fontWeight: 600,
+                      borderTop: "1px solid var(--color-divider)",
+                      background: "var(--color-surface)",
+                      flexShrink: 0,
+                    } as React.CSSProperties}
                     className="tapc"
                   >
-                    {v.name}
-                    {v.city && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{v.city}</span>}
+                    {placesFooterLabel(searchingPlaces, placesSearched, placesResults.length)}
                   </div>
-                ))}
-                {placesResults.length > 0 && placesResults.map((p: TheatrePlaceSuggestion) => (
                   <div
-                    key={p.place_id}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pickPlace(p)}
-                    style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                    onClick={() => setShowManualAdd(true)}
+                    style={{
+                      padding: "10px 14px",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      color: "var(--color-text)",
+                      opacity: 0.7,
+                      borderTop: "1px solid var(--color-divider)",
+                      background: "var(--color-surface)",
+                      flexShrink: 0,
+                    } as React.CSSProperties}
                     className="tapc"
                   >
-                    {p.main_text ?? p.description}
-                    {p.secondary_text && <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 6 } as React.CSSProperties}>{p.secondary_text}</span>}
+                    Can't find it? Add manually
                   </div>
-                ))}
-              </div>
-              {/* Sticky footer — always here, not just when the local list
-                  comes up empty, so "not the one I meant" always has
-                  somewhere to go even when local matches did show up. */}
-              <div
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={searchingPlaces ? undefined : handleSearchPlaces}
-                style={{
-                  padding: "10px 14px",
-                  cursor: searchingPlaces ? "default" : "pointer",
-                  fontSize: 13,
-                  color: "var(--color-accent)",
-                  fontWeight: 600,
-                  borderTop: "1px solid var(--color-divider)",
-                  background: "var(--color-surface)",
-                  flexShrink: 0,
-                } as React.CSSProperties}
-                className="tapc"
-              >
-                {placesFooterLabel(searchingPlaces, placesSearched, placesResults.length)}
-              </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -818,15 +898,23 @@ export function LogFormScreen() {
   const [placesSearched, setPlacesSearched] = useState(false);
   const [placesToken, setPlacesToken] = useState<string | null>(null);
   const searchPlaces = useSearchPlaces();
-  const createTheatre = useCreateTheatre();
+  const createTheatreManual = useCreateTheatreManual();
   // Picking a Places suggestion does NOT create the theatre right away —
-  // only stages it here. Creating on pick meant every suggestion tapped
-  // while still comparing options (or picked, then swapped for a
-  // different one) landed a real row in the shared theatres table whether
-  // or not the log was ever actually saved — the actual create call only
-  // happens in handleSubmit, once, for whichever place is still selected
-  // when Save is pressed.
+  // only stages it here. The actual resolve-or-create happens server-
+  // side, atomically, as part of the log-save request itself (see
+  // handleSubmit's theatre_place) — nothing lands in the shared theatres
+  // table for a place that was only compared and the save then abandoned.
   const [pendingPlace, setPendingPlace] = useState<TheatrePlaceSuggestion | null>(null);
+  // "Add manually" — the fallback when neither local search nor Places
+  // has the real venue (small/obscure theatre, private screening room).
+  // Unlike a Places pick this creates immediately on submit of this small
+  // form (see useCreateTheatreManual) rather than deferring to log-save —
+  // there's no place_id for the backend to resolve later, so "the user
+  // explicitly asked to create this" already happened the moment they
+  // filled this in.
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualCity, setManualCity] = useState("");
 
   // Edit mode: populate the form once the existing log arrives. Runs once
   // per loaded log (guarded by id so a background refetch — e.g. from
@@ -958,6 +1046,23 @@ export function LogFormScreen() {
     setPendingPlace(place);
   }, []);
 
+  const handleAddManually = useCallback(async () => {
+    const name = manualName.trim();
+    const city = manualCity.trim();
+    if (!name || !city) return;
+    try {
+      const theatre = await createTheatreManual.mutateAsync({ name, city });
+      if (theatre) {
+        pickVenue(theatre);
+        setShowManualAdd(false);
+        setManualName("");
+        setManualCity("");
+      }
+    } catch {
+      showToast("Couldn't add that theatre — try again");
+    }
+  }, [manualName, manualCity, createTheatreManual, pickVenue, showToast]);
+
   const handleExtractionResult = useCallback((result: ExtractionResult) => {
     setFs((p) => ({
       ...p,
@@ -973,32 +1078,35 @@ export function LogFormScreen() {
   async function handleSubmit() {
     const newErrors: Record<string, string> = {};
     if (!fs.movieTitle.trim()) newErrors.movieTitle = "Movie title is required";
+    // Theatre is required — the app is screening-focused, a log without a
+    // real venue link is incomplete data. "Resolved" means a real
+    // reference exists or can be atomically resolved server-side: a
+    // picked local match (fs.venueId) or a picked Places result
+    // (pendingPlace, resolved into a real theatre_id below via
+    // theatre_place). Free-typed text with nothing actually picked
+    // doesn't satisfy this — that used to save fine with no real link at
+    // all, which is exactly the loophole "required" has to close.
+    if (!fs.venueId && !pendingPlace) newErrors.venueName = "Please select a theatre from the list";
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
-
-    // A Google Places pick only ever stages pendingPlace (see pickPlace) —
-    // the actual create-or-reuse-by-place_id call happens here, once, right
-    // before the log itself is created, so nothing lands in the shared
-    // theatres table for a place that was only compared and never saved.
-    // A failure here aborts the whole save (rather than silently falling
-    // back to free-text) so a save never reports success while quietly
-    // dropping the venue link the user explicitly picked.
-    let theatreId = fs.venueId;
-    if (!theatreId && pendingPlace) {
-      try {
-        const theatre = await createTheatre.mutateAsync(pendingPlace);
-        theatreId = theatre?.id;
-      } catch {
-        showToast("Couldn't add that theatre — try saving again");
-        return;
-      }
-    }
 
     const payload = {
       movie:         fs.movieTitle.trim(),
       movie_id:      fs.movieId,
       theater:       fs.venueName || undefined,
-      theatre_id:    theatreId,
+      theatre_id:    fs.venueId,
+      // Only sent when no local match was picked — the backend resolves
+      // this into a real theatre_id (create-or-reuse-by-place_id, same
+      // logic POST /venues/theatres itself uses) atomically as part of
+      // this same request now, so there's no separate pre-create step
+      // here anymore: one request instead of two, and nothing lands in
+      // the shared theatres table for a place that was only compared and
+      // the save then abandoned.
+      theatre_place: !fs.venueId && pendingPlace ? {
+        place_id: pendingPlace.place_id,
+        name: pendingPlace.main_text ?? pendingPlace.description,
+        formatted_address: pendingPlace.description,
+      } : undefined,
       screen:        fs.screenNumber || undefined,
       seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
       format:        fs.format,
@@ -1056,13 +1164,17 @@ export function LogFormScreen() {
       // one that already existed.
       showToast(isEditing ? "Changes saved" : "Log saved");
 
-      // router.back() alone strands the user on this form whenever there's
-      // no actual navigation history to go back to — a direct link, a
-      // refreshed tab, or (on native) a deep link straight into edit mode
-      // all have nothing to pop back to, so back() silently no-ops and the
-      // just-saved form just sits there looking unsaved. Same fallback
-      // LogDetailScreen's delete flow already uses.
-      router.canGoBack() ? router.back() : router.replace("/");
+      // Was router.canGoBack() ? router.back() : router.replace("/") —
+      // for a new log that meant never actually landing on the log you
+      // just created (wherever "back" happened to point, usually
+      // Library); for an edit it only reached the right screen by
+      // coincidence of navigation history, not real routing. logId is
+      // already in hand from both the create and edit paths above, and
+      // Phase A's cache-priming means this navigation is now genuinely
+      // instant (no refetch — see useCreateLog/useUpdateLog). replace,
+      // not push, so Back from the log doesn't return to the just-
+      // submitted form.
+      router.replace(`/(app)/log/${logId}` as any);
     } catch (e: any) {
       setErrors({ submit: e.message ?? "Failed to save log" });
     }
@@ -1183,6 +1295,14 @@ export function LogFormScreen() {
             searchingPlaces={searchPlaces.isPending}
             handleSearchPlaces={handleSearchPlaces}
             pickPlace={pickPlace}
+            showManualAdd={showManualAdd}
+            setShowManualAdd={setShowManualAdd}
+            manualName={manualName}
+            setManualName={setManualName}
+            manualCity={manualCity}
+            setManualCity={setManualCity}
+            handleAddManually={handleAddManually}
+            addingManually={createTheatreManual.isPending}
             setFs={setFs}
             setErrors={setErrors}
             handleSubmit={handleSubmit}
@@ -1411,58 +1531,104 @@ export function LogFormScreen() {
       {/* Venue */}
       <View style={{ marginTop: 14 }}>
         <Input
-          label="Theatre"
+          label="Theatre *"
           value={venueQuery}
           onChangeText={(v) => {
             setVenueQuery(v);
-            setFs((p) => ({ ...p, venueName: v }));
+            setFs((p) => ({ ...p, venueName: v, venueId: undefined }));
             setShowVenueSuggestions(v.length > 1);
             setPlacesResults([]);
             setPlacesSearched(false);
+            setErrors((p) => ({ ...p, venueName: "" }));
           }}
           placeholder="Search theatre…"
+          error={errors.venueName}
+          // Delayed, and overridden by showManualAdd below — see the web
+          // branch's identical comment on the same field for why (the
+          // "Add manually" mini-form's own inputs need real focus to be
+          // typed into, which would otherwise blur this field and close
+          // the whole dropdown out from under it).
           onBlur={() => setTimeout(() => setShowVenueSuggestions(false), 150)}
         />
-        {showVenueSuggestions && venueQuery.trim().length > 2 && (
+        {(showManualAdd || (showVenueSuggestions && venueQuery.trim().length > 2)) && (
           <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
-            {/* Scrolls independently once local matches + Places results
-                run past ~5 rows — the Google row below stays put rather
-                than being one more thing to scroll past. */}
-            <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-              {venueSearchLoading && (
-                <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
-                  Searching your library…
+            {showManualAdd ? (
+              <View style={{ padding: 10 }}>
+                <Text style={{ fontSize: 12, color: theme.text, opacity: 0.7, marginBottom: 8 }}>
+                  Not on Google Places either? Add it directly.
                 </Text>
-              )}
-              {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-                <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
-                  No matches in your library
-                </Text>
-              )}
-              {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
-                <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{v.name}</Text>
-                  {v.city && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.city}</Text>}
+                <View style={{ gap: 8, marginBottom: 10 }}>
+                  <Input value={manualName} onChangeText={setManualName} placeholder="Theatre name" />
+                  <Input value={manualCity} onChangeText={setManualCity} placeholder="City" />
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={handleAddManually}
+                    disabled={createTheatreManual.isPending || !manualName.trim() || !manualCity.trim()}
+                    style={{ backgroundColor: theme.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, opacity: (createTheatreManual.isPending || !manualName.trim() || !manualCity.trim()) ? 0.5 : 1 }}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+                      {createTheatreManual.isPending ? "Adding…" : "Add"}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={() => setShowManualAdd(false)} style={{ borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.divider }}>
+                    <Text style={{ color: theme.text, fontSize: 13, fontWeight: "700" }}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <>
+                {/* Scrolls independently once local matches + Places results
+                    run past ~5 rows — the sticky footer below stays put
+                    rather than being one more thing to scroll past. */}
+                <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {venueSearchLoading && (
+                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                      Searching…
+                    </Text>
+                  )}
+                  {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
+                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                      No matches found
+                    </Text>
+                  )}
+                  {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
+                    <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{venueDisplayName(v)}</Text>
+                      {(v.formatted_address || v.city) && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.formatted_address || v.city}</Text>}
+                    </Pressable>
+                  ))}
+                  {placesResults.map((p: TheatrePlaceSuggestion) => (
+                    <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
+                      {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                {/* Sticky footer — always here, not just when the local list
+                    comes up empty, so "not the one I meant" always has
+                    somewhere to go even when local matches did show up.
+                    Two options: search Google, or add it directly —
+                    theatre is required to save now, so this field always
+                    needs to end somewhere real. */}
+                <Pressable
+                  onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
+                  style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
+                >
+                  <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                    {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
+                  </Text>
                 </Pressable>
-              ))}
-              {placesResults.map((p: TheatrePlaceSuggestion) => (
-                <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
-                  {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
+                <Pressable
+                  onPress={() => setShowManualAdd(true)}
+                  style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
+                >
+                  <Text style={{ color: theme.text, opacity: 0.7, fontSize: 13, fontWeight: "600" }}>
+                    Can't find it? Add manually
+                  </Text>
                 </Pressable>
-              ))}
-            </ScrollView>
-            {/* Sticky footer — always here, not just when the local list
-                comes up empty, so "not the one I meant" always has
-                somewhere to go even when local matches did show up. */}
-            <Pressable
-              onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
-              style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
-            >
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
-                {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
-              </Text>
-            </Pressable>
+              </>
+            )}
           </View>
         )}
       </View>

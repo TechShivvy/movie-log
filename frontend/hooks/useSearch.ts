@@ -244,6 +244,33 @@ export function useCreateTheatre() {
   });
 }
 
+/**
+ * "Add manually" — the fallback when a real venue exists but neither the
+ * local directory nor Google Places knows about it (a small/obscure
+ * theatre, a private screening room). No `place_id`, so this can't go
+ * through the server-side theatre_place resolution POST /movie-logs now
+ * does for a Places pick (TheatrePlaceInput requires place_id) — this is
+ * a direct, immediate POST /venues/theatres the moment the user submits
+ * the small name+city form, same endpoint every other creation path
+ * uses, just without a Places lookup backing it (`source` comes back
+ * 'user_submitted'). Unlike Places picks, this doesn't need to be
+ * deferred to log-submit time — it's already an explicit, deliberate
+ * "create this" action the moment it's used.
+ */
+export function useCreateTheatreManual() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { name: string; city: string }): Promise<Theatre | undefined> => {
+      if (DEMO_MODE) return undefined;
+      const { data } = await api.post<Theatre>("/venues/theatres", input);
+      return data;
+    },
+    onSuccess: (theatre) => {
+      if (theatre) qc.setQueryData(["venues", "theatres", theatre.id], theatre);
+    },
+  });
+}
+
 /** A single theatre by id — GET /venues/theatres/{id}, public, no auth.
  * The full directory row, including nickname/nickname_address if an
  * admin has set one — VenueDetailScreen's header data source. */
