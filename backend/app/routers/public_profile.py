@@ -167,6 +167,36 @@ async def set_privacy(
     )
 
 
+@router.get(
+    '/me/profile',
+    response_model=PublicProfile,
+    tags=['Public'],
+    description="The caller's own profile shell — the same shape "
+    'PATCH /me/profile accepts (plus `user_id`), read back rather than '
+    "written. Unlike GET /users/{username}, this works before a username "
+    'is ever set — a brand-new account with no `user_settings` row yet '
+    "gets back defaults (nulls, `account_visibility: \"private\"`, empty "
+    "`profile_links`), not a 404 — a missing row here is a bootstrap-time "
+    'default, same convention GET /me/export\'s own `profile` field '
+    'already follows, not an error state. This is what actually powers '
+    'an edit-profile form — GET /me/export is a full account-data dump '
+    '(every log + venue rating + note nested inline), the wrong shape '
+    'and far too heavy to call just to populate one.',
+    response_description="The caller's profile.",
+    responses=responses['get_own_profile'],
+    operation_id='GetOwnProfile',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def get_own_profile(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    own_settings = await supabase_rest.get_own_settings(
+        current_user.access_token, current_user.user_id
+    )
+    return {**own_settings, 'user_id': current_user.user_id}
+
+
 @router.patch(
     '/me/profile',
     tags=['Public'],

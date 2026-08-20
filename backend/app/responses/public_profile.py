@@ -314,6 +314,15 @@ responses = {
         **_UNAUTHORIZED,
         **_UPSTREAM,
     },
+    'get_own_profile': {
+        200: {
+            'description': "The caller's own profile — never 404s, a brand-"
+            'new account with no settings row yet gets back defaults.',
+            'content': {'application/json': {'example': _PROFILE_EXAMPLE}},
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
     'set_profile': {
         200: {
             'description': "The caller's updated settings row.",

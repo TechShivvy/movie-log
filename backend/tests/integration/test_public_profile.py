@@ -54,6 +54,68 @@ async def test_setting_your_own_current_username_again_is_not_a_conflict(client,
 
 
 @pytest.mark.asyncio
+async def test_get_own_profile_returns_defaults_for_a_brand_new_account(client, make_user):
+    """A caller who has never touched any profile/username/privacy
+    endpoint — no user_settings row exists yet — gets back defaults, not
+    a 404. Same bootstrap-time-default convention GET /me/export's own
+    profile field already follows."""
+
+    user_id, token = await make_user()
+    response = await client.get(
+        '/api/v1/public/me/profile', headers={'Authorization': f'Bearer {token}'},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body['user_id'] == user_id
+    assert body['username'] is None
+    assert body['display_name'] is None
+    assert body['bio'] is None
+    assert body['account_visibility'] == 'private'
+    assert body['avatar_path'] is None
+    assert body['banner_path'] is None
+    assert body['profile_links'] == []
+
+
+@pytest.mark.asyncio
+async def test_get_own_profile_reflects_prior_writes(client, make_user):
+    user_id, token = await make_user()
+    headers = {'Authorization': f'Bearer {token}'}
+    username = f'getprofile{uuid.uuid4().hex[:10]}'
+    await client.patch('/api/v1/public/me/username', headers=headers, json={'username': username})
+    await client.patch(
+        '/api/v1/public/me/privacy', headers=headers, json={'account_visibility': 'public'},
+    )
+    await client.patch(
+        '/api/v1/public/me/profile', headers=headers,
+        json={
+            'display_name': 'Get Profile Test',
+            'bio': 'Testing GET /me/profile.',
+            'avatar_path': f'{user_id}/avatar.jpg',
+            'banner_path': f'{user_id}/banner.jpg',
+            'profile_links': [{'label': 'Letterboxd', 'url': 'https://letterboxd.com/testuser'}],
+        },
+    )
+
+    response = await client.get('/api/v1/public/me/profile', headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body['user_id'] == user_id
+    assert body['username'] == username
+    assert body['display_name'] == 'Get Profile Test'
+    assert body['bio'] == 'Testing GET /me/profile.'
+    assert body['account_visibility'] == 'public'
+    assert body['avatar_path'] == f'{user_id}/avatar.jpg'
+    assert body['banner_path'] == f'{user_id}/banner.jpg'
+    assert body['profile_links'][0]['url'] == 'https://letterboxd.com/testuser'
+
+
+@pytest.mark.asyncio
+async def test_get_own_profile_requires_auth(client):
+    response = await client.get('/api/v1/public/me/profile')
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_profile_update_round_trips_display_name_bio_and_links(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}
