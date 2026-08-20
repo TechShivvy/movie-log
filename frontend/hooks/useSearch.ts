@@ -51,11 +51,19 @@ export function useMovieSearch(q: string) {
  * instead of creating a duplicate.
  */
 export function useCreateMovie() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (tmdbId: number): Promise<Movie | undefined> => {
       if (DEMO_MODE) return undefined;
       const { data } = await api.post<Movie>("/movies", { tmdb_id: tmdbId });
       return data;
+    },
+    // Was only ever primed at LogFormScreen's own call site (pickMovie) —
+    // moved into the hook itself so every caller gets the skip-the-
+    // redundant-GET benefit for free, not just that one screen. Matches
+    // useMovie's own query key exactly (["movies", id]).
+    onSuccess: (movie) => {
+      if (movie) qc.setQueryData(["movies", movie.id], movie);
     },
   });
 }
@@ -215,6 +223,7 @@ export function useSearchPlaces() {
  * the (rare) case that lookup fails.
  */
 export function useCreateTheatre() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (place: TheatrePlaceSuggestion): Promise<Theatre | undefined> => {
       if (DEMO_MODE) return undefined;
@@ -225,6 +234,12 @@ export function useCreateTheatre() {
         formatted_address: place.description,
       });
       return data;
+    },
+    // Same prime useSetTheatreNickname already does — a theatre created
+    // from a Places pick and then opened right away (e.g. from
+    // VenueDetailScreen) shouldn't cost a redundant GET /venues/theatres/{id}.
+    onSuccess: (theatre) => {
+      if (theatre) qc.setQueryData(["venues", "theatres", theatre.id], theatre);
     },
   });
 }

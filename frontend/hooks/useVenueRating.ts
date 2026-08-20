@@ -49,7 +49,14 @@ export function useUpsertVenueRating() {
       const { data } = await api.put<VenueRating>(`/movie-logs/${logId}/venue-rating`, rating);
       return data;
     },
-    onSuccess: (_data, { logId }) => {
+    // The PUT response already IS the saved rating — was named `_data`
+    // and thrown away, forcing a real GET round-trip (this save sits on
+    // the same LogFormScreen submit path as useUpdateLog, so it compounds
+    // that screen's edit->view delay). Priming the cache directly skips
+    // that round-trip entirely; invalidate stays as a background
+    // reconciliation safety net.
+    onSuccess: (data, { logId }) => {
+      qc.setQueryData(["movie-logs", "venue-rating", logId], data);
       qc.invalidateQueries({ queryKey: ["movie-logs", "venue-rating", logId] });
     },
   });

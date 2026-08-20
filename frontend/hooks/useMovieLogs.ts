@@ -84,7 +84,20 @@ export function useCreateLog() {
       const { data } = await api.post<MovieLog>("/movie-logs", payload);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: logKeys.all }),
+    // The response already IS the full created log — priming its detail
+    // key means whatever navigates to /log/{id} right after saving (see
+    // LogFormScreen's post-save routing) renders instantly instead of a
+    // real GET round-trip against a cache entry that doesn't exist yet.
+    // List caches still just get invalidated: safely inserting the new
+    // row into every currently-cached *filtered* list (by movie/theatre/
+    // screen) would mean re-deriving each list's own filter criteria
+    // here, which is exactly the kind of fragile duplication worth
+    // avoiding — a background refetch is the correct source of truth for
+    // "does this new log belong in this particular filtered view."
+    onSuccess: (log) => {
+      qc.setQueryData(logKeys.detail(log.id), log);
+      qc.invalidateQueries({ queryKey: logKeys.all });
+    },
   });
 }
 
@@ -99,9 +112,27 @@ export function useUpdateLog() {
       const { data } = await api.patch<MovieLog>(`/movie-logs/${id}`, payload);
       return data;
     },
+    // Was invalidateQueries(logKeys.all) + invalidateQueries(logKeys.detail(id))
+    // — the second call was always redundant (logKeys.all, ["movie-logs"],
+    // already prefix-matches ["movie-logs","detail",id]) and neither one
+    // used the `log` this handler is handed, which already IS the full
+    // updated row straight from the PATCH response. This is the exact
+    // "edit -> view takes 1-2s" bug: LogDetailScreen's useMovieLog(id)
+    // rendered the now-stale cached copy first and only swapped in the
+    // real values after a fresh GET landed. setQueryData makes the detail
+    // view correct the instant this resolves; setQueriesData patches the
+    // same row wherever it's already sitting in a cached list (a field
+    // edit never changes *whether* a log belongs in an already-cached
+    // list the way create/archive can, so an unconditional by-id
+    // replace is safe here). invalidate still runs in the background to
+    // reconcile anything this optimistic patch can't know about (sort
+    // order, a list this log now belongs in that isn't cached yet).
     onSuccess: (log) => {
+      qc.setQueryData(logKeys.detail(log.id), log);
+      qc.setQueriesData<MovieLog[]>({ queryKey: [...logKeys.all, "list"] }, (old) =>
+        old ? old.map((l) => (l.id === log.id ? log : l)) : old
+      );
       qc.invalidateQueries({ queryKey: logKeys.all });
-      qc.invalidateQueries({ queryKey: logKeys.detail(log.id) });
     },
   });
 }
@@ -160,9 +191,25 @@ export function useArchiveLog() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, archive }: { id: string; archive: boolean }) => {
-      if (DEMO_MODE) return;
-      await api.patch(`/movie-logs/${id}`, { is_archived: archive });
+      if (DEMO_MODE) return undefined;
+      // Same endpoint/response shape as useUpdateLog (PATCH .../{id}) —
+      // was discarding it entirely (bare `await`, no `data`) even though
+      // it's the full updated log.
+      const { data } = await api.patch<MovieLog>(`/movie-logs/${id}`, { is_archived: archive });
+      return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: logKeys.all }),
+    // Only primes the detail cache, not list caches — unlike a plain
+    // field edit (useUpdateLog), archiving changes exactly the field
+    // most list views filter *on* (Library's default view excludes
+    // archived; its Archived chip includes only archived), so an
+    // unconditional by-id patch-in-place would leave the log sitting in
+    // the wrong list until the background invalidate's refetch catches
+    // up anyway — not worth hand-replicating every list's filter logic
+    // here just to skip that one refetch. The detail view (where the
+    // archive button and its toast actually live) is what benefits.
+    onSuccess: (log) => {
+      if (log) qc.setQueryData(logKeys.detail(log.id), log);
+      qc.invalidateQueries({ queryKey: logKeys.all });
+    },
   });
 }
