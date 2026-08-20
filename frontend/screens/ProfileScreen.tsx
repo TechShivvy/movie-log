@@ -149,8 +149,14 @@ export function ProfileScreen() {
   const [editing, setEditing] = useState(false);
 
   const { data: profile, isLoading: isProfileLoading } = useMyProfile();
-  const { data: followers, isFetching: isFollowersLoading } = useFollowers(profile?.username);
-  const { data: following, isFetching: isFollowingLoading } = useFollowing(profile?.username);
+  // isLoading (only true on the genuine first fetch — react-query v5's
+  // isPending && isFetching), not isFetching — isFetching also flips
+  // true on every background revalidation (staleTime expiring, window
+  // refocus, the default refetchOnWindowFocus), which repeatedly
+  // re-triggered the loading pulse on data that was already sitting
+  // there and valid to show as-is while it silently refreshed.
+  const { data: followers, isLoading: isFollowersLoading } = useFollowers(profile?.username);
+  const { data: following, isLoading: isFollowingLoading } = useFollowing(profile?.username);
   const { data: logs, isLoading, refetch } = useMovieLogs({ archived: false });
   const count    = logs?.length ?? 0;
   const avgRating = logs?.length
