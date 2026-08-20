@@ -30,6 +30,7 @@ import { useRouter, usePathname } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
+import { useMyProfile } from "../../hooks/useProfile";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
@@ -65,6 +66,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   useEffect(() => { setCollapsed(isTablet); }, [isTablet]);
   const { theme, setTheme, fontConfig } = useTheme();
   const { signOut, session } = useAuth();
+  // Own-profile data (this hook is cached app-wide under a single
+  // ["my-profile"] key, so this doesn't cost a second request beyond
+  // whatever ProfileScreen/EditProfileModal already triggered).
+  const { data: profile } = useMyProfile();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -99,10 +104,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   }
 
   const displayName =
-    (session?.user?.user_metadata?.full_name as string | undefined)
+    profile?.display_name
+    ?? (session?.user?.user_metadata?.full_name as string | undefined)
     ?? session?.user?.email?.split("@")[0]
     ?? "Guest";
-  const handle = session?.user?.email?.split("@")[0] ?? "guest";
+  // Was always the raw email-local-part, even once a real username had
+  // been set via Edit Profile — showed a different handle here than on
+  // ProfileScreen's own hero, right next to it in the same UI.
+  const handle = profile?.username ?? session?.user?.email?.split("@")[0] ?? "guest";
   const initial = displayName[0]?.toUpperCase() ?? "U";
 
   // ── Web ─────────────────────────────────────────────────────────────────────
