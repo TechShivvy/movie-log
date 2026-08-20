@@ -318,9 +318,16 @@ async def search_logs(
     '/{log_id}',
     response_model=MovieLog,
     tags=['Movie Logs'],
-    description="Fetch a single log the caller owns. Returns 404 (not 403) if the "
-    "log belongs to someone else — RLS makes 'not yours' and 'does not exist' "
-    "indistinguishable on purpose.",
+    description="Fetch a single log — the caller's own (any visibility), or "
+    "someone else's if it's currently public/anonymous-visible and not "
+    'archived (same rule GET .../reviews and GET /comments already use). '
+    "Returns 404 (not 403) if the log doesn't exist, belongs to someone else "
+    "and isn't currently visible, or is archived — 'not accessible' and "
+    "'does not exist' are indistinguishable on purpose, same as everywhere "
+    "else in this API. A non-owner sees fewer fields than the owner does "
+    '(no booking_ref/seats/ticket_image_path/ticket_url/price/currency) — '
+    'same privacy rule already applied to every other non-owner read of a '
+    'log in this app, not specific to this endpoint.',
     response_description='The requested log.',
     responses=responses['get_log'],
     operation_id='GetMovieLog',
@@ -331,7 +338,7 @@ async def get_log(
     log_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
 ) -> Any:
-    row = await supabase_rest.get_movie_log(
+    row = await supabase_rest.get_visible_movie_log(
         current_user.access_token, current_user.user_id, log_id
     )
     if row is None:

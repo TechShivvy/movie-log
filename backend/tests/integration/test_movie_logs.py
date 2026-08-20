@@ -91,6 +91,133 @@ async def test_a_users_own_log_is_invisible_to_someone_else(client, make_user):
 
 
 @pytest.mark.asyncio
+async def test_a_public_log_is_visible_to_a_stranger_but_with_fewer_fields(client, make_user):
+    """The real bug: get_movie_log filtered id+user_id unconditionally,
+    so GET /{log_id} was ownership-scoped, not visibility-scoped — a
+    genuinely public log 404'd for anyone but its owner. Fixed via
+    get_visible_movie_log, which falls back to the same
+    public_movie_log_entries view GET .../reviews already reads through
+    for a non-owner — same reduced field set (no booking_ref/seats/
+    ticket_image_path/ticket_url/price/currency) applies here too."""
+
+    owner_id, owner_token = await make_user()
+    _, stranger_token = await make_user()
+    created = await client.post(
+        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        json={
+            'movie': 'Public To Everyone', 'visibility': 'public',
+            'theatre_place': theatre_place_payload(), 'booking_ref': 'BMS999',
+            'seats': ['A1'], 'price': 199.0, 'currency': 'INR',
+        },
+    )
+    log_id = created.json()['id']
+
+    as_owner = await client.get(
+        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {owner_token}'},
+    )
+    assert as_owner.status_code == 200
+    assert as_owner.json()['booking_ref'] == 'BMS999'
+
+    as_stranger = await client.get(
+        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
+    )
+    assert as_stranger.status_code == 200
+    stranger_body = as_stranger.json()
+    assert stranger_body['id'] == log_id
+    assert stranger_body['movie'] == 'Public To Everyone'
+    assert stranger_body['visibility'] == 'public'
+    assert stranger_body['updated_at']
+    # Private fields never leak to a non-owner, even on a public log.
+    assert stranger_body['booking_ref'] is None
+    assert stranger_body['seats'] == []
+    assert stranger_body['price'] is None
+    assert stranger_body['currency'] is None
+
+
+@pytest.mark.asyncio
+async def test_an_anonymous_visibility_log_is_visible_but_unattributed_to_a_stranger(client, make_user):
+    owner_id, owner_token = await make_user()
+    _, stranger_token = await make_user()
+    created = await client.post(
+        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        json={'movie': 'Anon To Everyone', 'visibility': 'anonymous', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = created.json()['id']
+
+    as_stranger = await client.get(
+        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
+    )
+    assert as_stranger.status_code == 200
+    assert as_stranger.json()['user_id'] is None  # anonymous — never attributed
+
+
+@pytest.mark.asyncio
+async def test_a_private_log_still_404s_for_a_stranger(client, make_user):
+    """Regression guard alongside the fix above — private must stay
+    exactly as inaccessible as before."""
+
+    owner_id, owner_token = await make_user()
+    _, stranger_token = await make_user()
+    created = await client.post(
+        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        json={'movie': 'Still Private', 'visibility': 'private', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = created.json()['id']
+
+    as_stranger = await client.get(
+        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
+    )
+    assert as_stranger.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_an_archived_public_log_still_404s_for_a_stranger(client, make_user):
+    owner_id, owner_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    _, stranger_token = await make_user()
+    created = await client.post(
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Archived Public', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = created.json()['id']
+    await client.patch(f'/api/v1/movie-logs/{log_id}', headers=owner_headers, json={'is_archived': True})
+
+    as_stranger = await client.get(
+        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
+    )
+    assert as_stranger.status_code == 404
+
+    # The owner can still fetch their own log regardless of archive state.
+    as_owner = await client.get(f'/api/v1/movie-logs/{log_id}', headers=owner_headers)
+    assert as_owner.status_code == 200
+    assert as_owner.json()['is_archived'] is True
+
+
+@pytest.mark.asyncio
+async def test_venue_rating_pre_check_still_owner_only_after_the_visibility_fix(client, make_user):
+    """Guards the security boundary get_movie_log (still ownership-scoped,
+    unlike the new get_visible_movie_log GET /{log_id} uses) protects:
+    visit_venue_ratings' own RLS only checks the new row's user_id, not
+    that movie_log_id belongs to the caller — the router pre-check is the
+    real enforcement. A stranger must still be rejected here even though
+    they can now view the log itself."""
+
+    owner_id, owner_token = await make_user()
+    _, stranger_token = await make_user()
+    created = await client.post(
+        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        json={'movie': 'Rating Boundary Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = created.json()['id']
+
+    stranger_rating = await client.put(
+        f'/api/v1/movie-logs/{log_id}/venue-rating', headers={'Authorization': f'Bearer {stranger_token}'},
+        json={'screen_rating': 5.0},
+    )
+    assert stranger_rating.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_edited_at_set_only_on_a_real_content_change(client, make_user):
     _, token = await make_user()
     headers = {'Authorization': f'Bearer {token}'}

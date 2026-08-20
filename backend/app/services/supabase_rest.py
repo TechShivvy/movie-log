@@ -228,6 +228,16 @@ async def delete_favorite(user_token: str, user_id: str, log_id: str) -> bool:
 async def get_movie_log(
     user_token: str, user_id: str, log_id: str
 ) -> Optional[dict[str, Any]]:
+    # Ownership-scoped, deliberately — not just "the caller's default
+    # view". Reused as a pre-check by PUT .../venue-rating and the photo
+    # endpoints, both of which need this to stay strict: visit_venue_
+    # ratings_insert_own's own RLS comment notes the *router* (i.e. this
+    # pre-check) is the only thing stopping a caller from attaching a
+    # rating/photo to a log_id they don't own — that policy only checks
+    # the new row's own user_id, not that movie_log_id belongs to the
+    # caller. Do not loosen this for those callers; see
+    # get_visible_movie_log below for the (separate, read-only) visibility-
+    # aware lookup GET /{log_id} needs.
     params = {
         'select': _MOVIE_LOG_SELECT,
         'id': f'eq.{log_id}',
@@ -236,6 +246,37 @@ async def get_movie_log(
     }
     response = await _request(
         'GET', f'/{_TABLE}', user_token, 'get_movie_log', params=params
+    )
+    rows = response.json()
+    return rows[0] if rows else None
+
+
+async def get_visible_movie_log(
+    user_token: str, user_id: str, log_id: str
+) -> Optional[dict[str, Any]]:
+    """GET /{log_id} only. Unlike get_movie_log above, a caller can fetch
+    a log here if EITHER they own it (full row, any visibility — same
+    get_movie_log call, so private logs and every field still work for
+    the owner) OR the log is currently public/anonymous-visible and not
+    archived — same visibility rule GET .../reviews and the comments
+    endpoints already use, via the same public_movie_log_entries view
+    they already read through (RLS on the raw movie_logs table only
+    grants a caller their own rows plus followed-public ones — nowhere
+    close to "anyone can read a public log by id" — so this fallback
+    isn't optional, it's the only path that actually works for a genuine
+    stranger). That view already excludes booking_ref/seats/
+    ticket_image_path/ticket_url/price/currency for exactly this
+    non-owner case, same privacy reasoning applied everywhere else in
+    this app a stranger reads someone else's log — a non-owner viewing a
+    log this way sees less than the owner does, which is expected, not a
+    bug.
+    """
+    own = await get_movie_log(user_token, user_id, log_id)
+    if own is not None:
+        return own
+    params = {'select': '*', 'id': f'eq.{log_id}', 'limit': '1'}
+    response = await _request(
+        'GET', '/public_movie_log_entries', user_token, 'get_visible_movie_log', params=params
     )
     rows = response.json()
     return rows[0] if rows else None

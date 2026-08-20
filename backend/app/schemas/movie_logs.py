@@ -591,7 +591,14 @@ class MovieLog(MovieLogInput):
     """A stored movie log as returned by the database."""
 
     id: str
-    user_id: str
+    user_id: Optional[str] = Field(
+        default=None,
+        description="null only when GET /{log_id} (or another non-owner read "
+        "path) resolves an `anonymous`-visibility log belonging to someone "
+        "else — deliberately unattributed, same as everywhere else "
+        "`anonymous` appears in this app. Always a real id on every other "
+        "path (the caller's own logs, or someone else's `public` one).",
+    )
     created_at: str
     updated_at: str
     edited_at: Optional[str] = Field(

@@ -381,11 +381,25 @@ responses = {
     },
     'get_log': {
         200: {
-            'description': 'The requested log.',
+            'description': "The requested log — the owner's own view (every "
+            'field) if the caller owns it, a reduced view (no booking_ref/'
+            'seats/ticket_image_path/ticket_url/price/currency) if it belongs '
+            "to someone else but is currently public/anonymous-visible.",
             'content': {'application/json': {'example': _MOVIE_LOG_EXAMPLE}},
         },
+        404: {
+            'description': "Log doesn't exist, or belongs to someone else and "
+            "isn't currently public/anonymous-visible (private, or archived) — "
+            "'not accessible' and 'does not exist' are indistinguishable on "
+            'purpose. The owner can always fetch their own log regardless of '
+            'its visibility or archive state.',
+            'content': {
+                'application/json': {
+                    'example': {'code': 'NOT_FOUND', 'message': 'Movie log not found.'}
+                }
+            },
+        },
         **_UNAUTHORIZED,
-        **_NOT_FOUND,
         **_VALIDATION_UNLIKELY,
         **_UPSTREAM,
     },
