@@ -36,6 +36,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { PencilSimple, GearSix, CaretRight } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
@@ -201,14 +202,31 @@ export function ProfileScreen() {
       // of a wide space-between row, ended up crushed together on the
       // left with barely a gap without it.
       <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        {/* Hero banner */}
+        {/* Hero banner — the flat rectangle (image or gradient) used to
+            just stop dead against the page background below it, a hard
+            horizontal seam. A bottom fade into theme.bg blends it into
+            the content instead, same treatment on the real-image and
+            no-banner-gradient cases alike since both are equally a flat
+            block of color hitting a flat edge. */}
         <div style={{
           height: 160,
           background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
           position: "relative",
-        } as React.CSSProperties} />
+        } as React.CSSProperties}>
+          <div style={{
+            position: "absolute", left: 0, right: 0, bottom: 0, height: 70,
+            background: `linear-gradient(to bottom, transparent, ${theme.bg})`,
+          } as React.CSSProperties} />
+        </div>
 
-        <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
+        {/* position:relative — without it, this whole block (including
+            the avatar, which overlaps up into the hero via marginTop:-40)
+            painted BEHIND the hero's own position:relative + its
+            absolute-positioned fade overlay, despite coming later in the
+            markup: CSS stacks all `position`ed elements above `static`
+            ones regardless of DOM order, so the fade was rendering on
+            top of the avatar's upper half — the flat "cut" look. */}
+        <div style={{ padding: "0 32px 40px", position: "relative" } as React.CSSProperties}>
           {/* Avatar + name row — flexWrap so the button group drops to its
               own line rather than colliding with a long name at narrow
               widths; minWidth:0 + ellipsis on the name block so an
@@ -326,13 +344,19 @@ export function ProfileScreen() {
       contentContainerStyle={{ paddingBottom: 100 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
-      {/* Hero */}
+      {/* Hero — bottom fade into theme.bg so the flat banner rectangle
+          (image or the plain accent900 fallback) doesn't just stop dead
+          against the page background below it. */}
       <View style={{
         height: 140,
         backgroundColor: theme.accent900,
         position: "relative",
       }}>
         {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
+        <LinearGradient
+          colors={["transparent", theme.bg]}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 60 }}
+        />
       </View>
 
       {/* Avatar overlapping hero */}

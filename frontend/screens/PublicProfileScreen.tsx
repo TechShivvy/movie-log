@@ -8,6 +8,7 @@
 import React, { useState } from "react";
 import { Image, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import { UserPlus, UserCheck } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
@@ -62,11 +63,26 @@ export function PublicProfileScreen() {
 
   const header = (
     <>
+      {/* Bottom fade into theme.bg — same fix as ProfileScreen.tsx's own
+          hero, same reasoning: a flat banner rectangle otherwise just
+          stops dead against the page background below it. */}
       <div style={{
         height: 160,
         background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
-      } as React.CSSProperties} />
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16, padding: "0 32px" } as React.CSSProperties}>
+        position: "relative",
+      } as React.CSSProperties}>
+        <div style={{
+          position: "absolute", left: 0, right: 0, bottom: 0, height: 70,
+          background: `linear-gradient(to bottom, transparent, ${theme.bg})`,
+        } as React.CSSProperties} />
+      </div>
+      {/* position:relative — same fix as ProfileScreen.tsx's hero: without
+          it, this row (including the avatar overlapping up via
+          marginTop:-40) painted BEHIND the hero's absolute-positioned
+          fade overlay despite coming later in the markup, since CSS
+          stacks positioned elements above static ones regardless of DOM
+          order. */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16, padding: "0 32px", position: "relative" } as React.CSSProperties}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16 } as React.CSSProperties}>
           <Avatar name={displayName} uri={avatar} size="xl" />
           <div style={{ marginBottom: 4 } as React.CSSProperties}>
@@ -131,8 +147,12 @@ export function PublicProfileScreen() {
       contentContainerStyle={{ paddingBottom: 100 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
-      <View style={{ height: 140, backgroundColor: theme.accent900 }}>
+      <View style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
         {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
+        <LinearGradient
+          colors={["transparent", theme.bg]}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 60 }}
+        />
       </View>
       <View style={{ paddingHorizontal: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
