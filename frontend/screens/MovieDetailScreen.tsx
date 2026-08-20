@@ -27,7 +27,7 @@ export function MovieDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { data: movie, isLoading: movieLoading } = useMovie(id);
-  const { data: stats } = useMovieStats(id);
+  const { data: stats, isLoading: statsLoading } = useMovieStats(id);
   const { data: mineLogs, isLoading: mineLoading } = useMovieLogs({ movieId: id });
   const { data: followingLogs, isLoading: followingLoading } = useFeed({ movieId: id, limit: 50 });
   const { data: publicLogs, isLoading: publicLoading } = useMovieReviews(id);
@@ -78,11 +78,13 @@ export function MovieDetailScreen() {
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, fontSize: 14, color: `${theme.text}88` } as React.CSSProperties}>
               {year && <span>{year}</span>}
-              {ratingText && (
+              {statsLoading ? (
+                <span className="pulse-loading" style={{ color: `${theme.text}44` } as React.CSSProperties}>★ …</span>
+              ) : ratingText ? (
                 <span style={{ color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
                   {ratingText} <span style={{ color: `${theme.text}66`, fontWeight: 400 } as React.CSSProperties}>({stats!.rating_count})</span>
                 </span>
-              )}
+              ) : null}
             </div>
             <button className="btn btn-primary" style={{ width: "fit-content" } as React.CSSProperties} onClick={logThisMovie}>
               <Plus size={15} weight="bold" />
@@ -107,11 +109,13 @@ export function MovieDetailScreen() {
           <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{movie.title}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }}>
             {year && <Text style={{ fontSize: 13, color: `${theme.text}88` }}>{year}</Text>}
-            {ratingText && (
+            {statsLoading ? (
+              <Text style={{ fontSize: 13, color: `${theme.text}44` }}>★ …</Text>
+            ) : ratingText ? (
               <Text style={{ fontSize: 13, color: theme.accent, fontWeight: "600" }}>
                 {ratingText} <Text style={{ color: `${theme.text}66`, fontWeight: "400" }}>({stats!.rating_count})</Text>
               </Text>
-            )}
+            ) : null}
           </View>
           <Pressable
             onPress={logThisMovie}

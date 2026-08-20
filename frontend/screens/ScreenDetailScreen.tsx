@@ -32,7 +32,7 @@ export function ScreenDetailScreen() {
   const { data: screens, isLoading: screenLoading } = useTheatreScreens(id);
   const screen = screens?.find((s) => s.id === screenId);
 
-  const { data: stats } = useScreenStats(screenId);
+  const { data: stats, isLoading: statsLoading } = useScreenStats(screenId);
   const { data: mineLogs, isLoading: mineLoading } = useMovieLogs({ screenId });
   const { data: followingLogs, isLoading: followingLoading } = useFeed({ screenId, limit: 50 });
   const { data: publicLogs, isLoading: publicLoading } = useScreenReviews(screenId);
@@ -80,12 +80,14 @@ export function ScreenDetailScreen() {
           {screen.name}
         </h1>
         {screen.screen_type && <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 12 } as React.CSSProperties}>{screen.screen_type}</div>}
-        {ratingText && (
+        {statsLoading ? (
+          <div className="pulse-loading" style={{ marginBottom: 20, fontSize: 13, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
+        ) : ratingText ? (
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: 15, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
             ★ {ratingText}
             <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: 13 } as React.CSSProperties}>overall rating</span>
           </div>
-        )}
+        ) : null}
 
         <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
 
@@ -107,12 +109,14 @@ export function ScreenDetailScreen() {
       )}
       <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{screen.name}</Text>
       {screen.screen_type && <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 10 }}>{screen.screen_type}</Text>}
-      {ratingText && (
+      {statsLoading ? (
+        <Text style={{ fontSize: 13, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
+      ) : ratingText ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <Text style={{ fontSize: 15, color: theme.accent, fontWeight: "700" }}>★ {ratingText}</Text>
           <Text style={{ fontSize: 13, color: `${theme.text}66` }}>overall rating</Text>
         </View>
-      )}
+      ) : null}
 
       <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
 

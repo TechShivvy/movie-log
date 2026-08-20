@@ -44,7 +44,7 @@ export function VenueDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { data: theatre, isLoading: theatreLoading } = useTheatre(id);
-  const { data: stats } = useTheatreStats(id);
+  const { data: stats, isLoading: statsLoading } = useTheatreStats(id);
   const { data: screens, isLoading: screensLoading } = useTheatreScreens(id);
   const { data: mineLogs, isLoading: mineLoading } = useMovieLogs({ theatreId: id });
   const { data: followingLogs, isLoading: followingLoading } = useFeed({ theatreId: id, limit: 50 });
@@ -122,12 +122,14 @@ export function VenueDetailScreen() {
           {mapsUrl ? <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ color: "inherit" } as React.CSSProperties}>{displayAddress}</a> : displayAddress}
         </div>
       )}
-      {ratingText && (
+      {statsLoading ? (
+        <div className="pulse-loading" style={{ marginBottom: 16, fontSize: 13, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
+      ) : ratingText ? (
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 15, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
           ★ {ratingText}
           <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: 13 } as React.CSSProperties}>overall rating</span>
         </div>
-      )}
+      ) : null}
       {editingNickname && (
         <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
           <div style={{ fontSize: 12, color: `${theme.text}88`, marginBottom: 8 } as React.CSSProperties}>
@@ -190,13 +192,15 @@ export function VenueDetailScreen() {
           <Text style={{ fontSize: 13, color: `${theme.text}88`, flex: 1 }}>{displayAddress}</Text>
         </Pressable>
       )}
-      {ratingText && (
+      {statsLoading ? (
+        <Text style={{ fontSize: 13, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
+      ) : ratingText ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <Star size={16} color={theme.accent} weight="fill" />
           <Text style={{ fontSize: 15, color: theme.accent, fontWeight: "700" }}>{ratingText}</Text>
           <Text style={{ fontSize: 13, color: `${theme.text}66` }}>overall rating</Text>
         </View>
-      )}
+      ) : null}
       {me?.is_admin && !editingNickname && (
         <Pressable onPress={startEditNickname} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <PencilSimple size={13} color={theme.accent} />

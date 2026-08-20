@@ -44,15 +44,21 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
   // modal opens — not on every profile change, so mid-edit local state
   // (e.g. a just-picked avatar not yet saved) doesn't get clobbered by
   // an unrelated background refetch while the modal is still open.
+  // display_name falls back to the Google-OAuth-provided full_name (same
+  // source Sidebar.tsx already uses) rather than opening blank when
+  // profile is null — profile is only ever null while GET /public/me/
+  // profile hasn't resolved (or isn't deployed yet), not because the
+  // account has nothing worth prefilling.
+  const metadataName = user?.user_metadata?.full_name as string | undefined;
   useEffect(() => {
     if (!visible) return;
     setUsername(profile?.username ?? "");
-    setDisplayName(profile?.display_name ?? "");
+    setDisplayName(profile?.display_name ?? metadataName ?? "");
     setBio(profile?.bio ?? "");
     setAvatarPath(profile?.avatar_path);
     setBannerPath(profile?.banner_path);
     setUsernameError(undefined);
-  }, [visible, profile]);
+  }, [visible, profile, metadataName]);
 
   if (!visible) return null;
 

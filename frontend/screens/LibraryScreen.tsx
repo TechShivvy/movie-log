@@ -220,8 +220,8 @@ export function LibraryScreen() {
             <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
               Your library
             </div>
-            <h1 className="lib-title" style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
-              {shown.length} {shown.length === 1 ? "film" : "films"} {FILTER_PHRASE[filter]}
+            <h1 className={`lib-title${isLoading ? " pulse-loading" : ""}`} style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
+              {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
             </h1>
           </div>
 
@@ -402,8 +402,8 @@ export function LibraryScreen() {
           <Text style={{ fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase", color: theme.accent }}>
             Your library
           </Text>
-          <Text style={{ fontSize: 27, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4 }}>
-            {shown.length} {shown.length === 1 ? "film" : "films"} {FILTER_PHRASE[filter]}
+          <Text style={{ fontSize: 27, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4, opacity: isLoading ? 0.5 : 1 }}>
+            {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
           </Text>
         </View>
         <Pressable

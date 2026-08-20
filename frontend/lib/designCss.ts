@@ -327,6 +327,11 @@ textarea.input { min-height: 90px; resize: vertical; }
    this placeholder is transient. */
 .poster-loading { animation: clgPosterPulse 1.6s ease-in-out infinite; }
 @keyframes clgPosterPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+/* Same pulse, generic name — for any other value (a stat badge, a
+   count) whose async fetch hasn't resolved yet. Shown instead of
+   letting the real value just pop in unannounced, or worse, a bare 0/
+   null being indistinguishable from a genuine answer. */
+.pulse-loading { animation: clgPosterPulse 1.6s ease-in-out infinite; }
 .lift { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .16s ease; }
 .lift:hover { transform: translateY(-3px); }
 .gridcard .poster { transition: transform .16s cubic-bezier(.2,.7,.3,1); }

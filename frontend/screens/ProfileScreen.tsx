@@ -83,18 +83,25 @@ function groupTheatres(logs: MovieLog[]): VisitedTheatre[] {
 
 // ─── Stat pill ────────────────────────────────────────────────────────────────
 
-function StatCard({ value, label, theme }: { value: string | number; label: string; theme: any }) {
+// isLoading shows "…" instead of the real value — a stat that hasn't
+// resolved yet used to render as a bare 0, indistinguishable from a
+// real zero (a brand-new account genuinely has 0 followers, but "we
+// don't know yet" and "the answer is zero" read identically without
+// this, and the flash from placeholder-0 to a real number the moment
+// each query resolves looked like the page silently reloaded itself).
+function StatCard({ value, label, theme, isLoading }: { value: string | number; label: string; theme: any; isLoading?: boolean }) {
+  const display = isLoading ? "…" : value;
   if (Platform.OS === "web") {
     return (
       <div className="card" style={{ textAlign: "center", flex: 1 } as React.CSSProperties}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "var(--color-accent)", marginBottom: 2 } as React.CSSProperties}>{value}</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: "var(--color-accent)", marginBottom: 2, opacity: isLoading ? 0.5 : 1 } as React.CSSProperties}>{display}</div>
         <div style={{ fontSize: 12, color: `${theme.text}66` } as React.CSSProperties}>{label}</div>
       </div>
     );
   }
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
-      <Text style={{ fontSize: 22, fontWeight: "700", color: theme.accent }}>{value}</Text>
+      <Text style={{ fontSize: 22, fontWeight: "700", color: theme.accent, opacity: isLoading ? 0.5 : 1 }}>{display}</Text>
       <Text style={{ fontSize: 11, color: `${theme.text}66`, marginTop: 2 }}>{label}</Text>
     </View>
   );
@@ -140,9 +147,9 @@ export function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const { data: profile } = useMyProfile();
-  const { data: followers } = useFollowers(profile?.username);
-  const { data: following } = useFollowing(profile?.username);
+  const { data: profile, isLoading: isProfileLoading } = useMyProfile();
+  const { data: followers, isFetching: isFollowersLoading } = useFollowers(profile?.username);
+  const { data: following, isFetching: isFollowingLoading } = useFollowing(profile?.username);
   const { data: logs, isLoading, refetch } = useMovieLogs({ archived: false });
   const count    = logs?.length ?? 0;
   const avgRating = logs?.length
@@ -165,12 +172,15 @@ export function ProfileScreen() {
     }
   }
 
-  // profile is null until GET /public/me/profile responds (or forever,
-  // until the backend endpoint requested this session ships — see
-  // hooks/useProfile.ts) — email-local-part is a reasonable placeholder
-  // in the meantime, better than a literal "You".
+  // profile is null until GET /public/me/profile responds (or forever, if
+  // that endpoint isn't deployed yet — see hooks/useProfile.ts). Falls
+  // back to the same session.user.user_metadata.full_name Sidebar.tsx
+  // already uses (populated by Google OAuth at sign-in) before the raw
+  // email-local-part, so this screen shows the same name as the sidebar
+  // instead of a different, uglier fallback next to it.
+  const metadataName = authUser?.user_metadata?.full_name as string | undefined;
   const emailHandle = authUser?.email?.split("@")[0];
-  const displayName = profile?.display_name || profile?.username || emailHandle || "You";
+  const displayName = profile?.display_name || metadataName || profile?.username || emailHandle || "You";
   const username = profile?.username || emailHandle || "—";
   const bio = profile?.bio;
   const avatar = avatarUrl(profile?.avatar_path);
@@ -199,16 +209,30 @@ export function ProfileScreen() {
         } as React.CSSProperties} />
 
         <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
-          {/* Avatar + name row */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 12 } as React.CSSProperties}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 16 } as React.CSSProperties}>
+          {/* Avatar + name row — flexWrap so the button group drops to its
+              own line rather than colliding with a long name at narrow
+              widths; minWidth:0 + ellipsis on the name block so an
+              oversized fallback name (the raw email-local-part, which can
+              easily run 20-30+ characters) truncates instead of
+              overflowing past the buttons or off the screen entirely. */}
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 12 } as React.CSSProperties}>
+            <div className={isProfileLoading ? "pulse-loading" : undefined} style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
               <Avatar name={displayName} uri={avatar} size="xl" />
-              <div style={{ marginBottom: 4 } as React.CSSProperties}>
-                <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px" } as React.CSSProperties}>{displayName}</h2>
-                <span style={{ fontSize: 13, color: `${theme.text}55` } as React.CSSProperties}>@{username}</span>
+              <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
+                {/* While the profile fetch is still in flight, show a
+                    plain "Loading…" instead of the un-annotated
+                    email-handle fallback — that fallback is only a
+                    correct final answer once we actually know there's
+                    no real display_name/username to show, not before. */}
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
+                  {isProfileLoading ? "Loading…" : displayName}
+                </h2>
+                <span style={{ fontSize: 13, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
+                  {isProfileLoading ? "" : `@${username}`}
+                </span>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 4 } as React.CSSProperties}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
               <button className="btn btn-secondary" onClick={() => router.push("/(app)/settings" as any)}>
                 <GearSix size={14} />
                 Settings
@@ -224,10 +248,10 @@ export function ProfileScreen() {
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: 10, marginBottom: 28 } as React.CSSProperties}>
-            <StatCard value={count} label="Films" theme={theme} />
-            <StatCard value={following?.length ?? 0} label="Following" theme={theme} />
-            <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} />
-            <StatCard value={avgRating} label="★ avg rating" theme={theme} />
+            <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
+            <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
+            <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
+            <StatCard value={avgRating} label="★ avg rating" theme={theme} isLoading={isLoading} />
           </div>
 
           {/* Tabs */}
@@ -331,16 +355,23 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        <Text style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{displayName}</Text>
-        <Text style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>@{username}</Text>
+        {/* numberOfLines — an oversized fallback name (raw email-local-part,
+            easily 20-30+ chars) had no truncation at all here and just
+            ran past the screen edge at phone width. */}
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 18, fontWeight: "700", color: theme.text, opacity: isProfileLoading ? 0.5 : 1 }}>
+          {isProfileLoading ? "Loading…" : displayName}
+        </Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>
+          {isProfileLoading ? "" : `@${username}`}
+        </Text>
         {bio && <Text style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
 
         {/* Stats row */}
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 24 }}>
-          <StatCard value={count} label="Films" theme={theme} />
-          <StatCard value={following?.length ?? 0} label="Following" theme={theme} />
-          <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} />
-          <StatCard value={avgRating} label="★ avg" theme={theme} />
+          <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
+          <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
+          <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
+          <StatCard value={avgRating} label="★ avg" theme={theme} isLoading={isLoading} />
         </View>
 
         {/* Tabs */}

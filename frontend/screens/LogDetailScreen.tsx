@@ -431,7 +431,7 @@ export function LogDetailScreen() {
   // early-returns below) — useMovie's own `enabled: !!movieId` check
   // handles that, same pattern as venueRating above.
   const { data: movieCatalog, isLoading: isMovieLoading } = useMovie(log?.movie_id);
-  const { data: comments = [], loadMore: loadMoreComments, hasMore: hasMoreComments, isFetching: isFetchingComments } = useComments(id ?? "");
+  const { data: comments = [], loadMore: loadMoreComments, hasMore: hasMoreComments, isFetching: isFetchingComments, isLoading: isCommentsLoading } = useComments(id ?? "");
   const [showLogLikes, setShowLogLikes] = useState(false);
   const { data: logLikes, isLoading: logLikesLoading } = useLogLikes(id, showLogLikes);
   const addComment = useAddComment(id ?? "");
@@ -790,7 +790,7 @@ export function LogDetailScreen() {
               {/* No comment_count field exists on MovieLog — this is the
                   real count of the currently-loaded comment list. */}
               <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: headingFamily } as React.CSSProperties}>
-                Comments ({comments.length})
+                Comments{isCommentsLoading ? "" : ` (${comments.length})`}
               </h3>
 
               {/* Compose */}
@@ -1046,7 +1046,7 @@ export function LogDetailScreen() {
 
         {/* Comments — no comment_count field on MovieLog; real loaded-list count */}
         <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
-          Comments ({comments.length})
+          Comments{isCommentsLoading ? "" : ` (${comments.length})`}
         </Text>
 
         {/* Compose */}
