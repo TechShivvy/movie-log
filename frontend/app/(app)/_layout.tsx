@@ -3,6 +3,7 @@ import { Redirect, Stack } from "expo-router";
 import { Platform, StyleSheet, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
+import { useMyProfile } from "../../hooks/useProfile";
 import { useTheme } from "../../hooks/useTheme";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
 import { FilmGrain } from "../../components/layout/FilmGrain";
@@ -99,10 +100,15 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
+  // Called unconditionally (rules of hooks) even before we know there's
+  // a session — enabled only checks DEMO_MODE, and an unauthenticated
+  // call just 401s, which useMyProfile's own try/catch already turns
+  // into `null` rather than an error state.
+  const { data: profile, isLoading: profileLoading } = useMyProfile();
   const { theme } = useTheme();
   const { isMobile } = useBreakpoint();
 
-  if (loading) {
+  if (loading || (session && profileLoading)) {
     return (
       <View style={[styles.loader, { backgroundColor: theme.bg }]}>
         <ActivityIndicator color={theme.accent} size="large" />
@@ -112,6 +118,17 @@ export default function AppLayout() {
 
   if (!session) {
     return <Redirect href="/(auth)" />;
+  }
+
+  // Mandatory-username onboarding gate — profile is only ever null here
+  // if the fetch genuinely failed (network hiccup, backend down), not
+  // "loading" (that's handled above) — redirecting on a failed fetch
+  // would trap a returning user with a real username in a loop the
+  // moment their connection blips, so this only fires once we've
+  // gotten a real response back and it confirms there's genuinely no
+  // username set.
+  if (profile && !profile.username) {
+    return <Redirect href="/onboarding" />;
   }
 
   // contentStyle is required — see the comment on ThemedStack in app/_layout.tsx.

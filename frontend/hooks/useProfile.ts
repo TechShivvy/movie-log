@@ -5,6 +5,7 @@
 // I've finished onboarding yet").
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
+import { useAuth } from "./useAuth";
 import type { ProfileLink } from "../types";
 
 export interface MyProfile {
@@ -21,15 +22,24 @@ export interface MyProfile {
 const MY_PROFILE_KEY = ["my-profile"];
 
 /**
- * GET /public/me/profile — as of this writing, requested from the
- * backend but not yet deployed (see the backend prompt this session
- * handed off). Until it lands, any error here is swallowed and treated
- * as "no profile row yet" rather than surfaced as a screen-level error,
- * so ProfileScreen falls back to the auth session's own email instead
- * of showing a broken/error state. No frontend change will be needed
- * once the endpoint ships — it'll just start returning real data.
+ * GET /public/me/profile.
+ *
+ * enabled requires a real session, not just !DEMO_MODE — this query
+ * used to start fetching the instant the component mounted, racing
+ * AuthContext's own initial supabase.auth.getSession() resolution. A
+ * request that went out before the session was ready got a 401, which
+ * the catch below turns into `null` ("no profile") rather than an
+ * error — and since that resolves fast, `isLoading` could flip to
+ * false and cache that `null` (staleTime: 30s) *before* the real
+ * session ever became available, so the very next consumer to check
+ * "does this account have a username yet" (the onboarding redirect
+ * gate in particular) saw a false "no" for up to 30 seconds after a
+ * fresh sign-in. Confirmed live: a brand-new account's very first
+ * profile fetch was a swallowed 401 every time, not the real
+ * username:null response.
  */
 export function useMyProfile() {
+  const { session, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: MY_PROFILE_KEY,
     queryFn: async (): Promise<MyProfile | null> => {
@@ -40,7 +50,7 @@ export function useMyProfile() {
         return null;
       }
     },
-    enabled: !DEMO_MODE,
+    enabled: !DEMO_MODE && !authLoading && !!session,
   });
 }
 

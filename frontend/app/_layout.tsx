@@ -55,6 +55,11 @@ function ThemedStack() {
         <Stack.Screen name="(app)" />
         {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
         <Stack.Screen name="auth" options={{ headerShown: false }} />
+        {/* Signed in, but no username set yet — see (app)/_layout.tsx's
+            redirect gate. Deliberately a sibling of (app), not nested
+            inside it, so it renders full-screen without the Sidebar/
+            TabBar shell. */}
+        <Stack.Screen name="onboarding" />
       </Stack>
     </IconContext.Provider>
   );
