@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { UserPlus, UserCheck } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { usePublicProfile, useFollowers, useFollowUser } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
@@ -21,6 +22,7 @@ import type { MovieLog } from "../types";
 
 export function PublicProfileScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { user } = useAuth();
   const { username } = useLocalSearchParams<{ username: string }>();
@@ -123,7 +125,7 @@ export function PublicProfileScreen() {
   );
 
   // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {header}

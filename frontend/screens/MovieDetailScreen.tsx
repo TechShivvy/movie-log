@@ -10,6 +10,7 @@ import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Plus } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useMovie, useMovieStats, useMovieReviews, useMovieNote, useSetMovieNote } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
@@ -22,6 +23,7 @@ import type { MovieLog } from "../types";
 
 export function MovieDetailScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,8 +68,9 @@ export function MovieDetailScreen() {
   const year = releaseYear(movie.release_date);
   const ratingText = stats?.avg_rating != null ? `★ ${stats.avg_rating.toFixed(1)}` : null;
 
-  // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (desktop/tablet only — narrower falls through to the native
+  // branch below, same as every other screen; see ProfileScreen.tsx) ────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         <div style={{ display: "flex", gap: 28, marginBottom: 28 } as React.CSSProperties}>

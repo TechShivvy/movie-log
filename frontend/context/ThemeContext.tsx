@@ -43,6 +43,16 @@ function injectWebCSSVars(theme: Theme, fontCfg: FontConfig) {
   root.setProperty("--color-text",    theme.text);
   root.setProperty("--color-accent",  theme.accent);
 
+  // public/index.html hardcodes this to a fixed red — correct for the
+  // default theme, but never updated again after that, so a mobile
+  // browser's own chrome (status bar / URL bar background, standalone
+  // PWA title bar) stayed red regardless of which theme was actually
+  // selected in-app. Mirrors it to the current theme's own accent900
+  // (closest existing token to a "chrome background" shade) every time
+  // the theme changes.
+  const themeColorTag = doc.querySelector('meta[name="theme-color"]');
+  if (themeColorTag) themeColorTag.setAttribute("content", theme.accent900);
+
   // ── Derived tokens (pre-computed so they work without color-mix) ──────
   root.setProperty("--color-accent-100",   theme.accent100);
   root.setProperty("--color-accent-700",   theme.accent700);

@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import type { MovieLog } from "../types";
 
@@ -53,6 +54,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 export function StatsScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const { data: logs, isLoading } = useMovieLogs({ archived: false });
 
   const stats = useMemo(() => computeStats(logs ?? []), [logs]);
@@ -68,8 +70,9 @@ export function StatsScreen() {
     );
   }
 
-  // ── Web layout ─────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web layout (tablet & desktop only — see ProfileScreen.tsx's
+  //     identical fix for why the mobile exclusion matters) ────────────────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen

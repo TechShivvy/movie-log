@@ -26,6 +26,7 @@ import {
 import { useRouter } from "expo-router";
 import { MagnifyingGlass } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieSearch, useVenueSearch, useCreateMovie, useCreateTheatre, useSearchPlaces } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
@@ -47,6 +48,7 @@ const SCOPES: { id: Scope; label: string }[] = [
 
 export function SearchScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { showToast } = useToast();
   const [query, setQuery]   = useState("");
@@ -136,8 +138,8 @@ export function SearchScreen() {
     </div>
   );
 
-  // ── Web ─────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (desktop/tablet only — narrower falls through to native) ──────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen

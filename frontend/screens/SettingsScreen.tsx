@@ -25,6 +25,7 @@ import {
 import { CheckCircle, Palette, User, Lock, Robot, Database, Trash, SignOut } from "phosphor-react-native";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
@@ -77,10 +78,13 @@ function NativeThemeSwatch({
 
 export function SettingsScreen() {
   const { theme, fontOption, setTheme, setFontOption } = useTheme();
+  const { isMobile } = useBreakpoint();
   const [section, setSection] = useState<Section>("appearance");
 
-  // ── Web layout ─────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web layout (tablet & desktop only — see ProfileScreen.tsx's
+  //     identical fix; this screen's 190px-nav + content two-column
+  //     layout was running past a real phone's screen width entirely) ─────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen

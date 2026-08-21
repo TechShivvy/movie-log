@@ -9,6 +9,7 @@ import React from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useTheatre, useScreenStats, useScreenReviews, useTheatreScreens, useScreenNote, useSetScreenNote } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
@@ -20,6 +21,7 @@ import type { MovieLog } from "../types";
 
 export function ScreenDetailScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { user } = useAuth();
   const { id, screenId } = useLocalSearchParams<{ id: string; screenId: string }>();
@@ -67,8 +69,8 @@ export function ScreenDetailScreen() {
   const ratingText = stats?.overall_avg != null ? stats.overall_avg.toFixed(1) : null;
   const theatreName = theatre ? venueDisplayName(theatre) : undefined;
 
-  // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (desktop/tablet only — narrower falls through to native) ──────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {theatreName && (

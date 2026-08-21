@@ -82,10 +82,12 @@ export function SegmentedControl({ options, value, onChange, style }: SegmentedC
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
+    flexWrap: "wrap",
     borderWidth: 1,
     borderRadius: 8,
     overflow: "hidden",
     alignSelf: "flex-start",
+    maxWidth: "100%",
   },
   option: {
     flexDirection: "row",

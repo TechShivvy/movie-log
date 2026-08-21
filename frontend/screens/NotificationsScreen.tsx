@@ -26,6 +26,7 @@ import {
   Info,
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import type { NotificationType } from "../types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,9 +225,10 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
 
 export function NotificationsScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const notifs = DEMO_NOTIFS;
 
-  if (Platform.OS === "web") {
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen

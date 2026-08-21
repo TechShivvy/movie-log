@@ -9,6 +9,7 @@ import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MapPin, PencilSimple, Star } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useMe } from "../hooks/useMe";
 import {
@@ -38,6 +39,7 @@ function StatusBadge({ status, theme }: { status: string; theme: any }) {
 
 export function VenueDetailScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { user } = useAuth();
   const { data: me } = useMe();
@@ -166,8 +168,8 @@ export function VenueDetailScreen() {
     </div>
   );
 
-  // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (desktop/tablet only — narrower falls through to native) ──────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {header}

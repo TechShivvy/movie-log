@@ -21,6 +21,7 @@ import {
 import { useRouter } from "expo-router";
 import { Heart, ChatCircle, UserPlus } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useFeed } from "../hooks/useFeed";
 import { useLikeLog } from "../hooks/useSocial";
 import { useMovie } from "../hooks/useSearch";
@@ -261,6 +262,7 @@ function WebSidebar({ theme }: { theme: any }) {
 
 export function FeedScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
   // Was useMovieLogs({archived:false}).slice(0,20) — the caller's OWN
   // logs, capped at 20. That's not a feed, it's a fake: GET /public/feed
   // (real public logs from people the caller follows, never their own)
@@ -270,8 +272,10 @@ export function FeedScreen() {
 
   const feedLogs = logs ?? [];
 
-  // ── Web ─────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (tablet & desktop only — see ProfileScreen.tsx's identical
+  //     fix; the two-column main+sidebar layout below was overlapping
+  //     itself on a real phone's width instead of collapsing) ────────────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div
          for the reference pattern. Without it this shrink-wrapped to

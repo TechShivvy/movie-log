@@ -39,6 +39,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { PencilSimple, GearSix, CaretRight } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useMyProfile } from "../hooks/useProfile";
@@ -144,6 +145,7 @@ function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPr
 export function ProfileScreen() {
   const { theme } = useTheme();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
   const { user: authUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [refreshing, setRefreshing] = useState(false);
@@ -200,8 +202,15 @@ export function ProfileScreen() {
 
   const logsForTab = activeTab === "favorites" ? favorites : logs ?? [];
 
-  // ── Web layout ─────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web layout (tablet & desktop only) ──────────────────────────────────────
+  // Was a bare Platform.OS === "web" check — on a real phone's mobile
+  // browser/PWA, Platform.OS is "web" at ANY width, so this desktop
+  // layout (maxWidth:1000 container, 6-col poster grid, side-by-side
+  // stat cards) rendered unconditionally there too, with no scroll
+  // wrapper around it either (that only exists in the desktop Sidebar
+  // shell, not MobileLayout) — confirmed as the root cause of "not
+  // scrollable" + "everything too big" on the deployed mobile site.
+  if (Platform.OS === "web" && !isMobile) {
     return (
       // width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
       // same shrink-wrap-instead-of-filling bug as every other screen
