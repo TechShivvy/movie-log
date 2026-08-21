@@ -19,7 +19,20 @@ export interface MyProfile {
   profile_links: ProfileLink[];
 }
 
-const MY_PROFILE_KEY = ["my-profile"];
+// Scoped by user id, not a bare ["my-profile"] — a fixed, unscoped key
+// meant every account sharing this browser/QueryClient (every throwaway
+// test account this session, or just signing out and back in as
+// someone else) could read back WHOEVER was cached last: sign out
+// doesn't clear the query cache, so a stale `null` or a different
+// account's row could sit in that one slot and get served to the next
+// session for up to staleTime (30s) — including a stale "no username"
+// read that would incorrectly bounce a real, already-onboarded account
+// back into the onboarding redirect. Scoping by user_id gives every
+// account its own cache slot, so switching sessions can never serve
+// one account's data (or absence of it) to another.
+function myProfileKey(userId: string | undefined) {
+  return ["my-profile", userId];
+}
 
 /**
  * GET /public/me/profile.
@@ -41,7 +54,7 @@ const MY_PROFILE_KEY = ["my-profile"];
 export function useMyProfile() {
   const { session, loading: authLoading } = useAuth();
   return useQuery({
-    queryKey: MY_PROFILE_KEY,
+    queryKey: myProfileKey(session?.user?.id),
     queryFn: async (): Promise<MyProfile | null> => {
       try {
         const { data } = await api.get<MyProfile>("/public/me/profile");
@@ -56,6 +69,7 @@ export function useMyProfile() {
 
 export function useUpdateProfile() {
   const qc = useQueryClient();
+  const { session } = useAuth();
   return useMutation({
     mutationFn: async (patch: {
       display_name?: string | null;
@@ -68,7 +82,7 @@ export function useUpdateProfile() {
       return data;
     },
     onSuccess: (data) => {
-      qc.setQueryData(MY_PROFILE_KEY, data);
+      qc.setQueryData(myProfileKey(session?.user?.id), data);
       if (data.username) qc.invalidateQueries({ queryKey: ["public-profile", data.username] });
     },
   });
@@ -120,22 +134,24 @@ export function useUsernameAvailability(username: string, currentUsername?: stri
 
 export function useUpdateUsername() {
   const qc = useQueryClient();
+  const { session } = useAuth();
   return useMutation({
     mutationFn: async (username: string) => {
       const { data } = await api.patch<MyProfile>("/public/me/username", { username });
       return data;
     },
-    onSuccess: (data) => qc.setQueryData(MY_PROFILE_KEY, data),
+    onSuccess: (data) => qc.setQueryData(myProfileKey(session?.user?.id), data),
   });
 }
 
 export function useUpdatePrivacy() {
   const qc = useQueryClient();
+  const { session } = useAuth();
   return useMutation({
     mutationFn: async (account_visibility: "public" | "followers_only" | "private") => {
       const { data } = await api.patch<MyProfile>("/public/me/privacy", { account_visibility });
       return data;
     },
-    onSuccess: (data) => qc.setQueryData(MY_PROFILE_KEY, data),
+    onSuccess: (data) => qc.setQueryData(myProfileKey(session?.user?.id), data),
   });
 }

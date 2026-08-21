@@ -5,8 +5,9 @@
  * offline, no runtime network call) rather than a live external API —
  * a username-suggestion API being down would block onboarding
  * entirely, and a bundled wordlist costs nothing and is instant either
- * way. It's still a real, actively-maintained dictionary (adjectives +
- * animals) rather than a small hand-rolled list.
+ * way. Fed with our own cinema/theatre-themed dictionaries rather than
+ * the package's generic built-ins (adjectives+animals gave things like
+ * "curly_mastodon" — fine for a generic app, off-theme for this one).
  *
  * Uniqueness: generating a plausible-looking string here says nothing
  * about whether it's actually free — suggestAvailableUsername below
@@ -16,21 +17,45 @@
  * a collision, so what actually lands in the input has already been
  * confirmed available, not just generated.
  */
-import { uniqueNamesGenerator, adjectives, animals, NumberDictionary } from "unique-names-generator";
+import { uniqueNamesGenerator } from "unique-names-generator";
 import { api } from "./api";
 
-const numbers = NumberDictionary.generate({ min: 100, max: 999 });
+// Cinema/theatre vocabulary rather than a generic wordlist — this is a
+// movie-logging app, so "velvet_matinee" reads as on-theme in a way a
+// generic adjective+animal combo never would. Kept purely descriptive/
+// atmospheric (no film titles, real people, or trademarks) so nothing
+// here can collide with someone else's IP.
+const ADJECTIVES = [
+  "velvet", "midnight", "silent", "golden", "neon", "vintage", "crimson",
+  "silver", "final", "opening", "backstage", "candlelit", "nocturnal",
+  "classic", "widescreen", "matinee", "rowdy", "hushed", "flickering",
+  "technicolor", "retro", "cosmic", "dusty", "grand", "indie", "phantom",
+  "balcony", "frontrow", "soldout", "encore", "solo",
+];
 
-/** e.g. "happy_panther_482" — matches the backend's own
+const NOUNS = [
+  "reel", "projector", "popcorn", "marquee", "screening", "cinephile",
+  "director", "premiere", "trailer", "cameo", "montage", "flashback",
+  "closeup", "usher", "curtain", "sequel", "credits", "extra", "screen",
+  "spotlight", "encore", "cut", "frame", "critic", "audience", "matinee",
+  "projectionist", "boxoffice", "auditorium", "intermission", "cameo",
+];
+
+/** e.g. "velvet_projector482" — matches the backend's own
  * ^[a-z0-9_]{3,30}$ username pattern; sanitized defensively in case a
- * future dictionary entry ever contains anything outside that set. */
+ * future dictionary entry ever contains anything outside that set.
+ * The numeric suffix is generated fresh on every call — a previous
+ * version generated it once at module load and reused the same digits
+ * for every suggestion in a session, which looked like "the shuffle
+ * button isn't actually shuffling the number." */
 export function generateUsername(): string {
+  const digits = Math.floor(Math.random() * 900 + 100); // 100-999, fresh each call
   const raw = uniqueNamesGenerator({
-    dictionaries: [adjectives, animals, numbers],
+    dictionaries: [ADJECTIVES, NOUNS],
     separator: "_",
     style: "lowerCase",
   });
-  return raw.replace(/[^a-z0-9_]/g, "").slice(0, 30);
+  return `${raw}_${digits}`.replace(/[^a-z0-9_]/g, "").slice(0, 30);
 }
 
 async function isUsernameAvailable(username: string): Promise<boolean> {

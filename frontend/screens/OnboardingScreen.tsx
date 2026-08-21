@@ -11,7 +11,7 @@
  */
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
@@ -33,7 +33,7 @@ function UsernameStatus({ status, theme }: { status: string; theme: any }) {
 export function OnboardingScreen() {
   const { theme } = useTheme();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
   const { showToast } = useToast();
   const updateUsername = useUpdateUsername();
   const updateProfile = useUpdateProfile();
@@ -102,6 +102,19 @@ export function OnboardingScreen() {
       const msg = e?.response?.data?.message || "Couldn't save — try again";
       showToast(msg, "error");
     }
+  }
+
+  // This route sits outside (app)/_layout.tsx's own tree (deliberately,
+  // so it renders without the Sidebar/TabBar shell — see app/_layout.tsx's
+  // comment on why it's a sibling of (app), not nested inside it) — which
+  // also means it never inherited that layout's own "no session -> back
+  // to /(auth)" guard. Signing out from the "Sign out" link below only
+  // clears the Supabase session; without this check, this screen kept
+  // right on rendering afterward with nothing to send the caller
+  // anywhere, an authenticated-only screen quietly still showing/working
+  // with no session behind it.
+  if (!session) {
+    return <Redirect href="/(auth)" />;
   }
 
   const avatarPreview = avatarUrl(avatarPath);
