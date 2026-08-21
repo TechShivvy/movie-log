@@ -64,6 +64,50 @@ export function useUpdateProfile() {
   });
 }
 
+const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
+
+/**
+ * Live availability check for the username field — reuses
+ * GET /public/users/{username} (already public, read-only, no side
+ * effects) rather than a dedicated endpoint that doesn't exist: a 404
+ * means nobody has that username, a 200 means someone does. No
+ * PATCH /me/username call happens here, so typing never actually claims
+ * anything — only the real Save does that.
+ *
+ * `username` is expected to already be debounced by the caller (this
+ * hook doesn't debounce itself, since the caller also needs the raw
+ * keystroke value for the input's own controlled `value`).
+ */
+export function useUsernameAvailability(username: string, currentUsername?: string) {
+  const trimmed = username.trim().toLowerCase();
+  const isCurrent = !!currentUsername && trimmed === currentUsername;
+  const validFormat = USERNAME_PATTERN.test(trimmed);
+
+  const query = useQuery({
+    queryKey: ["username-availability", trimmed],
+    queryFn: async (): Promise<boolean> => {
+      try {
+        await api.get(`/public/users/${trimmed}`);
+        return false; // 200 = someone already has it
+      } catch (e: any) {
+        if (e?.response?.status === 404) return true; // nobody has it
+        throw e;
+      }
+    },
+    enabled: !DEMO_MODE && validFormat && !isCurrent,
+    staleTime: 10_000,
+    retry: false,
+  });
+
+  if (!trimmed) return { status: "idle" as const };
+  if (!validFormat) return { status: "invalid" as const };
+  if (isCurrent) return { status: "current" as const };
+  if (query.isFetching) return { status: "checking" as const };
+  if (query.data === true) return { status: "available" as const };
+  if (query.data === false) return { status: "taken" as const };
+  return { status: "idle" as const };
+}
+
 export function useUpdateUsername() {
   const qc = useQueryClient();
   return useMutation({

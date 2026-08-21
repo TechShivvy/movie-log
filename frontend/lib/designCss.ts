@@ -194,9 +194,16 @@ figcaption {
 .btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
 .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
 .btn-primary:active { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
-.btn-secondary { border-color: var(--color-divider); }
-.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+/* background was transparent at rest — only tinted on :hover, which
+   never fires on touch — same "reads as barely-there against the page"
+   problem LogDetailScreen's icon buttons were fixed for individually
+   earlier; fixed here at the class level instead, so every
+   .btn-secondary (Settings, Edit profile, Follow once already
+   following, and anywhere else this class is used) gets a real fill at
+   rest without needing a one-off override per screen. */
+.btn-secondary { background: var(--color-surface-high); border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, var(--color-surface-high)); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, var(--color-surface-high)); }
 .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
 .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
@@ -405,7 +412,14 @@ textarea.input { min-height: 90px; resize: vertical; }
   height: 62px; flex: none; display: flex; align-items: center; gap: 8px;
   padding: 0 26px; border-bottom: 1px solid var(--color-divider);
 }
-.mainscroll { flex: 1; overflow-y: auto; }
+/* scrollbar-gutter:stable reserves the scrollbar's width whether or not
+   content actually overflows — without it, a tab whose content is
+   taller than the viewport (Library's grid, Profile's Logs tab) gets a
+   scrollbar and one that isn't (an empty-state tab like Favorites/
+   Theatres) doesn't, so .mainscroll > div's margin-inline:auto
+   centers against a different available width each time — a visible
+   horizontal jump switching between tabs on the same page. */
+.mainscroll { flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    3. Responsive — breakpoints mirror hooks/useBreakpoint.ts's BP

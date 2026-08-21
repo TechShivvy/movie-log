@@ -10,18 +10,37 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, Style
 import { PencilSimple } from "phosphor-react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
-import { useUpdateProfile, useUpdateUsername, type MyProfile } from "../../hooks/useProfile";
+import { useUpdateProfile, useUpdateUsername, useUsernameAvailability, type MyProfile } from "../../hooks/useProfile";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { avatarUrl, bannerUrl, pickAndUploadImage } from "../../lib/storage";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
 import { Input } from "../ui/Input";
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,30}$/;
-
 interface EditProfileModalProps {
   visible: boolean;
   profile: MyProfile | null;
   onClose: () => void;
+}
+
+type AvailabilityStatus = ReturnType<typeof useUsernameAvailability>["status"];
+
+/** Inline, debounced feedback under the Username field — replaces the
+ * old "type it, hit Save, get a toast back if it was taken" round trip. */
+function UsernameStatus({ status, theme }: { status: AvailabilityStatus; theme: any }) {
+  if (status === "checking") {
+    return <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 4 }}>Checking…</Text>;
+  }
+  if (status === "available") {
+    return <Text style={{ fontSize: 12, color: theme.success ?? "#22C55E", marginTop: 4 }}>Username available</Text>;
+  }
+  if (status === "taken") {
+    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>Username not available</Text>;
+  }
+  if (status === "invalid") {
+    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>3-30 lowercase letters, digits, or underscores</Text>;
+  }
+  return null;
 }
 
 export function EditProfileModal({ visible, profile, onClose }: EditProfileModalProps) {
@@ -38,7 +57,14 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
   const [bannerPath, setBannerPath] = useState<string | undefined>(undefined);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  // Only for the rare race (someone else grabs the name between the
+  // live check and the actual Save) or a genuinely malformed value —
+  // the live check below is what normally decides this before Save is
+  // even pressable, replacing the old "type it, hit Save, get a toast
+  // back" round trip.
   const [usernameError, setUsernameError] = useState<string | undefined>(undefined);
+  const debouncedUsername = useDebouncedValue(username, 400);
+  const availability = useUsernameAvailability(debouncedUsername, profile?.username);
 
   // Re-seed local form state from the current profile every time the
   // modal opens — not on every profile change, so mid-edit local state
@@ -79,13 +105,14 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
 
   async function handleSave() {
     const trimmedUsername = username.trim().toLowerCase();
-    if (trimmedUsername && !USERNAME_PATTERN.test(trimmedUsername)) {
-      setUsernameError("3-30 lowercase letters, digits, or underscores");
-      return;
-    }
+    const changingUsername = trimmedUsername && trimmedUsername !== profile?.username;
+    // The live check below already keeps Save disabled for 'checking'/
+    // 'taken'/'invalid' — this is just the same guard against a
+    // double-click slipping through before the disabled state re-renders.
+    if (changingUsername && availability.status !== "available") return;
     setUsernameError(undefined);
     try {
-      if (trimmedUsername && trimmedUsername !== profile?.username) {
+      if (changingUsername) {
         await updateUsername.mutateAsync(trimmedUsername);
       }
       await updateProfile.mutateAsync({
@@ -97,6 +124,15 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
       showToast("Profile updated", "success");
       onClose();
     } catch (e: any) {
+      // USERNAME_TAKEN surfaces inline under the field (same spot the
+      // live check itself reports through) instead of a toast — the
+      // live check makes this the rare "someone else grabbed it in the
+      // last second" race rather than the normal path, but it's still
+      // possible.
+      if (e?.response?.data?.code === "USERNAME_TAKEN") {
+        setUsernameError("That username is already taken.");
+        return;
+      }
       const msg = e?.response?.data?.message || "Couldn't save your profile — try again";
       showToast(msg, "error");
     }
@@ -104,6 +140,11 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
 
   const avatarPreview = avatarUrl(avatarPath);
   const bannerPreview = bannerUrl(bannerPath);
+  // Blocks Save only when the username is actually being changed to
+  // something not yet confirmed available — leaving it untouched (or
+  // reverting to the current one) never blocks on this.
+  const usernameChanging = !!username.trim() && username.trim().toLowerCase() !== profile?.username;
+  const usernameBlocking = usernameChanging && availability.status !== "available";
 
   const body = (
     <>
@@ -138,7 +179,8 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
         </View>
       </Pressable>
 
-      <Input label="Username" value={username} onChangeText={(t) => setUsername(t.toLowerCase())} placeholder="lowercase_letters_digits" autoCapitalize="none" error={usernameError} />
+      <Input label="Username" value={username} onChangeText={(t) => { setUsername(t.toLowerCase()); setUsernameError(undefined); }} placeholder="lowercase_letters_digits" autoCapitalize="none" error={usernameError} />
+      <UsernameStatus status={availability.status} theme={theme} />
       <View style={{ height: 12 }} />
       <Input label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" maxLength={100} />
       <View style={{ height: 12 }} />
@@ -155,7 +197,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
           <div style={{ marginTop: 12 } as React.CSSProperties}>{body}</div>
           <div className="dialog-actions" style={{ marginTop: 16 } as React.CSSProperties}>
             <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving || uploadingAvatar || uploadingBanner}>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking}>
               {saving && <span className="spin">◌</span>}
               {saving ? "Saving…" : "Save"}
             </button>
@@ -178,7 +220,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
             <Pressable onPress={onClose} disabled={saving} style={[styles.btn, { borderColor: theme.divider }]}>
               <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>Cancel</Text>
             </Pressable>
-            <Pressable onPress={handleSave} disabled={saving || uploadingAvatar || uploadingBanner} style={[styles.btn, { borderColor: theme.accent, flexDirection: "row", gap: 6, alignItems: "center" }]}>
+            <Pressable onPress={handleSave} disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking} style={[styles.btn, { borderColor: theme.accent, flexDirection: "row", gap: 6, alignItems: "center" }]}>
               {saving && <ActivityIndicator size="small" color={theme.accent} />}
               <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "600" }}>{saving ? "Saving…" : "Save"}</Text>
             </Pressable>

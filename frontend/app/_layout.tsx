@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { IconContext } from "phosphor-react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -37,12 +38,25 @@ const queryClient = new QueryClient({
 function ThemedStack() {
   const { theme } = useTheme();
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(app)" />
-      {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
-      <Stack.Screen name="auth" options={{ headerShown: false }} />
-    </Stack>
+    // phosphor-react-native's IconBase falls back to a hardcoded '#000'
+    // whenever a <Icon> is rendered with no explicit color prop (see
+    // node_modules/phosphor-react-native/src/lib/icon-base.tsx) — not
+    // currentColor, not theme-aware, just permanently black. Every icon
+    // call site across the app that forgot to pass its own color (the
+    // Follow button, Settings/Edit profile buttons, more likely still
+    // out there) rendered as a hard-to-see black glyph on every dark
+    // theme. Providing a theme-aware default here fixes all of them at
+    // once, present and future, instead of hunting down each call site —
+    // an icon that DOES pass its own color prop is untouched either way,
+    // since IconBase only falls back to this when color is omitted.
+    <IconContext.Provider value={{ color: theme.text }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(app)" />
+        {/* /auth/callback — OAuth redirect handler (web + native deep-link) */}
+        <Stack.Screen name="auth" options={{ headerShown: false }} />
+      </Stack>
+    </IconContext.Provider>
   );
 }
 

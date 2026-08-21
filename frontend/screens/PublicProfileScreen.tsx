@@ -95,7 +95,12 @@ export function PublicProfileScreen() {
         </div>
         {!isOwnProfile && (
           <button className={isFollowing ? "btn btn-secondary" : "btn btn-primary"} onClick={toggleFollow} style={{ marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
-            {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
+            {/* Explicit color, matching each button's own text color
+                (.btn-primary's accent / .btn-secondary's default text) —
+                left unset here it fell back to phosphor's own hardcoded
+                black default (see app/_layout.tsx's IconContext.Provider
+                comment), unreadable against a dark fill either way. */}
+            {isFollowing ? <UserCheck size={14} color={theme.text} /> : <UserPlus size={14} color={theme.accent} />}
             {isFollowing ? "Following" : "Follow"}
           </button>
         )}

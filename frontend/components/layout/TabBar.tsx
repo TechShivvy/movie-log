@@ -127,30 +127,39 @@ export function TabBar() {
           bar — the whole shape rises from there, rather than being a
           shallow bump tucked just inside the bar's top.
 
-          Centering: `left:"50%"` + `marginLeft:-(width/2)` on the bar's
-          own full width, not the row of tabs' — measured directly
-          (dome center vs. bar center vs. viewport center) rather than
-          eyeballed, and all three land on the exact same pixel. Reported
-          as slightly left-of-center on a real device; couldn't
-          reproduce that here — this math doesn't leave room for an
-          asymmetry, so if it's still off after this, it's something
-          specific to that device/build rather than this centering. */}
-      <Pressable
-        onPress={() => router.push("/(app)/log/new" as any)}
-        style={[
-          styles.dome,
-          {
-            marginLeft: -(DOME_WIDTH / 2),
-            width: DOME_WIDTH,
-            height: DOME_HEIGHT,
-            borderTopLeftRadius: DOME_WIDTH / 2,
-            borderTopRightRadius: DOME_WIDTH / 2,
-            backgroundColor: theme.accent,
-          },
-        ]}
-      >
-        <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
-      </Pressable>
+          Centering: previously `left:"50%"` + `marginLeft:-(width/2)`.
+          That math checks out in isolation, but still measured
+          reliably left-of-center on a real device while looking fine
+          in Chrome's device emulation on the exact same build — a
+          `left:50%` + negative-margin offset only comes out exactly
+          centered if the width used for the margin calc matches the
+          width the browser/engine actually renders at that pixel
+          density; any rounding difference between environments (very
+          plausible between a real device's DPI and Chrome's emulated
+          one) shows up as exactly this kind of small, consistent,
+          hard-to-reproduce-elsewhere shift. Switched to a full-width
+          `left:0; right:0` wrapper with `alignItems:"center"` instead —
+          flexbox centering doesn't need to know or compute a width to
+          subtract, so it can't develop this class of off-by-a-few-
+          pixels asymmetry regardless of density/rounding differences
+          between environments. */}
+      <View style={styles.domeWrap} pointerEvents="box-none">
+        <Pressable
+          onPress={() => router.push("/(app)/log/new" as any)}
+          style={[
+            styles.dome,
+            {
+              width: DOME_WIDTH,
+              height: DOME_HEIGHT,
+              borderTopLeftRadius: DOME_WIDTH / 2,
+              borderTopRightRadius: DOME_WIDTH / 2,
+              backgroundColor: theme.accent,
+            },
+          ]}
+        >
+          <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -197,10 +206,19 @@ const styles = StyleSheet.create({
     width: 38, height: 30, borderRadius: 10, overflow: "hidden",
     alignItems: "center", justifyContent: "center",
   },
-  dome: {
+  // Full-width, non-interactive except where the dome itself is —
+  // box-none lets touches pass through the empty left/right strips to
+  // whatever's underneath instead of this wrapper eating them.
+  domeWrap: {
     position: "absolute",
-    left: "50%",
-    bottom: 0, // flush with the bar's own bottom edge — see file comment
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    zIndex: 10,
+  },
+  dome: {
+    // flush with the bar's own bottom edge — see file comment
     alignItems: "center",
     // The dome is much taller than its rounded cap alone (it reaches
     // all the way down to the bar's bottom edge) — centering on the
@@ -216,9 +234,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
-    // Explicit, not just relying on paint order (last sibling +
-    // absolute) — belt and braces so nothing can ever composite above
-    // the dome regardless of render order.
-    zIndex: 10,
   },
 });
