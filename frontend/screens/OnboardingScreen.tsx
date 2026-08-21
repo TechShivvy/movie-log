@@ -12,11 +12,12 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { PencilSimple } from "phosphor-react-native";
+import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
 import { useUpdateUsername, useUpdateProfile, useUsernameAvailability } from "../hooks/useProfile";
 import { avatarUrl, pickAndUploadImage } from "../lib/storage";
+import { suggestAvailableUsername } from "../lib/usernameGenerator";
 import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
 import { Input } from "../components/ui/Input";
@@ -41,6 +42,18 @@ export function OnboardingScreen() {
   const [displayName, setDisplayName] = useState((user?.user_metadata?.full_name as string | undefined) ?? "");
   const [avatarPath, setAvatarPath] = useState<string | undefined>(undefined);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+
+  async function handleSuggest() {
+    setSuggesting(true);
+    try {
+      setUsername(await suggestAvailableUsername());
+    } catch {
+      showToast("Couldn't get a suggestion — try again", "error");
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   // No debounce hook needed here the way EditProfileModal needs one for
   // a live-typing field that already has a saved value to compare
@@ -129,7 +142,13 @@ export function OnboardingScreen() {
         autoCapitalize="none"
         autoFocus
       />
-      <UsernameStatus status={availability.status} theme={theme} />
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+        <UsernameStatus status={availability.status} theme={theme} />
+        <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
+          <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
+        </Pressable>
+      </View>
       <View style={{ height: 12 }} />
       <Input
         label="Display name (optional)"

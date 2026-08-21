@@ -7,12 +7,13 @@
  */
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { PencilSimple } from "phosphor-react-native";
+import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { useUpdateProfile, useUpdateUsername, useUsernameAvailability, type MyProfile } from "../../hooks/useProfile";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { avatarUrl, bannerUrl, pickAndUploadImage } from "../../lib/storage";
+import { suggestAvailableUsername } from "../../lib/usernameGenerator";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
 import { Input } from "../ui/Input";
@@ -57,6 +58,19 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
   const [bannerPath, setBannerPath] = useState<string | undefined>(undefined);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+
+  async function handleSuggest() {
+    setSuggesting(true);
+    try {
+      setUsername(await suggestAvailableUsername());
+    } catch {
+      showToast("Couldn't get a suggestion — try again", "error");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   // Only for the rare race (someone else grabs the name between the
   // live check and the actual Save) or a genuinely malformed value —
   // the live check below is what normally decides this before Save is
@@ -180,7 +194,13 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
       </Pressable>
 
       <Input label="Username" value={username} onChangeText={(t) => { setUsername(t.toLowerCase()); setUsernameError(undefined); }} placeholder="lowercase_letters_digits" autoCapitalize="none" error={usernameError} />
-      <UsernameStatus status={availability.status} theme={theme} />
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+        <UsernameStatus status={availability.status} theme={theme} />
+        <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
+          <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
+        </Pressable>
+      </View>
       <View style={{ height: 12 }} />
       <Input label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" maxLength={100} />
       <View style={{ height: 12 }} />
