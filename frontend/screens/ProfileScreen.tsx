@@ -47,6 +47,7 @@ import { avatarUrl, bannerUrl } from "../lib/storage";
 import { Avatar } from "../components/ui/Avatar";
 import { PosterCard } from "../components/ui/PosterCard";
 import { EditProfileModal } from "../components/profile/EditProfileModal";
+import { ImageLightbox } from "../components/ui/ImageLightbox";
 import type { MovieLog } from "../types";
 
 type Tab = "logs" | "favorites" | "theatres";
@@ -147,6 +148,7 @@ export function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("logs");
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [lightbox, setLightbox] = useState<string | undefined>(undefined);
 
   const { data: profile, isLoading: isProfileLoading } = useMyProfile();
   // isLoading (only true on the genuine first fetch — react-query v5's
@@ -213,15 +215,24 @@ export function ProfileScreen() {
             horizontal seam. A bottom fade into theme.bg blends it into
             the content instead, same treatment on the real-image and
             no-banner-gradient cases alike since both are equally a flat
-            block of color hitting a flat edge. */}
-        <div style={{
-          height: 160,
-          background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
-          position: "relative",
-        } as React.CSSProperties}>
+            block of color hitting a flat edge. A plain 2-stop
+            transparent→bg fade still read as an abrupt cut against a
+            busy/high-contrast banner image — a 2-stop linear ramp looks
+            smooth against a flat color but against real image detail
+            the eye still catches where it starts. More stops easing in
+            gradually (mimicking a cubic curve instead of a straight
+            line) reads as a genuine soft fade instead. */}
+        <div
+          onClick={banner ? () => setLightbox(banner) : undefined}
+          style={{
+            height: 160,
+            background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
+            position: "relative",
+            cursor: banner ? "pointer" : undefined,
+          } as React.CSSProperties}>
           <div style={{
-            position: "absolute", left: 0, right: 0, bottom: 0, height: 70,
-            background: `linear-gradient(to bottom, transparent, ${theme.bg})`,
+            position: "absolute", left: 0, right: 0, bottom: 0, height: 110, pointerEvents: "none",
+            background: `linear-gradient(to bottom, ${theme.bg}00 0%, ${theme.bg}00 15%, ${theme.bg}40 45%, ${theme.bg}cc 75%, ${theme.bg} 100%)`,
           } as React.CSSProperties} />
         </div>
 
@@ -241,7 +252,9 @@ export function ProfileScreen() {
               overflowing past the buttons or off the screen entirely. */}
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 12 } as React.CSSProperties}>
             <div className={isProfileLoading ? "pulse-loading" : undefined} style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
-              <Avatar name={displayName} uri={avatar} size="xl" />
+              <div onClick={avatar ? () => setLightbox(avatar) : undefined} style={{ cursor: avatar ? "pointer" : undefined } as React.CSSProperties}>
+                <Avatar name={displayName} uri={avatar} size="xl" />
+              </div>
               <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
                 {/* While the profile fetch is still in flight, show a
                     plain "Loading…" instead of the un-annotated
@@ -339,6 +352,7 @@ export function ProfileScreen() {
           )}
         </div>
         <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
+        <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
       </div>
     );
   }
@@ -352,23 +366,26 @@ export function ProfileScreen() {
     >
       {/* Hero — bottom fade into theme.bg so the flat banner rectangle
           (image or the plain accent900 fallback) doesn't just stop dead
-          against the page background below it. */}
-      <View style={{
-        height: 140,
-        backgroundColor: theme.accent900,
-        position: "relative",
-      }}>
+          against the page background below it. Multiple color/location
+          stops instead of a plain 2-stop fade — a straight-line ramp
+          against real image detail (as opposed to a flat color) still
+          reads as an abrupt cut; easing in gradually across more stops
+          looks like a genuine soft fade instead. */}
+      <Pressable onPress={banner ? () => setLightbox(banner) : undefined} disabled={!banner} style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
         {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
         <LinearGradient
-          colors={["transparent", theme.bg]}
-          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 60 }}
+          colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
+          locations={[0, 0.15, 0.45, 0.75, 1]}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 100 }}
         />
-      </View>
+      </Pressable>
 
       {/* Avatar overlapping hero */}
       <View style={{ paddingHorizontal: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
-          <Avatar name={displayName} uri={avatar} size="xl" />
+          <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
+            <Avatar name={displayName} uri={avatar} size="xl" />
+          </Pressable>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
             <Pressable
               onPress={() => setEditing(true)}
@@ -464,6 +481,7 @@ export function ProfileScreen() {
         )}
       </View>
       <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
+      <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
     </ScrollView>
   );
 }

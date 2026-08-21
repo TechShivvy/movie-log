@@ -15,6 +15,7 @@ import { useAuth } from "../hooks/useAuth";
 import { usePublicProfile, useFollowers, useFollowUser } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
 import { PosterCard } from "../components/ui/PosterCard";
+import { ImageLightbox } from "../components/ui/ImageLightbox";
 import { avatarUrl, bannerUrl } from "../lib/storage";
 import type { MovieLog } from "../types";
 
@@ -28,6 +29,7 @@ export function PublicProfileScreen() {
   const { data: followers } = useFollowers(username);
   const followUser = useFollowUser();
   const [refreshing, setRefreshing] = useState(false);
+  const [lightbox, setLightbox] = useState<string | undefined>(undefined);
 
   const profile = data?.profile;
   const logs = data?.logs ?? [];
@@ -65,15 +67,22 @@ export function PublicProfileScreen() {
     <>
       {/* Bottom fade into theme.bg — same fix as ProfileScreen.tsx's own
           hero, same reasoning: a flat banner rectangle otherwise just
-          stops dead against the page background below it. */}
-      <div style={{
-        height: 160,
-        background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
-        position: "relative",
-      } as React.CSSProperties}>
+          stops dead against the page background below it. More stops
+          than a plain 2-stop fade, same reasoning as ProfileScreen.tsx:
+          a straight-line ramp against real image detail still reads as
+          an abrupt cut; easing in gradually looks like a genuine soft
+          fade instead. */}
+      <div
+        onClick={banner ? () => setLightbox(banner) : undefined}
+        style={{
+          height: 160,
+          background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
+          position: "relative",
+          cursor: banner ? "pointer" : undefined,
+        } as React.CSSProperties}>
         <div style={{
-          position: "absolute", left: 0, right: 0, bottom: 0, height: 70,
-          background: `linear-gradient(to bottom, transparent, ${theme.bg})`,
+          position: "absolute", left: 0, right: 0, bottom: 0, height: 110, pointerEvents: "none",
+          background: `linear-gradient(to bottom, ${theme.bg}00 0%, ${theme.bg}00 15%, ${theme.bg}40 45%, ${theme.bg}cc 75%, ${theme.bg} 100%)`,
         } as React.CSSProperties} />
       </div>
       {/* position:relative — same fix as ProfileScreen.tsx's hero: without
@@ -87,7 +96,9 @@ export function PublicProfileScreen() {
           narrow widths, with no way to shrink or wrap. */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 16, padding: "0 32px", position: "relative" } as React.CSSProperties}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
-          <Avatar name={displayName} uri={avatar} size="xl" />
+          <div onClick={avatar ? () => setLightbox(avatar) : undefined} style={{ cursor: avatar ? "pointer" : undefined } as React.CSSProperties}>
+            <Avatar name={displayName} uri={avatar} size="xl" />
+          </div>
           <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
             <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>{displayName}</h2>
             <span style={{ fontSize: 13, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>@{profile.username}</span>
@@ -135,6 +146,7 @@ export function PublicProfileScreen() {
             </div>
           )}
         </div>
+        <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
       </div>
     );
   }
@@ -150,21 +162,28 @@ export function PublicProfileScreen() {
   }
 
   return (
+    <>
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
       contentContainerStyle={{ paddingBottom: 100 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
-      <View style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
+      {/* Same multi-stop fade as ProfileScreen.tsx's own hero — a plain
+          2-stop fade still reads as an abrupt cut against real banner
+          image detail. */}
+      <Pressable onPress={banner ? () => setLightbox(banner) : undefined} disabled={!banner} style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
         {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
         <LinearGradient
-          colors={["transparent", theme.bg]}
-          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 60 }}
+          colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
+          locations={[0, 0.15, 0.45, 0.75, 1]}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 100 }}
         />
-      </View>
+      </Pressable>
       <View style={{ paddingHorizontal: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
-          <Avatar name={displayName} uri={avatar} size="xl" />
+          <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
+            <Avatar name={displayName} uri={avatar} size="xl" />
+          </Pressable>
           {!isOwnProfile && (
             <Pressable
               onPress={toggleFollow}
@@ -211,5 +230,7 @@ export function PublicProfileScreen() {
         )}
       </View>
     </ScrollView>
+    <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
+    </>
   );
 }
