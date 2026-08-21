@@ -40,28 +40,32 @@ function myProfileKey(userId: string | undefined) {
  * enabled requires a real session, not just !DEMO_MODE — this query
  * used to start fetching the instant the component mounted, racing
  * AuthContext's own initial supabase.auth.getSession() resolution. A
- * request that went out before the session was ready got a 401, which
- * the catch below turns into `null` ("no profile") rather than an
- * error — and since that resolves fast, `isLoading` could flip to
- * false and cache that `null` (staleTime: 30s) *before* the real
- * session ever became available, so the very next consumer to check
- * "does this account have a username yet" (the onboarding redirect
- * gate in particular) saw a false "no" for up to 30 seconds after a
- * fresh sign-in. Confirmed live: a brand-new account's very first
- * profile fetch was a swallowed 401 every time, not the real
- * username:null response.
+ * request that went out before the session was ready got a 401 — see
+ * below for why that no longer gets treated as a real answer.
+ *
+ * queryFn deliberately does NOT catch/swallow errors into `null`
+ * anymore (an earlier version did, back when this endpoint didn't
+ * exist yet and any failure needed a graceful "no profile" fallback).
+ * Once GET /public/me/profile went live, that swallow became actively
+ * harmful: ANY transient failure — not just the pre-session-ready 401
+ * above, but also e.g. the OAuth callback flow's own token-exchange
+ * window, which has a wider/less predictable timing gap than a plain
+ * password sign-in's more synchronous one — got cached as a confirmed
+ * "no username", which the onboarding redirect gate below then reads
+ * as gospel and bounces an already-onboarded account right back into
+ * onboarding. Letting it throw means `data` just stays undefined
+ * during any transient failure (react-query retries once by default)
+ * instead of settling on a false negative — the gate only ever
+ * redirects once a fetch has genuinely SUCCEEDED and confirmed there's
+ * no username, never off an error.
  */
 export function useMyProfile() {
   const { session, loading: authLoading } = useAuth();
   return useQuery({
     queryKey: myProfileKey(session?.user?.id),
-    queryFn: async (): Promise<MyProfile | null> => {
-      try {
-        const { data } = await api.get<MyProfile>("/public/me/profile");
-        return data;
-      } catch {
-        return null;
-      }
+    queryFn: async (): Promise<MyProfile> => {
+      const { data } = await api.get<MyProfile>("/public/me/profile");
+      return data;
     },
     enabled: !DEMO_MODE && !authLoading && !!session,
   });

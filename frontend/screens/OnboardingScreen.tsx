@@ -15,7 +15,7 @@ import { useRouter, Redirect } from "expo-router";
 import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useAuth } from "../hooks/useAuth";
-import { useUpdateUsername, useUpdateProfile, useUsernameAvailability } from "../hooks/useProfile";
+import { useUpdateUsername, useUpdateProfile, useUsernameAvailability, useMyProfile } from "../hooks/useProfile";
 import { avatarUrl, pickAndUploadImage } from "../lib/storage";
 import { suggestAvailableUsername } from "../lib/usernameGenerator";
 import { useToast } from "../context/ToastContext";
@@ -37,6 +37,14 @@ export function OnboardingScreen() {
   const { showToast } = useToast();
   const updateUsername = useUpdateUsername();
   const updateProfile = useUpdateProfile();
+  // Reachable by typing the URL directly, not just the (app)/_layout.tsx
+  // redirect that sends a no-username account here — an account that
+  // already has one just sat on this form with nothing to send them
+  // back out. isSuccess (not just `profile` being truthy) so this only
+  // ever fires off a confirmed, resolved answer, never a still-loading
+  // or errored one — same "don't redirect off anything but a real
+  // success" reasoning as (app)/_layout.tsx's own gate.
+  const { data: profile, isLoading: profileLoading, isSuccess: profileLoaded } = useMyProfile();
 
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState((user?.user_metadata?.full_name as string | undefined) ?? "");
@@ -115,6 +123,24 @@ export function OnboardingScreen() {
   // with no session behind it.
   if (!session) {
     return <Redirect href="/(auth)" />;
+  }
+
+  // Mirror image of (app)/_layout.tsx's own gate — that one sends a
+  // no-username account HERE; this one sends an already-onboarded
+  // account back OUT, for exactly the same reason the (auth) group's
+  // own layout bounces an already-signed-in caller away from the login
+  // screen. Without it, typing /onboarding into the address bar (or
+  // any other way of landing here directly) just sat on the form
+  // forever, even for an account that's long since set a username.
+  if (profileLoaded && profile?.username) {
+    return <Redirect href="/(app)" />;
+  }
+  if (profileLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
+        <ActivityIndicator color={theme.accent} size="large" />
+      </View>
+    );
   }
 
   const avatarPreview = avatarUrl(avatarPath);
