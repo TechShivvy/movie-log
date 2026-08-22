@@ -24,6 +24,7 @@ import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
 import { Input } from "../components/ui/Input";
 import { UsernameStatus } from "../components/ui/UsernameStatus";
+import { ThemedText } from "../components/ui/ThemedText";
 
 export function OnboardingScreen() {
   const { theme } = useTheme();
@@ -150,12 +151,12 @@ export function OnboardingScreen() {
     // on one line instead of stacking. View gives it real column flow
     // on both platforms.
     <View>
-      <Text style={{ fontSize: 26, fontWeight: "800", color: theme.text, marginBottom: 6, textAlign: "center" }}>
+      <ThemedText size="display" fontRole="heading" weight={700} style={{ marginBottom: 6, textAlign: "center" }}>
         Welcome to CineLog
-      </Text>
-      <Text style={{ fontSize: 14, color: `${theme.text}88`, marginBottom: 28, textAlign: "center", lineHeight: 20 }}>
+      </ThemedText>
+      <ThemedText size="base" color={`${theme.text}88`} style={{ marginBottom: 28, textAlign: "center", lineHeight: 20 }}>
         Pick a username to get started — you can add a photo and change your name any time from Edit Profile.
-      </Text>
+      </ThemedText>
 
       <Pressable onPress={handleUpload} style={{ alignItems: "center", marginBottom: 24 }}>
         <View>

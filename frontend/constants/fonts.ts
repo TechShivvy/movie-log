@@ -64,6 +64,36 @@ export const FONT_OPTIONS: FontConfig[] = [
 
 export const DEFAULT_FONT: FontOption = "cinematic";
 
+/**
+ * Type scale — sized from the actual distribution of raw `fontSize:`
+ * literals across the app (sampled via a repo-wide grep before adding
+ * this), not a generic round-number scale invented from nothing. Every
+ * step lands on or near a real cluster of existing usage:
+ *   xs=11 (tags/badges/captions), sm=12 (secondary/meta text),
+ *   base=14 (the single most common body size), md=15, lg=16 (emphasized
+ *   body/list titles), xl=18, xxl=22, display=24, h2=28, h1=32, hero=40.
+ * New code should reach for a named step (via ThemedText or `type.xxx`
+ * directly) instead of picking a fresh number — see components/ui/
+ * ThemedText.tsx. Migrating the ~448 existing raw fontSize literals onto
+ * this scale is real, ongoing work (see the design-system plan), not
+ * done in one pass here.
+ */
+export const type = {
+  xs: 11,
+  sm: 12,
+  base: 14,
+  md: 15,
+  lg: 16,
+  xl: 18,
+  xxl: 22,
+  display: 24,
+  h2: 28,
+  h1: 32,
+  hero: 40,
+} as const;
+
+export type TypeScaleKey = keyof typeof type;
+
 export function getFontConfig(key: FontOption): FontConfig {
   return FONT_OPTIONS.find((f) => f.key === key) ?? FONT_OPTIONS[0];
 }
