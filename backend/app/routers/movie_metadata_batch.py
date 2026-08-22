@@ -37,6 +37,14 @@ from utils.errors import APIError
 router = APIRouter()
 
 _BATCH_CREATE_LIMIT = f'{settings.batch_create_rate_limit_per_minute}/minute'
+# Both GET routes below were previously undecorated — per rate_limit.py's
+# own documented slowapi behavior, that makes them fully exempt from
+# rate limiting, not defaulted to settings.default_rate_limit_per_minute.
+# GET .../extract-batch/{id} is a client-side polling endpoint by design
+# (see its own docstring), so this is deliberately more generous than
+# _DEFAULT_LIMIT elsewhere in this codebase, not just settings.default_
+# rate_limit_per_minute copy-pasted in.
+_POLL_LIMIT = '120/minute'
 
 
 async def resolve_batch_api_key(
@@ -199,6 +207,7 @@ async def create_extraction_batch(
     responses=responses['get_batch'],
     operation_id='GetExtractionBatch',
 )
+@limiter.limit(_POLL_LIMIT)
 async def get_extraction_batch(
     request: Request,
     batch_id: str,
@@ -234,6 +243,7 @@ async def get_extraction_batch(
     responses=responses['list_batches'],
     operation_id='ListExtractionBatches',
 )
+@limiter.limit(_POLL_LIMIT)
 async def list_extraction_batches_route(
     request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),
