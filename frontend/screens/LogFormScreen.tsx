@@ -54,6 +54,7 @@ import type {
   TheatrePlaceSuggestion,
   ExtractionResult,
 } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 const FORMATS: Format[] = ["IMAX", "4DX", "Dolby", "ScreenX", "Laser", "PLF", "Standard"];
 // LogVisibility is "private" | "anonymous" | "public" — there is no
@@ -216,7 +217,7 @@ function WebPosterCol({
         {!posterUrl && (
           <div style={{ textAlign: "center", padding: 20 } as React.CSSProperties}>
             <CameraPlus size={40} color={theme.text + "44"} />
-            <p style={{ color: `${theme.text}44`, fontSize: 12, marginTop: 10, lineHeight: 1.4 } as React.CSSProperties}>
+            <p style={{ color: `${theme.text}44`, fontSize: fontSizes.sm, marginTop: 10, lineHeight: 1.4 } as React.CSSProperties}>
               Poster will appear here
             </p>
           </div>
@@ -230,11 +231,11 @@ function WebPosterCol({
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
           <Sparkle size={15} color={theme.accent} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+          <span style={{ fontSize: fontSizes.sm, fontWeight: 600, color: theme.text } as React.CSSProperties}>
             AI ticket extraction
           </span>
         </div>
-        <p style={{ fontSize: 12, color: `${theme.text}66`, lineHeight: 1.5, margin: 0 } as React.CSSProperties}>
+        <p style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, lineHeight: 1.5, margin: 0 } as React.CSSProperties}>
           Scan your movie ticket to auto-fill this form.
         </p>
         <button className="btn btn-secondary btn-block" onClick={onAIScan} style={{ marginTop: 4 } as React.CSSProperties}>
@@ -316,7 +317,7 @@ function WebForm({
             autoComplete="off"
           />
           {errors.movieTitle && (
-            <span style={{ color: "var(--color-error)", fontSize: 12 } as React.CSSProperties}>{errors.movieTitle}</span>
+            <span style={{ color: "var(--color-error)", fontSize: fontSizes.sm } as React.CSSProperties}>{errors.movieTitle}</span>
           )}
           {/* Movie suggestions */}
           {showMovieSuggestions && (movieSuggestions?.length ?? 0) > 0 && (
@@ -344,7 +345,7 @@ function WebForm({
                       padding: "8px 14px",
                       cursor: "pointer",
                       borderBottom: "1px solid var(--color-divider)",
-                      fontSize: 14,
+                      fontSize: fontSizes.base,
                       color: "var(--color-text)",
                     } as React.CSSProperties}
                     className="tapc"
@@ -362,7 +363,7 @@ function WebForm({
                     <div style={{ minWidth: 0 } as React.CSSProperties}>
                       {m.title}
                       {releaseYear(m.release_date) && (
-                        <span style={{ fontSize: 12, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>
+                        <span style={{ fontSize: fontSizes.sm, opacity: 0.6, marginLeft: 8 } as React.CSSProperties}>
                           {releaseYear(m.release_date)}
                         </span>
                       )}
@@ -397,7 +398,7 @@ function WebForm({
               ["Seat", "seatRating"],
             ] as const).map(([label, key]) => (
               <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
-                <span style={{ fontSize: 13, color: `${theme.text}99` } as React.CSSProperties}>{label}</span>
+                <span style={{ fontSize: fontSizes.sm, color: `${theme.text}99` } as React.CSSProperties}>{label}</span>
                 <StarRating
                   size="small"
                   value={fs[key]}
@@ -417,7 +418,7 @@ function WebForm({
                 key={f}
                 className={fs.format === f ? "tag tag-accent" : "tag tag-neutral"}
                 onClick={() => setFs((p: FormState) => ({ ...p, format: p.format === f ? undefined : f as Format }))}
-                style={{ cursor: "pointer", border: "none", fontSize: 12 } as React.CSSProperties}
+                style={{ cursor: "pointer", border: "none", fontSize: fontSizes.sm } as React.CSSProperties}
               >
                 {f}
               </button>
@@ -477,7 +478,7 @@ function WebForm({
             autoComplete="off"
           />
           {errors.venueName && (
-            <span style={{ color: "var(--color-error)", fontSize: 12 } as React.CSSProperties}>{errors.venueName}</span>
+            <span style={{ color: "var(--color-error)", fontSize: fontSizes.sm } as React.CSSProperties}>{errors.venueName}</span>
           )}
           {(showManualAdd || (showVenueSuggestions && venueQuery.trim().length > 2)) && (
             <div style={{
@@ -499,7 +500,7 @@ function WebForm({
                    focused single-task form rather than cluttering it
                    alongside the scroll area and the other footer option. */
                 <div style={{ padding: "10px 14px 14px" } as React.CSSProperties}>
-                  <div style={{ fontSize: 12, color: "var(--color-text)", opacity: 0.7, marginBottom: 8 } as React.CSSProperties}>
+                  <div style={{ fontSize: fontSizes.sm, color: "var(--color-text)", opacity: 0.7, marginBottom: 8 } as React.CSSProperties}>
                     Not on Google Places either? Add it directly.
                   </div>
                   <input
@@ -535,12 +536,12 @@ function WebForm({
                       thing to scroll past. */}
                   <div style={{ maxHeight: 230, overflowY: "auto" } as React.CSSProperties}>
                     {venueSearchLoading && (
-                      <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                      <div style={{ padding: "10px 14px", fontSize: fontSizes.sm, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
                         Searching…
                       </div>
                     )}
                     {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-                      <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
+                      <div style={{ padding: "10px 14px", fontSize: fontSizes.sm, color: "var(--color-text)", opacity: 0.6 } as React.CSSProperties}>
                         No matches found
                       </div>
                     )}
@@ -549,12 +550,12 @@ function WebForm({
                         key={v.id}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pickVenue(v)}
-                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: fontSizes.base, color: "var(--color-text)" } as React.CSSProperties}
                         className="tapc"
                       >
                         <div>{venueDisplayName(v)}</div>
                         {(v.formatted_address || v.city) && (
-                          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{v.formatted_address || v.city}</div>
+                          <div style={{ fontSize: fontSizes.sm, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{v.formatted_address || v.city}</div>
                         )}
                       </div>
                     ))}
@@ -563,11 +564,11 @@ function WebForm({
                         key={p.place_id}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => pickPlace(p)}
-                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: 14, color: "var(--color-text)" } as React.CSSProperties}
+                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid var(--color-divider)", fontSize: fontSizes.base, color: "var(--color-text)" } as React.CSSProperties}
                         className="tapc"
                       >
                         <div>{p.main_text ?? p.description}</div>
-                        {p.secondary_text && <div style={{ fontSize: 12, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{p.secondary_text}</div>}
+                        {p.secondary_text && <div style={{ fontSize: fontSizes.sm, opacity: 0.6, marginTop: 1 } as React.CSSProperties}>{p.secondary_text}</div>}
                       </div>
                     ))}
                   </div>
@@ -584,7 +585,7 @@ function WebForm({
                     style={{
                       padding: "10px 14px",
                       cursor: searchingPlaces ? "default" : "pointer",
-                      fontSize: 13,
+                      fontSize: fontSizes.sm,
                       color: "var(--color-accent)",
                       fontWeight: 600,
                       borderTop: "1px solid var(--color-divider)",
@@ -601,7 +602,7 @@ function WebForm({
                     style={{
                       padding: "10px 14px",
                       cursor: "pointer",
-                      fontSize: 13,
+                      fontSize: fontSizes.sm,
                       color: "var(--color-text)",
                       opacity: 0.7,
                       borderTop: "1px solid var(--color-divider)",
@@ -745,7 +746,7 @@ function WebForm({
         <div className="field" style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
           <div>
             <label style={{ marginBottom: 2 } as React.CSSProperties}>First Day First Show</label>
-            <p style={{ color: "var(--color-divider)", fontSize: 12, margin: 0 } as React.CSSProperties}>The very first screening</p>
+            <p style={{ color: "var(--color-divider)", fontSize: fontSizes.sm, margin: 0 } as React.CSSProperties}>The very first screening</p>
           </div>
           <input
             type="checkbox"
@@ -763,7 +764,7 @@ function WebForm({
         <div className="field" style={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between" } as React.CSSProperties}>
           <div>
             <label style={{ marginBottom: 2 } as React.CSSProperties}>Opening day</label>
-            <p style={{ color: "var(--color-divider)", fontSize: 12, margin: 0 } as React.CSSProperties}>Any showing, not necessarily the first</p>
+            <p style={{ color: "var(--color-divider)", fontSize: fontSizes.sm, margin: 0 } as React.CSSProperties}>Any showing, not necessarily the first</p>
           </div>
           <input
             type="checkbox"
@@ -803,7 +804,7 @@ function WebForm({
       </div>
 
       {errors.submit && (
-        <p style={{ color: "var(--color-error)", fontSize: 13, marginTop: 8 } as React.CSSProperties}>{errors.submit}</p>
+        <p style={{ color: "var(--color-error)", fontSize: fontSizes.sm, marginTop: 8 } as React.CSSProperties}>{errors.submit}</p>
       )}
     </div>
   );
@@ -1192,7 +1193,7 @@ export function LogFormScreen() {
         } as React.CSSProperties}>
           <div>
             <div style={{
-              fontSize: 11,
+              fontSize: fontSizes.xs,
               letterSpacing: "0.1em",
               textTransform: "uppercase",
               color: theme.accent,
@@ -1201,7 +1202,7 @@ export function LogFormScreen() {
               {isEditing ? "Edit entry" : "Add new entry"}
             </div>
             <h1 style={{
-              fontSize: 32,
+              fontSize: fontSizes.h1,
               fontWeight: 700,
               color: theme.text,
               margin: 0,
@@ -1316,7 +1317,7 @@ export function LogFormScreen() {
         <Pressable onPress={() => router.back()} disabled={isPending} style={{ padding: 4, opacity: isPending ? 0.4 : 1 }}>
           <ArrowLeft size={20} color={theme.accent} />
         </Pressable>
-        <Text style={{ color: theme.text, fontSize: 20, fontWeight: "700", flex: 1 }}>
+        <Text style={{ color: theme.text, fontSize: fontSizes.xl, fontWeight: "700", flex: 1 }}>
           {isEditing ? "Edit screening" : "Log a screening"}
         </Text>
         <Pressable
@@ -1325,7 +1326,7 @@ export function LogFormScreen() {
           style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}
         >
           {isPending && <ActivityIndicator color={theme.onAccent} size="small" />}
-          <Text style={{ color: theme.onAccent, fontSize: 14, fontWeight: "600" }}>
+          <Text style={{ color: theme.onAccent, fontSize: fontSizes.base, fontWeight: "600" }}>
             {isPending ? "Saving…" : "Save"}
           </Text>
         </Pressable>
@@ -1365,9 +1366,9 @@ export function LogFormScreen() {
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Sparkle size={16} color={theme.accent} />
-            <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>AI ticket extraction</Text>
+            <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: theme.text }}>AI ticket extraction</Text>
           </View>
-          <Text style={{ fontSize: 12, color: `${theme.text}66`, lineHeight: 16 }}>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, lineHeight: 16 }}>
             Scan your ticket to auto-fill this form.
           </Text>
           <View style={{
@@ -1383,7 +1384,7 @@ export function LogFormScreen() {
             marginTop: 4,
           }}>
             <Robot size={13} color={theme.text} />
-            <Text style={{ fontSize: 12, fontWeight: "600", color: theme.text }}>Scan ticket</Text>
+            <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: theme.text }}>Scan ticket</Text>
           </View>
         </Pressable>
       </View>
@@ -1428,9 +1429,9 @@ export function LogFormScreen() {
                   <View style={{ width: 32, height: 46, borderRadius: 4, backgroundColor: theme.surfaceHigh }} />
                 )}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{m.title}</Text>
+                  <Text style={{ color: theme.text, fontSize: fontSizes.base, fontWeight: "600" }}>{m.title}</Text>
                   {releaseYear(m.release_date) && (
-                    <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{releaseYear(m.release_date)}</Text>
+                    <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.sm, marginTop: 2 }}>{releaseYear(m.release_date)}</Text>
                   )}
                 </View>
               </Pressable>
@@ -1441,13 +1442,13 @@ export function LogFormScreen() {
 
       {/* Rating */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>RATING</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>RATING</Text>
         <StarRating value={fs.rating} onChange={(v) => setFs((p) => ({ ...p, rating: v }))} />
       </View>
 
       {/* Format chips */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>FORMAT</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>FORMAT</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {FORMATS.map((f) => (
             <Pressable
@@ -1463,7 +1464,7 @@ export function LogFormScreen() {
               }}
             >
               <Text style={{
-                fontSize: 12,
+                fontSize: fontSizes.sm,
                 fontWeight: "600",
                 color: fs.format === f ? theme.accent100 : theme.neutral100,
               }}>
@@ -1478,7 +1479,7 @@ export function LogFormScreen() {
           visit_venue_ratings row saved via a follow-up PUT after the log
           itself saves (see handleSubmit). See the matching web section. */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>
           VENUE RATINGS
         </Text>
         <View style={{ gap: 10 }}>
@@ -1489,7 +1490,7 @@ export function LogFormScreen() {
             ["Seat", "seatRating"],
           ] as const).map(([label, key]) => (
             <View key={key} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 14, color: theme.text }}>{label}</Text>
+              <Text style={{ fontSize: fontSizes.base, color: theme.text }}>{label}</Text>
               <StarRating size="small" value={fs[key]} onChange={(v) => setFs((p) => ({ ...p, [key]: v }))} />
             </View>
           ))}
@@ -1538,7 +1539,7 @@ export function LogFormScreen() {
           <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
             {showManualAdd ? (
               <View style={{ padding: 10 }}>
-                <Text style={{ fontSize: 12, color: theme.text, opacity: 0.7, marginBottom: 8 }}>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.text, opacity: 0.7, marginBottom: 8 }}>
                   Not on Google Places either? Add it directly.
                 </Text>
                 <View style={{ gap: 8, marginBottom: 10 }}>
@@ -1561,25 +1562,25 @@ export function LogFormScreen() {
                     rather than being one more thing to scroll past. */}
                 <ScrollView style={{ maxHeight: 230 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   {venueSearchLoading && (
-                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: fontSizes.sm }}>
                       Searching…
                     </Text>
                   )}
                   {!venueSearchLoading && (venueSuggestions?.length ?? 0) === 0 && placesResults.length === 0 && (
-                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: 13 }}>
+                    <Text style={{ padding: 10, color: theme.text, opacity: 0.6, fontSize: fontSizes.sm }}>
                       No matches found
                     </Text>
                   )}
                   {(venueSuggestions ?? []).map((v: TheatreMatchCandidate) => (
                     <Pressable key={v.id} onPress={() => pickVenue(v)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{venueDisplayName(v)}</Text>
-                      {(v.formatted_address || v.city) && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{v.formatted_address || v.city}</Text>}
+                      <Text style={{ color: theme.text, fontSize: fontSizes.base, fontWeight: "600" }}>{venueDisplayName(v)}</Text>
+                      {(v.formatted_address || v.city) && <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.sm, marginTop: 2 }}>{v.formatted_address || v.city}</Text>}
                     </Pressable>
                   ))}
                   {placesResults.map((p: TheatrePlaceSuggestion) => (
                     <Pressable key={p.place_id} onPress={() => pickPlace(p)} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-                      <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
-                      {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: 12, marginTop: 2 }}>{p.secondary_text}</Text>}
+                      <Text style={{ color: theme.text, fontSize: fontSizes.base, fontWeight: "600" }}>{p.main_text ?? p.description}</Text>
+                      {p.secondary_text && <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.sm, marginTop: 2 }}>{p.secondary_text}</Text>}
                     </Pressable>
                   ))}
                 </ScrollView>
@@ -1593,7 +1594,7 @@ export function LogFormScreen() {
                   onPress={searchPlaces.isPending ? undefined : handleSearchPlaces}
                   style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
                 >
-                  <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                  <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "600" }}>
                     {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
                   </Text>
                 </Pressable>
@@ -1601,7 +1602,7 @@ export function LogFormScreen() {
                   onPress={() => setShowManualAdd(true)}
                   style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}
                 >
-                  <Text style={{ color: theme.text, opacity: 0.7, fontSize: 13, fontWeight: "600" }}>
+                  <Text style={{ color: theme.text, opacity: 0.7, fontSize: fontSizes.sm, fontWeight: "600" }}>
                     Can't find it? Add manually
                   </Text>
                 </Pressable>
@@ -1648,7 +1649,7 @@ export function LogFormScreen() {
 
       {/* Arrival + delta */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>ARRIVAL</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>ARRIVAL</Text>
         <SegmentedControl options={ARRIVAL_OPTS} value={fs.arrivalStatus} onChange={(v) => setFs((p) => ({ ...p, arrivalStatus: v as ArrivalStatus }))} />
       </View>
       {fs.arrivalStatus !== "on_time" && (
@@ -1667,7 +1668,7 @@ export function LogFormScreen() {
           on time, distinct from the caller's own arrival, was never
           collected here at all. */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>SCREENING START</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>SCREENING START</Text>
         <SegmentedControl
           options={SCREENING_START_OPTS}
           value={fs.screeningStartStatus ?? ""}
@@ -1689,8 +1690,8 @@ export function LogFormScreen() {
       {/* FDFS toggle */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingVertical: 4 }}>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>First Day First Show</Text>
-          <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>The very first screening</Text>
+          <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>First Day First Show</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>The very first screening</Text>
         </View>
         <Switch
           value={fs.isFdfs}
@@ -1704,8 +1705,8 @@ export function LogFormScreen() {
           server-side, mirrored above. */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingVertical: 4, opacity: fs.isFdfs ? 0.5 : 1 }}>
         <View>
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>Opening day</Text>
-          <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>Any showing, not necessarily the first</Text>
+          <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>Opening day</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>Any showing, not necessarily the first</Text>
         </View>
         <Switch
           value={fs.isFirstDay}
@@ -1717,7 +1718,7 @@ export function LogFormScreen() {
 
       {/* Visibility */}
       <View style={{ marginTop: 14 }}>
-        <Text style={{ fontSize: 12, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>VISIBILITY</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}70`, fontWeight: "600", marginBottom: 8, letterSpacing: 0.5 }}>VISIBILITY</Text>
         <SegmentedControl options={VISIBILITY_OPTS} value={fs.visibility} onChange={(v) => setFs((p) => ({ ...p, visibility: v as LogVisibility }))} />
       </View>
 
@@ -1736,7 +1737,7 @@ export function LogFormScreen() {
       {/* No "Ticket URL" field — see the matching note in WebForm above. */}
 
       {errors.submit && (
-        <Text style={{ color: theme.error, fontSize: 13, marginTop: 8 }}>{errors.submit}</Text>
+        <Text style={{ color: theme.error, fontSize: fontSizes.sm, marginTop: 8 }}>{errors.submit}</Text>
       )}
 
       <AITicketModal

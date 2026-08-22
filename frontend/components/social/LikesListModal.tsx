@@ -11,6 +11,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { avatarUrl } from "../../lib/storage";
 import { Avatar } from "../ui/Avatar";
 import type { LikeEntry } from "../../hooks/useSocial";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface LikesListModalProps {
   visible: boolean;
@@ -39,7 +40,7 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
         : <ActivityIndicator color={theme.accent} />}
     </View>
   ) : rows.length === 0 ? (
-    <Text style={{ color: `${theme.text}55`, fontSize: 14, textAlign: "center", paddingVertical: 30 }}>No likes yet.</Text>
+    <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.base, textAlign: "center", paddingVertical: 30 }}>No likes yet.</Text>
   ) : Platform.OS === "web" ? (
     <div style={{ maxHeight: 360, overflowY: "auto" } as React.CSSProperties}>
       {rows.map((r) => (
@@ -50,7 +51,7 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", cursor: r.username ? "pointer" : "default" } as React.CSSProperties}
         >
           <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+          <span style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>
             {r.display_name ?? r.username ?? "Someone"}
           </span>
         </div>
@@ -64,7 +65,7 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
       renderItem={({ item: r }) => (
         <Pressable onPress={() => goToProfile(r.username)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
           <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{r.display_name ?? r.username ?? "Someone"}</Text>
+          <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{r.display_name ?? r.username ?? "Someone"}</Text>
         </Pressable>
       )}
     />
@@ -96,5 +97,5 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: 16 },
   dialog: { width: "100%", maxWidth: 340, borderRadius: 14, padding: 20 },
-  title: { fontSize: 18, fontWeight: "700" },
+  title: { fontSize: fontSizes.xl, fontWeight: "700" },
 });

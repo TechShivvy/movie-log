@@ -58,6 +58,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { completeAuthFromUrl } from "../lib/authCallback";
 import { useTheme } from "../hooks/useTheme";
+import { type as fontSizes } from "../constants/fonts";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
@@ -315,10 +316,10 @@ export function LoginScreen() {
             >
               <Icon name="film-slate" weight="fill" size={30} />
             </div>
-            <div style={{ fontFamily: headingFamily, fontSize: 30, letterSpacing: "-.02em" } as React.CSSProperties}>
+            <div style={{ fontFamily: headingFamily, fontSize: fontSizes.h2, letterSpacing: "-.02em" } as React.CSSProperties}>
               CineLog
             </div>
-            <div className="text-muted" style={{ fontSize: 14 } as React.CSSProperties}>
+            <div className="text-muted" style={{ fontSize: fontSizes.base } as React.CSSProperties}>
               Track every theatre memory.
             </div>
           </div>
@@ -410,7 +411,7 @@ export function LoginScreen() {
                 {/* OR divider */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0" } as React.CSSProperties}>
                   <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
-                  <span className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>OR</span>
+                  <span className="text-muted" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>OR</span>
                   <div style={{ flex: 1, height: 1, background: theme.divider } as React.CSSProperties} />
                 </div>
 
@@ -443,13 +444,13 @@ export function LoginScreen() {
             )}
           </form>
 
-          {message ? <p role="status" style={{ color: theme.accent, fontSize: 13, margin: "12px 0 0" } as React.CSSProperties}>{message}</p> : null}
-          {error ? <p role="alert" style={{ color: theme.error, fontSize: 13, margin: "12px 0 0" } as React.CSSProperties}>{error}</p> : null}
+          {message ? <p role="status" style={{ color: theme.accent, fontSize: fontSizes.sm, margin: "12px 0 0" } as React.CSSProperties}>{message}</p> : null}
+          {error ? <p role="alert" style={{ color: theme.error, fontSize: fontSizes.sm, margin: "12px 0 0" } as React.CSSProperties}>{error}</p> : null}
 
           {/* Footer pinned to bottom */}
           <div
             className="text-muted"
-            style={{ marginTop: "auto", textAlign: "center", fontSize: 13, paddingTop: 30 } as React.CSSProperties}
+            style={{ marginTop: "auto", textAlign: "center", fontSize: fontSizes.sm, paddingTop: 30 } as React.CSSProperties}
           >
             {mode === "signin" ? (
               <>New here? <span
@@ -503,10 +504,10 @@ export function LoginScreen() {
             >
               <Icon name="film-slate" weight="fill" size={30} color={theme.accent} />
             </View>
-            <Text style={{ fontFamily: headingFamily, fontSize: 30, letterSpacing: -0.6, color: theme.text }}>
+            <Text style={{ fontFamily: headingFamily, fontSize: fontSizes.h2, letterSpacing: -0.6, color: theme.text }}>
               CineLog
             </Text>
-            <Text style={{ fontSize: 14, color: muted }}>Track every theatre memory.</Text>
+            <Text style={{ fontSize: fontSizes.base, color: muted }}>Track every theatre memory.</Text>
           </View>
 
           {/* Form */}
@@ -578,7 +579,7 @@ export function LoginScreen() {
                 {/* OR divider */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 }}>
                   <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-                  <Text style={{ fontSize: 11, color: muted }}>OR</Text>
+                  <Text style={{ fontSize: fontSizes.xs, color: muted }}>OR</Text>
                   <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
                 </View>
 
@@ -590,7 +591,7 @@ export function LoginScreen() {
                 ) : (
                   <Button variant="secondary" block disabled={busy} onPress={signInGoogle}>
                     <GoogleIcon size={16} />
-                    <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.text }}>Continue with Google</Text>
+                    <Text style={{ fontFamily: headingFamily, fontSize: fontSizes.base, color: theme.text }}>Continue with Google</Text>
                   </Button>
                 )}
               </>
@@ -607,24 +608,24 @@ export function LoginScreen() {
             )}
 
             {message ? (
-              <Text accessibilityLiveRegion="polite" style={{ color: theme.accent, fontSize: 13 }}>{message}</Text>
+              <Text accessibilityLiveRegion="polite" style={{ color: theme.accent, fontSize: fontSizes.sm }}>{message}</Text>
             ) : null}
             {error ? (
-              <Text accessibilityLiveRegion="assertive" style={{ color: theme.error, fontSize: 13 }}>{error}</Text>
+              <Text accessibilityLiveRegion="assertive" style={{ color: theme.error, fontSize: fontSizes.sm }}>{error}</Text>
             ) : null}
           </View>
 
           {/* Footer pinned to bottom (margin-top:auto) */}
           <View style={{ marginTop: "auto", paddingTop: 30, alignItems: "center" }}>
             {mode === "signin" ? (
-              <Text style={{ fontSize: 13, color: muted }}>
+              <Text style={{ fontSize: fontSizes.sm, color: muted }}>
                 New here?{" "}
                 <Text style={{ color: theme.accent }} onPress={() => switchMode("signup")}>
                   Create an account
                 </Text>
               </Text>
             ) : (
-              <Text style={{ fontSize: 13, color: muted }}>
+              <Text style={{ fontSize: fontSizes.sm, color: muted }}>
                 Already have an account?{" "}
                 <Text style={{ color: theme.accent }} onPress={() => switchMode("signin")}>
                   Sign in

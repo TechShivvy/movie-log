@@ -19,6 +19,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Linking from "expo-linking";
 import { completeAuthFromUrl } from "../../lib/authCallback";
 import { useTheme } from "../../hooks/useTheme";
+import { type as fontSizes } from "../../constants/fonts";
 
 export default function AuthCallback() {
   const { theme } = useTheme();
@@ -70,7 +71,7 @@ export default function AuthCallback() {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
       <ActivityIndicator color={theme.accent} size="large" />
-      <Text style={{ color: theme.text, marginTop: 16, fontSize: 14, opacity: 0.7 }}>
+      <Text style={{ color: theme.text, marginTop: 16, fontSize: fontSizes.base, opacity: 0.7 }}>
         {message ?? "Signing you in…"}
       </Text>
     </View>

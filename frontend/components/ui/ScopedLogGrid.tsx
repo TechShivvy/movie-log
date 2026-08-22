@@ -12,6 +12,7 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native
 import { useTheme } from "../../hooks/useTheme";
 import { PosterCard } from "./PosterCard";
 import type { MovieLog } from "../../types";
+import { type as fontSizes } from "../../constants/fonts";
 
 export type LogScope = "mine" | "following" | "public";
 
@@ -47,7 +48,7 @@ export function ScopedLogGrid({ tabs, onLogPress, isSignedIn }: {
           key={t.id}
           onClick={() => setActive(t.id)}
           style={{
-            padding: "10px 16px", fontSize: 14, fontWeight: 600,
+            padding: "10px 16px", fontSize: fontSizes.base, fontWeight: 600,
             color: active === t.id ? theme.accent : `${theme.text}66`,
             background: "none", border: "none", cursor: "pointer",
             borderBottom: active === t.id ? `2px solid ${theme.accent}` : "2px solid transparent",
@@ -66,7 +67,7 @@ export function ScopedLogGrid({ tabs, onLogPress, isSignedIn }: {
           onPress={() => setActive(t.id)}
           style={{ flex: 1, paddingVertical: 10, alignItems: "center", borderBottomWidth: 2, borderBottomColor: active === t.id ? theme.accent : "transparent", marginBottom: -1 }}
         >
-          <Text style={{ fontSize: 13, fontWeight: "600", color: active === t.id ? theme.accent : `${theme.text}66` }}>
+          <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: active === t.id ? theme.accent : `${theme.text}66` }}>
             {t.label}{t.logs?.length ? ` (${t.logs.length})` : ""}
           </Text>
         </Pressable>
@@ -85,12 +86,12 @@ export function ScopedLogGrid({ tabs, onLogPress, isSignedIn }: {
       : <ActivityIndicator color={theme.accent} size="large" style={{ paddingTop: 40 }} />
   ) : showSignedOut ? (
     Platform.OS === "web"
-      ? <div style={{ textAlign: "center", padding: 40, color: `${theme.text}55`, fontSize: 14 } as React.CSSProperties}>{current.signedOutText}</div>
-      : <Text style={{ textAlign: "center", padding: 40, color: `${theme.text}55`, fontSize: 14 }}>{current.signedOutText}</Text>
+      ? <div style={{ textAlign: "center", padding: 40, color: `${theme.text}55`, fontSize: fontSizes.base } as React.CSSProperties}>{current.signedOutText}</div>
+      : <Text style={{ textAlign: "center", padding: 40, color: `${theme.text}55`, fontSize: fontSizes.base }}>{current.signedOutText}</Text>
   ) : isEmpty ? (
     Platform.OS === "web"
-      ? <div style={{ textAlign: "center", padding: 40, color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>{current.emptyText}</div>
-      : <Text style={{ textAlign: "center", padding: 40, color: `${theme.text}44`, fontSize: 14 }}>{current.emptyText}</Text>
+      ? <div style={{ textAlign: "center", padding: 40, color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>{current.emptyText}</div>
+      : <Text style={{ textAlign: "center", padding: 40, color: `${theme.text}44`, fontSize: fontSizes.base }}>{current.emptyText}</Text>
   ) : Platform.OS === "web" ? (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 14 } as React.CSSProperties}>
       {current.logs!.map((log) => (

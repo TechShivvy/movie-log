@@ -16,6 +16,7 @@ import React from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "./Icon";
+import { type as fontSizes } from "../../constants/fonts";
 
 type Variant = "primary" | "secondary" | "ghost" | "icon";
 
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   label: {
-    fontSize: 14,
+    fontSize: fontSizes.base,
     fontWeight: "500",
     lineHeight: 16.8,
   },

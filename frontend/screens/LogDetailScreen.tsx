@@ -58,6 +58,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { hueFromTitle } from "../components/ui/Poster";
+import { type as fontSizes } from "../constants/fonts";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import { avatarUrl } from "../lib/storage";
 import type { Comment, MovieLog } from "../types";
@@ -154,17 +155,17 @@ function CommentItem({
             <Avatar name={comment.username ?? "?"} size="sm" />
           </Pressable>
           <Pressable onPress={goToProfile} disabled={!comment.username}>
-            <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+            <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }}>
               {comment.username ?? "User"}
             </Text>
           </Pressable>
-          <Text style={{ fontSize: 12, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>
           {!!comment.edited_at && !isDeleted && (
-            <Text style={{ fontSize: 11, color: theme.text, opacity: 0.4, fontStyle: "italic" }}>(edited)</Text>
+            <Text style={{ fontSize: fontSizes.xs, color: theme.text, opacity: 0.4, fontStyle: "italic" }}>(edited)</Text>
           )}
         </View>
         {isDeleted ? (
-          <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text, opacity: 0.5, fontStyle: "italic" }}>
+          <Text style={{ fontSize: fontSizes.base, lineHeight: 20, color: theme.text, opacity: 0.5, fontStyle: "italic" }}>
             [deleted]
           </Text>
         ) : isEditing ? (
@@ -175,27 +176,27 @@ function CommentItem({
               multiline
               autoFocus
               style={{
-                fontSize: 14, lineHeight: 20, color: theme.text,
+                fontSize: fontSizes.base, lineHeight: 20, color: theme.text,
                 backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.divider,
                 padding: 8, minHeight: 60, textAlignVertical: "top",
               }}
             />
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Pressable onPress={saveEdit} disabled={editComment.isPending}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: theme.accent }}>{editComment.isPending ? "Saving…" : "Save"}</Text>
+                <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.accent }}>{editComment.isPending ? "Saving…" : "Save"}</Text>
               </Pressable>
               <Pressable onPress={() => setIsEditing(false)} disabled={editComment.isPending}>
-                <Text style={{ fontSize: 12, color: theme.text, opacity: 0.6 }}>Cancel</Text>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.text, opacity: 0.6 }}>Cancel</Text>
               </Pressable>
             </View>
           </View>
         ) : (
-          <Text style={{ fontSize: 14, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
+          <Text style={{ fontSize: fontSizes.base, lineHeight: 20, color: theme.text }}>{comment.text}</Text>
         )}
         {!isDeleted && !isEditing && (
           <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
             <Pressable onPress={() => likeComment.mutate({ commentId: comment.id, liked: !!comment.liked_by_caller })}>
-              <Text style={{ fontSize: 12, color: comment.liked_by_caller ? theme.accent : theme.text }}>
+              <Text style={{ fontSize: fontSizes.sm, color: comment.liked_by_caller ? theme.accent : theme.text }}>
                 ♥{" "}
                 {comment.like_count ? (
                   // Nested Pressable — same "innermost responder wins"
@@ -212,17 +213,17 @@ function CommentItem({
             <LikesListModal visible={showLikes} entries={commentLikes} isLoading={commentLikesLoading} onClose={() => setShowLikes(false)} />
             {depth === 0 && (
               <Pressable onPress={() => onReply(comment.username ?? "User", comment.id)}>
-                <Text style={{ fontSize: 12, color: theme.accent }}>Reply</Text>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>Reply</Text>
               </Pressable>
             )}
             {isOwn && (
               <Pressable onPress={startEdit}>
-                <Text style={{ fontSize: 12, color: theme.accent }}>Edit</Text>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>Edit</Text>
               </Pressable>
             )}
             {isOwn && (
               <Pressable onPress={() => setConfirmingDelete(true)}>
-                <Text style={{ fontSize: 12, color: theme.error }}>Delete</Text>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.error }}>Delete</Text>
               </Pressable>
             )}
           </View>
@@ -298,17 +299,17 @@ function WebMetaList({ rows }: { rows: MetaRowData[] }) {
           } as React.CSSProperties}
         >
           <r.Icon size={16} color={`${theme.text}88`} />
-          <span style={{ fontSize: 12, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
+          <span style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
           {r.onPress ? (
             <span
               onClick={r.onPress}
               className="tapc"
-              style={{ fontSize: 14, fontWeight: 600, color: "var(--color-accent)", cursor: "pointer" } as React.CSSProperties}
+              style={{ fontSize: fontSizes.base, fontWeight: 600, color: "var(--color-accent)", cursor: "pointer" } as React.CSSProperties}
             >
               {r.value}
             </span>
           ) : (
-            <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{r.value}</span>
+            <span style={{ fontSize: fontSizes.base, fontWeight: 600 } as React.CSSProperties}>{r.value}</span>
           )}
         </div>
       ))}
@@ -332,8 +333,8 @@ function MetaList({ rows, theme }: { rows: MetaRowData[]; theme: any }) {
             }}
           >
             <r.Icon size={16} color={`${theme.text}88`} />
-            <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
-            <Text style={{ fontSize: 14, fontWeight: "600", color: r.onPress ? theme.accent : theme.text, flex: 1 }}>{r.value}</Text>
+            <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
+            <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: r.onPress ? theme.accent : theme.text, flex: 1 }}>{r.value}</Text>
           </View>
         );
         return r.onPress ? <Pressable key={r.label} onPress={r.onPress}>{row}</Pressable> : <View key={r.label}>{row}</View>;
@@ -370,9 +371,9 @@ function WebVenueRatings({ rating }: { rating?: { screen_rating?: number; speake
             borderBottom: i < rows.length - 1 ? `1px solid ${theme.divider}` : "none",
           } as React.CSSProperties}
         >
-          <span style={{ fontSize: 12, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
+          <span style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, width: 100, flexShrink: 0 } as React.CSSProperties}>{r.label}</span>
           <Star size={13} weight="fill" color={theme.accent} />
-          <span style={{ fontSize: 14, fontWeight: 600 } as React.CSSProperties}>{rating![r.key]!.toFixed(1)}</span>
+          <span style={{ fontSize: fontSizes.base, fontWeight: 600 } as React.CSSProperties}>{rating![r.key]!.toFixed(1)}</span>
         </div>
       ))}
     </div>
@@ -394,9 +395,9 @@ function VenueRatings({ rating, theme }: { rating?: { screen_rating?: number; sp
             borderBottomColor: theme.divider,
           }}
         >
-          <Text style={{ fontSize: 12, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
           <Star size={13} weight="fill" color={theme.accent} />
-          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{rating![r.key]!.toFixed(1)}</Text>
+          <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{rating![r.key]!.toFixed(1)}</Text>
         </View>
       ))}
     </View>
@@ -451,9 +452,9 @@ export function LogDetailScreen() {
   if (error || !log) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
-        <Text style={{ fontSize: 16, color: theme.text }}>Log not found.</Text>
+        <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>Log not found.</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
-          <Text style={{ color: theme.accent, fontSize: 15 }}>← Go back</Text>
+          <Text style={{ color: theme.accent, fontSize: fontSizes.md }}>← Go back</Text>
         </Pressable>
       </View>
     );
@@ -665,7 +666,7 @@ export function LogDetailScreen() {
                 style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, cursor: "pointer" } as React.CSSProperties}
               >
                 <Avatar name={log.display_name ?? log.username} uri={avatarUrl(log.avatar_path)} size="sm" />
-                <span style={{ fontSize: 13, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+                <span style={{ fontSize: fontSizes.sm, fontWeight: 600, color: theme.text } as React.CSSProperties}>
                   {log.display_name ?? log.username}
                 </span>
               </div>
@@ -746,7 +747,7 @@ export function LogDetailScreen() {
               onClick={log.movie_id ? () => router.push(`/(app)/movie/${log.movie_id}` as any) : undefined}
               className={log.movie_id ? "tapc" : undefined}
               style={{
-                fontSize: 28,
+                fontSize: fontSizes.h2,
                 fontWeight: 700,
                 color: theme.text,
                 margin: "0 0 8px",
@@ -763,9 +764,9 @@ export function LogDetailScreen() {
                 never read anywhere in this file before) */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" } as React.CSSProperties}>
               <StarRating value={log.rating ?? 0} onChange={() => {}} readonly />
-              <span style={{ fontSize: 13, opacity: 0.6, color: theme.text } as React.CSSProperties}>{fmtWatched(log)}</span>
+              <span style={{ fontSize: fontSizes.sm, opacity: 0.6, color: theme.text } as React.CSSProperties}>{fmtWatched(log)}</span>
               {log.edited_at && (
-                <span className="tag tag-neutral" style={{ fontSize: 11 } as React.CSSProperties}>edited</span>
+                <span className="tag tag-neutral" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>edited</span>
               )}
             </div>
 
@@ -775,11 +776,11 @@ export function LogDetailScreen() {
             {/* Notes */}
             {log.notes && (
               <>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 12, fontFamily: headingFamily } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.lg, fontWeight: 700, color: theme.text, marginBottom: 12, fontFamily: headingFamily } as React.CSSProperties}>
                   Review
                 </h3>
                 <div className="card" style={{ marginBottom: 24 } as React.CSSProperties}>
-                  <p style={{ fontSize: 14, lineHeight: 1.7, color: theme.text, margin: 0 } as React.CSSProperties}>{log.notes}</p>
+                  <p style={{ fontSize: fontSizes.base, lineHeight: 1.7, color: theme.text, margin: 0 } as React.CSSProperties}>{log.notes}</p>
                 </div>
               </>
             )}
@@ -788,7 +789,7 @@ export function LogDetailScreen() {
             <div style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 24 } as React.CSSProperties}>
               {/* No comment_count field exists on MovieLog — this is the
                   real count of the currently-loaded comment list. */}
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: headingFamily } as React.CSSProperties}>
+              <h3 style={{ fontSize: fontSizes.lg, fontWeight: 700, color: theme.text, marginBottom: 16, fontFamily: headingFamily } as React.CSSProperties}>
                 Comments{isCommentsLoading ? "" : ` (${comments.length})`}
               </h3>
 
@@ -809,7 +810,7 @@ export function LogDetailScreen() {
                 <button
                   className="btn btn-ghost"
                   onClick={() => { setReplyTo(null); setCommentText(""); }}
-                  style={{ marginBottom: 12, fontSize: 12 } as React.CSSProperties}
+                  style={{ marginBottom: 12, fontSize: fontSizes.sm } as React.CSSProperties}
                 >
                   Cancel reply to @{replyTo.username}
                 </button>
@@ -819,7 +820,7 @@ export function LogDetailScreen() {
                 <CommentItem key={c.id} comment={c} logId={id ?? ""} onReply={handleReply} />
               ))}
               {comments.length === 0 && (
-                <p style={{ color: `${theme.text}44`, fontSize: 14, textAlign: "center", paddingTop: 24 } as React.CSSProperties}>
+                <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base, textAlign: "center", paddingTop: 24 } as React.CSSProperties}>
                   No comments yet. Be the first!
                 </p>
               )}
@@ -887,7 +888,7 @@ export function LogDetailScreen() {
           }}
         >
           <ArrowLeft size={16} color="#fff" />
-          <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>Back</Text>
+          <Text style={{ color: "#fff", fontSize: fontSizes.sm, fontWeight: "600" }}>Back</Text>
         </Pressable>
       </View>
 
@@ -901,7 +902,7 @@ export function LogDetailScreen() {
             style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}
           >
             <Avatar name={log.display_name ?? log.username} uri={avatarUrl(log.avatar_path)} size="sm" />
-            <Text style={{ fontSize: 13, fontWeight: "700", color: theme.text }}>
+            <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }}>
               {log.display_name ?? log.username}
             </Text>
           </Pressable>
@@ -909,7 +910,7 @@ export function LogDetailScreen() {
         {/* Tags */}
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
           <View style={{ backgroundColor: visColor(log.visibility) + "22", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-            <Text style={{ color: vcol, fontSize: 11, fontWeight: "700", textTransform: "capitalize" }}>
+            <Text style={{ color: vcol, fontSize: fontSizes.xs, fontWeight: "700", textTransform: "capitalize" }}>
               {log.visibility.replace("_", " ")}
             </Text>
           </View>
@@ -925,7 +926,7 @@ export function LogDetailScreen() {
         <Text
           onPress={log.movie_id ? () => router.push(`/(app)/movie/${log.movie_id}` as any) : undefined}
           style={{
-            fontSize: 24,
+            fontSize: fontSizes.display,
             fontWeight: "800",
             color: theme.text,
             marginBottom: 8,
@@ -938,7 +939,7 @@ export function LogDetailScreen() {
             logged, not when the film was watched) */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
           <StarRating value={log.rating ?? 0} onChange={() => {}} readonly size="small" />
-          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>{fmtWatched(log)}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66` }}>{fmtWatched(log)}</Text>
         </View>
 
         {/* Like (social, stays prominent) + Edit/Archive/Delete (owner
@@ -966,12 +967,12 @@ export function LogDetailScreen() {
               // responder the touch, so tapping the count opens the
               // likes list without also toggling the outer Like button.
               <Pressable onPress={() => setShowLogLikes(true)} hitSlop={6}>
-                <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text, textDecorationLine: "underline" }}>
+                <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text, textDecorationLine: "underline" }}>
                   {log.like_count} {log.like_count === 1 ? "like" : "likes"}
                 </Text>
               </Pressable>
             ) : (
-              <Text style={{ fontSize: 13, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text }}>
+              <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: log.liked_by_caller ? theme.accent : theme.text }}>
                 0 likes
               </Text>
             )}
@@ -1015,11 +1016,11 @@ export function LogDetailScreen() {
         {/* Notes */}
         {log.notes && (
           <>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
+            <Text style={{ fontSize: fontSizes.lg, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
               Review
             </Text>
             <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16, marginBottom: 20 }}>
-              <Text style={{ fontSize: 14, lineHeight: 22, color: theme.text }}>{log.notes}</Text>
+              <Text style={{ fontSize: fontSizes.base, lineHeight: 22, color: theme.text }}>{log.notes}</Text>
             </View>
           </>
         )}
@@ -1028,7 +1029,7 @@ export function LogDetailScreen() {
         <View style={{ height: 1, backgroundColor: theme.divider, marginBottom: 20 }} />
 
         {/* Comments — no comment_count field on MovieLog; real loaded-list count */}
-        <Text style={{ fontSize: 16, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
+        <Text style={{ fontSize: fontSizes.lg, fontWeight: "700", color: theme.text, marginBottom: 12, fontFamily: headingFamily }}>
           Comments{isCommentsLoading ? "" : ` (${comments.length})`}
         </Text>
 
@@ -1046,7 +1047,7 @@ export function LogDetailScreen() {
               borderRadius: 10,
               paddingHorizontal: 12,
               paddingVertical: 10,
-              fontSize: 14,
+              fontSize: fontSizes.base,
             }}
             multiline
             maxLength={500}
@@ -1055,13 +1056,13 @@ export function LogDetailScreen() {
             onPress={handleSendComment}
             style={{ backgroundColor: theme.accent, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 }}
           >
-            <Text style={{ color: theme.onAccent, fontSize: 14, fontWeight: "700" }}>Send</Text>
+            <Text style={{ color: theme.onAccent, fontSize: fontSizes.base, fontWeight: "700" }}>Send</Text>
           </Pressable>
         </View>
 
         {replyTo && (
           <Pressable onPress={() => { setReplyTo(null); setCommentText(""); }}>
-            <Text style={{ color: theme.accent, fontSize: 12, marginBottom: 10 }}>
+            <Text style={{ color: theme.accent, fontSize: fontSizes.sm, marginBottom: 10 }}>
               Cancel reply to @{replyTo.username}
             </Text>
           </Pressable>
@@ -1071,7 +1072,7 @@ export function LogDetailScreen() {
           <CommentItem key={c.id} comment={c} logId={id ?? ""} onReply={handleReply} />
         ))}
         {comments.length === 0 && (
-          <Text style={{ color: theme.text, opacity: 0.4, fontSize: 14, textAlign: "center", paddingVertical: 24 }}>
+          <Text style={{ color: theme.text, opacity: 0.4, fontSize: fontSizes.base, textAlign: "center", paddingVertical: 24 }}>
             No comments yet. Be the first!
           </Text>
         )}
@@ -1081,7 +1082,7 @@ export function LogDetailScreen() {
             disabled={isFetchingComments}
             style={{ paddingVertical: 12, alignItems: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, marginTop: 4 }}
           >
-            <Text style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}>
+            <Text style={{ color: theme.text, fontSize: fontSizes.sm, fontWeight: "600" }}>
               {isFetchingComments ? "Loading…" : "Load more comments"}
             </Text>
           </Pressable>

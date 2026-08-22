@@ -19,6 +19,7 @@ import { PosterCard } from "../components/ui/PosterCard";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
 import { avatarUrl, bannerUrl } from "../lib/storage";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 export function PublicProfileScreen() {
   const { theme } = useTheme();
@@ -56,7 +57,7 @@ export function PublicProfileScreen() {
   if (!profile) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
-        <Text style={{ fontSize: 16, color: theme.text }}>User not found.</Text>
+        <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>User not found.</Text>
       </View>
     );
   }
@@ -102,8 +103,8 @@ export function PublicProfileScreen() {
             <Avatar name={displayName} uri={avatar} size="xl" />
           </div>
           <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>{displayName}</h2>
-            <span style={{ fontSize: 13, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>@{profile.username}</span>
+            <h2 style={{ fontSize: fontSizes.xxl, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>{displayName}</h2>
+            <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>@{profile.username}</span>
           </div>
         </div>
         {!isOwnProfile && (
@@ -117,7 +118,7 @@ export function PublicProfileScreen() {
         )}
       </div>
       {profile.bio && (
-        <p style={{ padding: "0 32px", margin: "0 0 20px", fontSize: 14, color: `${theme.text}99`, lineHeight: 1.5 } as React.CSSProperties}>{profile.bio}</p>
+        <p style={{ padding: "0 32px", margin: "0 0 20px", fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 1.5 } as React.CSSProperties}>{profile.bio}</p>
       )}
     </>
   );
@@ -131,12 +132,12 @@ export function PublicProfileScreen() {
           {!profile.can_view_content ? (
             <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
               <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🔒</div>
-              <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>This account is private.</p>
+              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>This account is private.</p>
             </div>
           ) : logs.length === 0 ? (
             <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
               <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-              <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No public logs yet.</p>
+              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>No public logs yet.</p>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14 } as React.CSSProperties}>
@@ -198,19 +199,19 @@ export function PublicProfileScreen() {
             unbounded name wrapped to multiple lines and grew tall enough
             to visually collide with the Follow button sitting right
             above it. */}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 18, fontWeight: "700", color: theme.text }}>{displayName}</Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: 12 }}>@{profile.username}</Text>
-        {profile.bio && <Text style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{profile.bio}</Text>}
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text }}>{displayName}</Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2, marginBottom: 12 }}>@{profile.username}</Text>
+        {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{profile.bio}</Text>}
 
         {!profile.can_view_content ? (
           <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
             <Text style={{ fontSize: 36 }}>🔒</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>This account is private.</Text>
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>This account is private.</Text>
           </View>
         ) : logs.length === 0 ? (
           <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
             <Text style={{ fontSize: 36 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>No public logs yet.</Text>
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No public logs yet.</Text>
           </View>
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>

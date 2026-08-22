@@ -29,6 +29,7 @@ import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
+import { type as fontSizes } from "../constants/fonts";
 
 type Section = "appearance" | "account" | "privacy" | "ai" | "data";
 
@@ -67,7 +68,7 @@ function NativeThemeSwatch({
         ))}
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 14, color: curTheme.text, flex: 1 }}>{t.label}</Text>
+        <Text style={{ fontSize: fontSizes.base, color: curTheme.text, flex: 1 }}>{t.label}</Text>
         {active && <CheckCircle size={16} color={curTheme.accent} weight="fill" />}
       </View>
     </Pressable>
@@ -92,7 +93,7 @@ export function SettingsScreen() {
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Header */}
         <h1 style={{
-          fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 28px",
+          fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 28px",
           letterSpacing: -0.5,
         } as React.CSSProperties}>
           Settings
@@ -122,7 +123,7 @@ export function SettingsScreen() {
             {section === "data" && <WebDataSection theme={theme} />}
             {section === "account" && <WebAccountSection theme={theme} />}
             {section === "privacy" && (
-              <div className="card" style={{ color: `${theme.text}66`, fontSize: 14 } as React.CSSProperties}>
+              <div className="card" style={{ color: `${theme.text}66`, fontSize: fontSizes.base } as React.CSSProperties}>
                 Privacy settings — coming soon.
               </div>
             )}
@@ -135,7 +136,7 @@ export function SettingsScreen() {
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ padding: 16, paddingBottom: 60 }} contentInsetAdjustmentBehavior="automatic">
-      <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>Settings</Text>
+      <Text style={{ fontSize: fontSizes.display, fontWeight: "800", color: theme.text, marginBottom: 20 }}>Settings</Text>
 
       {/* Section selector */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
@@ -154,7 +155,7 @@ export function SettingsScreen() {
               }}
             >
               <Text style={{
-                fontSize: 13, fontWeight: "600",
+                fontSize: fontSizes.sm, fontWeight: "600",
                 color: section === item.id ? theme.accent : theme.neutral100,
               }}>
                 {item.label}
@@ -172,7 +173,7 @@ export function SettingsScreen() {
       {section === "account" && <NativeAccountSection theme={theme} />}
       {section === "privacy" && (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-          <Text style={{ color: `${theme.text}66`, fontSize: 14 }}>Privacy settings — coming soon.</Text>
+          <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.base }}>Privacy settings — coming soon.</Text>
         </View>
       )}
     </ScrollView>
@@ -188,7 +189,7 @@ function WebAppearanceSection({
     <div style={{ display: "flex", flexDirection: "column", gap: 28 } as React.CSSProperties}>
       {/* Typeface */}
       <div>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Typeface</h3>
+        <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Typeface</h3>
         <div className="seg" style={{ display: "inline-flex" } as React.CSSProperties}>
           {FONT_OPTIONS.map((f) => (
             <button
@@ -204,7 +205,7 @@ function WebAppearanceSection({
 
       {/* Theme grid */}
       <div>
-        <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Theme</h3>
+        <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Theme</h3>
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(3, 1fr)",
@@ -236,7 +237,7 @@ function WebAppearanceSection({
               </div>
               {/* Name + check */}
               <div style={{ display: "flex", alignItems: "center" } as React.CSSProperties}>
-                <span style={{ fontSize: 14, color: theme.text, flex: 1, fontFamily: "var(--font-heading)" } as React.CSSProperties}>
+                <span style={{ fontSize: fontSizes.base, color: theme.text, flex: 1, fontFamily: "var(--font-heading)" } as React.CSSProperties}>
                   {t.label}
                 </span>
                 {theme.key === t.key && <CheckCircle size={16} color={theme.accent} weight="fill" />}
@@ -254,8 +255,8 @@ function WebAppearanceSection({
 function WebAiSection({ theme }: any) {
   return (
     <div>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>AI & Keys</h3>
-      <div className="card" style={{ color: `${theme.text}66`, fontSize: 14 } as React.CSSProperties}>
+      <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>AI & Keys</h3>
+      <div className="card" style={{ color: `${theme.text}66`, fontSize: fontSizes.base } as React.CSSProperties}>
         AI provider key management — coming soon.
         <br /><br />
         Add your OpenAI, Gemini, or Anthropic keys here to enable ticket scanning.
@@ -274,10 +275,10 @@ function WebAccountSection({ theme }: any) {
   const [confirming, setConfirming] = useState(false);
   return (
     <div>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Account</h3>
+      <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Account</h3>
       <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
-        <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>Signed in as</div>
-        <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 } as React.CSSProperties}>{user?.email}</div>
+        <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>Signed in as</div>
+        <div style={{ fontSize: fontSizes.base, color: theme.text, fontWeight: 600 } as React.CSSProperties}>{user?.email}</div>
       </div>
       <button className="btn btn-secondary" onClick={() => setConfirming(true)}>
         <SignOut size={14} />
@@ -306,12 +307,12 @@ function WebDataSection({ theme }: any) {
   const [showComingSoon, setShowComingSoon] = useState(false);
   return (
     <div>
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Data</h3>
+      <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Data</h3>
 
       {/* Export */}
       <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
-        <h4 style={{ fontSize: 14, fontWeight: 600, color: theme.text, margin: "0 0 8px" } as React.CSSProperties}>Export data</h4>
-        <p style={{ fontSize: 13, color: `${theme.text}66`, margin: "0 0 12px" } as React.CSSProperties}>Download all your logs as JSON or CSV.</p>
+        <h4 style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text, margin: "0 0 8px" } as React.CSSProperties}>Export data</h4>
+        <p style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, margin: "0 0 12px" } as React.CSSProperties}>Download all your logs as JSON or CSV.</p>
         <button className="btn btn-secondary">Export JSON</button>
       </div>
 
@@ -321,8 +322,8 @@ function WebDataSection({ theme }: any) {
         border: `1px solid ${theme.error}44`,
         padding: 16,
       } as React.CSSProperties}>
-        <h4 style={{ fontSize: 14, fontWeight: 700, color: theme.error, margin: "0 0 8px" } as React.CSSProperties}>Danger zone</h4>
-        <p style={{ fontSize: 13, color: `${theme.text}66`, margin: "0 0 14px" } as React.CSSProperties}>
+        <h4 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.error, margin: "0 0 8px" } as React.CSSProperties}>Danger zone</h4>
+        <p style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, margin: "0 0 14px" } as React.CSSProperties}>
           Permanently delete your account and all data. This action cannot be undone.
         </p>
         <button
@@ -363,7 +364,7 @@ function NativeAppearanceSection({ theme, fontOption, setTheme, setFontOption }:
     <View style={{ gap: 24 }}>
       {/* Typeface */}
       <View>
-        <Text style={{ fontSize: 13, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>TYPEFACE</Text>
+        <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>TYPEFACE</Text>
         <View style={{
           flexDirection: "row",
           borderWidth: 1,
@@ -385,7 +386,7 @@ function NativeAppearanceSection({ theme, fontOption, setTheme, setFontOption }:
               }}
             >
               <Text style={{
-                fontSize: 13,
+                fontSize: fontSizes.sm,
                 fontWeight: "600",
                 color: fontOption === f.key ? theme.accent : theme.text,
               }}>
@@ -398,7 +399,7 @@ function NativeAppearanceSection({ theme, fontOption, setTheme, setFontOption }:
 
       {/* Theme grid (2-col on mobile) */}
       <View>
-        <Text style={{ fontSize: 13, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>THEME</Text>
+        <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>THEME</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
           {THEMES.map((t) => (
             <View key={t.key} style={{ width: "47%" }}>
@@ -416,8 +417,8 @@ function NativeAppearanceSection({ theme, fontOption, setTheme, setFontOption }:
 function NativeAiSection({ theme }: any) {
   return (
     <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-      <Text style={{ fontSize: 15, fontWeight: "700", color: theme.text, marginBottom: 8 }}>AI & Keys</Text>
-      <Text style={{ fontSize: 14, color: `${theme.text}66`, lineHeight: 20 }}>
+      <Text style={{ fontSize: fontSizes.md, fontWeight: "700", color: theme.text, marginBottom: 8 }}>AI & Keys</Text>
+      <Text style={{ fontSize: fontSizes.base, color: `${theme.text}66`, lineHeight: 20 }}>
         AI provider key management — coming soon.{"\n\n"}Add your OpenAI, Gemini, or Anthropic keys to enable ticket scanning.
       </Text>
     </View>
@@ -432,8 +433,8 @@ function NativeAccountSection({ theme }: any) {
   return (
     <View style={{ gap: 14 }}>
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-        <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 }}>Signed in as</Text>
-        <Text style={{ fontSize: 14, color: theme.text, fontWeight: "700" }}>{user?.email}</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 4 }}>Signed in as</Text>
+        <Text style={{ fontSize: fontSizes.base, color: theme.text, fontWeight: "700" }}>{user?.email}</Text>
       </View>
       <Pressable
         onPress={() => setConfirming(true)}
@@ -444,7 +445,7 @@ function NativeAccountSection({ theme }: any) {
         }}
       >
         <SignOut size={14} color={theme.text} />
-        <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>Sign out</Text>
+        <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: theme.text }}>Sign out</Text>
       </Pressable>
       <ConfirmDialog
         visible={confirming}
@@ -473,8 +474,8 @@ function NativeDataSection({ theme }: any) {
     <View style={{ gap: 14 }}>
       {/* Export */}
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 6 }}>Export data</Text>
-        <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 12 }}>Download all your logs as JSON or CSV.</Text>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: 6 }}>Export data</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 12 }}>Download all your logs as JSON or CSV.</Text>
         <Pressable style={{
           flexDirection: "row",
           alignItems: "center",
@@ -487,7 +488,7 @@ function NativeDataSection({ theme }: any) {
           alignSelf: "flex-start",
         }}>
           <Database size={14} color={theme.text} />
-          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.text }}>Export JSON</Text>
+          <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: theme.text }}>Export JSON</Text>
         </Pressable>
       </View>
 
@@ -498,8 +499,8 @@ function NativeDataSection({ theme }: any) {
         borderColor: theme.error + "44",
         padding: 16,
       }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.error, marginBottom: 6 }}>Danger zone</Text>
-        <Text style={{ fontSize: 13, color: `${theme.text}66`, lineHeight: 18, marginBottom: 14 }}>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.error, marginBottom: 6 }}>Danger zone</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, lineHeight: 18, marginBottom: 14 }}>
           Permanently delete your account and all data. This cannot be undone.
         </Text>
         <Pressable
@@ -516,7 +517,7 @@ function NativeDataSection({ theme }: any) {
           }}
         >
           <Trash size={14} color="#fff" />
-          <Text style={{ fontSize: 13, fontWeight: "600", color: "#fff" }}>Delete account</Text>
+          <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: "#fff" }}>Delete account</Text>
         </Pressable>
       </View>
       <ConfirmDialog

@@ -18,6 +18,7 @@ import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
 import { venueDisplayName } from "../lib/venue";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 export function ScreenDetailScreen() {
   const { theme } = useTheme();
@@ -61,7 +62,7 @@ export function ScreenDetailScreen() {
   if (!screen) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
-        <Text style={{ fontSize: 16, color: theme.text }}>Screen not found.</Text>
+        <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>Screen not found.</Text>
       </View>
     );
   }
@@ -74,20 +75,20 @@ export function ScreenDetailScreen() {
     return (
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {theatreName && (
-          <a href={`/venue/${id}`} style={{ fontSize: 12, color: theme.accent, textDecoration: "none" } as React.CSSProperties}>
+          <a href={`/venue/${id}`} style={{ fontSize: fontSizes.sm, color: theme.accent, textDecoration: "none" } as React.CSSProperties}>
             ← {theatreName}
           </a>
         )}
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: theme.text, margin: "6px 0 4px", letterSpacing: -0.5 } as React.CSSProperties}>
+        <h1 style={{ fontSize: fontSizes.h2, fontWeight: 700, color: theme.text, margin: "6px 0 4px", letterSpacing: -0.5 } as React.CSSProperties}>
           {screen.name}
         </h1>
-        {screen.screen_type && <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 12 } as React.CSSProperties}>{screen.screen_type}</div>}
+        {screen.screen_type && <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 12 } as React.CSSProperties}>{screen.screen_type}</div>}
         {statsLoading ? (
-          <div className="pulse-loading" style={{ marginBottom: 20, fontSize: 13, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
+          <div className="pulse-loading" style={{ marginBottom: 20, fontSize: fontSizes.sm, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
         ) : ratingText ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: 15, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: fontSizes.md, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
             ★ {ratingText}
-            <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: 13 } as React.CSSProperties}>overall rating</span>
+            <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: fontSizes.sm } as React.CSSProperties}>overall rating</span>
           </div>
         ) : null}
 
@@ -104,19 +105,19 @@ export function ScreenDetailScreen() {
       {theatreName && (
         <Text
           onPress={() => router.push(`/(app)/venue/${id}` as any)}
-          style={{ fontSize: 12, color: theme.accent, marginBottom: 4 }}
+          style={{ fontSize: fontSizes.sm, color: theme.accent, marginBottom: 4 }}
         >
           ← {theatreName}
         </Text>
       )}
-      <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{screen.name}</Text>
-      {screen.screen_type && <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 10 }}>{screen.screen_type}</Text>}
+      <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{screen.name}</Text>
+      {screen.screen_type && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 10 }}>{screen.screen_type}</Text>}
       {statsLoading ? (
-        <Text style={{ fontSize: 13, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
       ) : ratingText ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
-          <Text style={{ fontSize: 15, color: theme.accent, fontWeight: "700" }}>★ {ratingText}</Text>
-          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>overall rating</Text>
+          <Text style={{ fontSize: fontSizes.md, color: theme.accent, fontWeight: "700" }}>★ {ratingText}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66` }}>overall rating</Text>
         </View>
       ) : null}
 

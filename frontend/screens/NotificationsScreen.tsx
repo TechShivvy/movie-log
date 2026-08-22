@@ -28,6 +28,7 @@ import {
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import type { NotificationType } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -127,10 +128,10 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
 
         {/* Text */}
         <div style={{ flex: 1 } as React.CSSProperties}>
-          <div style={{ fontSize: 14, color: theme.text, lineHeight: 1.4 } as React.CSSProperties}>
+          <div style={{ fontSize: fontSizes.base, color: theme.text, lineHeight: 1.4 } as React.CSSProperties}>
             {notifText(notif)}
           </div>
-          <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 3 } as React.CSSProperties}>
+          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 3 } as React.CSSProperties}>
             {relTime(notif.created_at)}
           </div>
         </div>
@@ -138,10 +139,10 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
         {/* Actions for follow requests */}
         {isFollowRequest && (
           <div style={{ display: "flex", gap: 6 } as React.CSSProperties}>
-            <button className="btn btn-primary" style={{ fontSize: 12, padding: "4px 12px" } as React.CSSProperties}>
+            <button className="btn btn-primary" style={{ fontSize: fontSizes.sm, padding: "4px 12px" } as React.CSSProperties}>
               Accept
             </button>
-            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 12px" } as React.CSSProperties}>
+            <button className="btn btn-secondary" style={{ fontSize: fontSizes.sm, padding: "4px 12px" } as React.CSSProperties}>
               Ignore
             </button>
           </div>
@@ -186,8 +187,8 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
 
       {/* Text */}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13, color: theme.text, lineHeight: 18 }}>{notifText(notif)}</Text>
-        <Text style={{ fontSize: 11, color: `${theme.text}55`, marginTop: 3 }}>{relTime(notif.created_at)}</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: theme.text, lineHeight: 18 }}>{notifText(notif)}</Text>
+        <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}55`, marginTop: 3 }}>{relTime(notif.created_at)}</Text>
       </View>
 
       {/* Follow actions */}
@@ -199,7 +200,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
             paddingHorizontal: 10,
             paddingVertical: 5,
           }}>
-            <Text style={{ color: theme.onAccent, fontSize: 12, fontWeight: "600" }}>Accept</Text>
+            <Text style={{ color: theme.onAccent, fontSize: fontSizes.sm, fontWeight: "600" }}>Accept</Text>
           </Pressable>
           <Pressable style={{
             borderWidth: 1,
@@ -208,7 +209,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
             paddingHorizontal: 10,
             paddingVertical: 5,
           }}>
-            <Text style={{ color: `${theme.text}88`, fontSize: 12, fontWeight: "600" }}>Ignore</Text>
+            <Text style={{ color: `${theme.text}88`, fontSize: fontSizes.sm, fontWeight: "600" }}>Ignore</Text>
           </Pressable>
         </View>
       )}
@@ -234,7 +235,7 @@ export function NotificationsScreen() {
          same shrink-wrap-instead-of-filling bug as every other screen
          below this maxWidth+margin:auto shape. */
       <div style={{ padding: "28px 32px 40px", maxWidth: 660, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        <h1 style={{ fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 24px", letterSpacing: -0.5 } as React.CSSProperties}>
+        <h1 style={{ fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 24px", letterSpacing: -0.5 } as React.CSSProperties}>
           Notifications
         </h1>
         {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
@@ -244,7 +245,7 @@ export function NotificationsScreen() {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
-      <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Notifications</Text>
+      <Text style={{ fontSize: fontSizes.display, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Notifications</Text>
       {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
     </ScrollView>
   );

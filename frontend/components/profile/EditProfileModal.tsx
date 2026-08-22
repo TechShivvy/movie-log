@@ -19,6 +19,7 @@ import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { UsernameStatus } from "../ui/UsernameStatus";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -156,7 +157,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
         {bannerPreview && <Image source={{ uri: bannerPreview }} style={{ position: "absolute", width: "100%", height: "100%" }} resizeMode="cover" />}
         <View style={{ backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
           {uploadingBanner ? <ActivityIndicator size="small" color="#fff" /> : <PencilSimple size={14} color="#fff" />}
-          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>{bannerPreview ? "Change banner" : "Add banner"}</Text>
+          <Text style={{ color: "#fff", fontSize: fontSizes.sm, fontWeight: "600" }}>{bannerPreview ? "Change banner" : "Add banner"}</Text>
         </View>
       </Pressable>
 
@@ -181,7 +182,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
         <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
-          <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
         </Pressable>
       </View>
       <View style={{ height: 12 }} />
@@ -239,6 +240,6 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
   sheet: { maxHeight: "85%", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  title: { fontSize: 18, fontWeight: "700" },
+  title: { fontSize: fontSizes.xl, fontWeight: "700" },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 16 },
 });

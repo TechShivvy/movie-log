@@ -14,6 +14,7 @@
 import React, { useState } from "react";
 import { Platform, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -99,7 +100,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
           }
         />
         {error && (
-          <span style={{ fontSize: 12, color: theme.error, marginTop: 4, display: "block" } as React.CSSProperties}>
+          <span style={{ fontSize: fontSizes.sm, color: theme.error, marginTop: 4, display: "block" } as React.CSSProperties}>
             {error}
           </span>
         )}
@@ -149,17 +150,17 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
 
 const styles = StyleSheet.create({
   wrapper:   { gap: 0 },
-  label:     { fontSize: 12, marginBottom: 5 },
+  label:     { fontSize: fontSizes.sm, marginBottom: 5 },
   input: {
     minHeight: 36,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 19.6,
     borderWidth: 1,
     borderRadius: 8,
     width: "100%",
   },
   multiline: { minHeight: 90, textAlignVertical: "top" },
-  error:     { fontSize: 12, marginTop: 4 },
+  error:     { fontSize: fontSizes.sm, marginTop: 4 },
 });

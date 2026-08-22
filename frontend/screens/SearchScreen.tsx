@@ -35,6 +35,7 @@ import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
 import { useToast } from "../context/ToastContext";
 import type { MovieLog, TheatreMatchCandidate, TheatrePlaceSuggestion } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 type Scope = "all" | "logs" | "movies" | "theatres" | "people";
 
@@ -130,7 +131,7 @@ export function SearchScreen() {
       padding: "10px 0",
       borderTop: `1px solid ${theme.divider}`,
       cursor: "pointer",
-      fontSize: 13,
+      fontSize: fontSizes.sm,
       fontWeight: 600,
       color: theme.accent,
     } as React.CSSProperties}>
@@ -145,7 +146,7 @@ export function SearchScreen() {
          same shrink-wrap-instead-of-filling bug as every other screen
          below this maxWidth+margin:auto shape. */
       <div style={{ padding: "28px 32px 40px", maxWidth: 820, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        <h1 style={{ fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 20px", letterSpacing: -0.5 } as React.CSSProperties}>
+        <h1 style={{ fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 20px", letterSpacing: -0.5 } as React.CSSProperties}>
           Search
         </h1>
 
@@ -193,14 +194,14 @@ export function SearchScreen() {
         {!query ? (
           <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
             <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🔍</div>
-            <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>Type to search movies, logs, or people</p>
+            <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>Type to search movies, logs, or people</p>
           </div>
         ) : (
           <>
             {/* In your logs section */}
             {showLogs && logMatches.length > 0 && (
               <div style={{ marginBottom: 28 } as React.CSSProperties}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   In your logs
                 </h3>
                 <div style={{
@@ -222,7 +223,7 @@ export function SearchScreen() {
             {/* Movie search results */}
             {showMovies && (movieResults?.length ?? 0) > 0 && (
               <div style={{ marginBottom: 28 } as React.CSSProperties}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   Movies
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
@@ -245,9 +246,9 @@ export function SearchScreen() {
                           : theme.neutral800,
                       } as React.CSSProperties} />
                       <div style={{ flex: 1 } as React.CSSProperties}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{m.title}</div>
+                        <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{m.title}</div>
                         {releaseYear(m.release_date) && (
-                          <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
+                          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
                             {releaseYear(m.release_date)}
                           </div>
                         )}
@@ -261,11 +262,11 @@ export function SearchScreen() {
             {/* Theatre search results */}
             {showTheatres && (
               <div style={{ marginBottom: 28 } as React.CSSProperties}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>
                   Theatres
                 </h3>
                 {venueQueryTooShort && (theatreResults?.length ?? 0) === 0 && (
-                  <p style={{ fontSize: 13, color: `${theme.text}55`, margin: "0 0 10px" } as React.CSSProperties}>
+                  <p style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, margin: "0 0 10px" } as React.CSSProperties}>
                     Keep typing — 3+ characters to match your library…
                   </p>
                 )}
@@ -276,9 +277,9 @@ export function SearchScreen() {
                       borderBottom: `1px solid ${theme.divider}`,
                       cursor: "pointer",
                     } as React.CSSProperties}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{venueDisplayName(t)}</div>
+                      <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{venueDisplayName(t)}</div>
                       {(t.formatted_address || t.city) && (
-                        <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{t.formatted_address || t.city}</div>
+                        <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{t.formatted_address || t.city}</div>
                       )}
                     </div>
                   ))}
@@ -288,8 +289,8 @@ export function SearchScreen() {
                       borderBottom: `1px solid ${theme.divider}`,
                       cursor: "pointer",
                     } as React.CSSProperties}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{p.main_text ?? p.description}</div>
-                      <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{p.secondary_text ?? "via Google"}</div>
+                      <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{p.main_text ?? p.description}</div>
+                      <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>{p.secondary_text ?? "via Google"}</div>
                     </div>
                   ))}
                   {placesFooter}
@@ -300,8 +301,8 @@ export function SearchScreen() {
             {/* People section */}
             {showPeople && (
               <div style={{ marginTop: 28 } as React.CSSProperties}>
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
-                <div className="card" style={{ color: `${theme.text}55`, fontSize: 13 } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
+                <div className="card" style={{ color: `${theme.text}55`, fontSize: fontSizes.sm } as React.CSSProperties}>
                   People search — coming soon.
                 </div>
               </div>
@@ -309,7 +310,7 @@ export function SearchScreen() {
 
             {!hasAnyResults && !stillLoading && (
               <div style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
-                <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No results for "{query}"</p>
+                <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>No results for "{query}"</p>
               </div>
             )}
           </>
@@ -343,7 +344,7 @@ export function SearchScreen() {
             }}
             placeholder="Search movies, logs…"
             placeholderTextColor={`${theme.text}44`}
-            style={{ flex: 1, color: theme.text, fontSize: 15, paddingVertical: 10 }}
+            style={{ flex: 1, color: theme.text, fontSize: fontSizes.md, paddingVertical: 10 }}
             autoFocus
           />
         </View>
@@ -364,7 +365,7 @@ export function SearchScreen() {
               }}
             >
               <Text style={{
-                fontSize: 12, fontWeight: "600",
+                fontSize: fontSizes.sm, fontWeight: "600",
                 color: scope === s.id ? theme.accent100 : theme.neutral100,
               }}>
                 {s.label}
@@ -377,7 +378,7 @@ export function SearchScreen() {
       {!query ? (
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8 }}>
           <Text style={{ fontSize: 36 }}>🔍</Text>
-          <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>Type to search</Text>
+          <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>Type to search</Text>
         </View>
       ) : stillLoading ? (
         <View style={{ flex: 1, alignItems: "center", paddingTop: 40 }}>
@@ -403,14 +404,14 @@ export function SearchScreen() {
           contentContainerStyle={{ padding: 16 }}
           contentInsetAdjustmentBehavior="automatic"
           ListEmptyComponent={
-            <Text style={{ color: `${theme.text}44`, fontSize: 14, textAlign: "center", paddingTop: 40 }}>
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base, textAlign: "center", paddingTop: 40 }}>
               No results for "{query}"
             </Text>
           }
           ListFooterComponent={
             showTheatres ? (
               <Pressable onPress={handleSearchPlaces} style={{ paddingVertical: 12 }}>
-                <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "600" }}>
                   {placesFooterLabel(searchPlaces.isPending, placesSearched, placesResults.length)}
                 </Text>
               </Pressable>
@@ -433,8 +434,8 @@ export function SearchScreen() {
                 >
                   <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{log.movie}</Text>
-                    <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>
+                    <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{log.movie}</Text>
+                    <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
                       {log.format} · Your log
                     </Text>
                   </View>
@@ -448,8 +449,8 @@ export function SearchScreen() {
                   onPress={() => openTheatre(t)}
                   style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{venueDisplayName(t)}</Text>
-                  {(t.formatted_address || t.city) && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.formatted_address || t.city}</Text>}
+                  <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{venueDisplayName(t)}</Text>
+                  {(t.formatted_address || t.city) && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{t.formatted_address || t.city}</Text>}
                 </Pressable>
               );
             }
@@ -460,8 +461,8 @@ export function SearchScreen() {
                   onPress={() => openPlace(p)}
                   style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{p.main_text ?? p.description}</Text>
-                  <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{p.secondary_text ?? "via Google"}</Text>
+                  <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{p.main_text ?? p.description}</Text>
+                  <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{p.secondary_text ?? "via Google"}</Text>
                 </Pressable>
               );
             }
@@ -481,8 +482,8 @@ export function SearchScreen() {
               >
                 <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{movie.title}</Text>
-                  {year && <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{year}</Text>}
+                  <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{movie.title}</Text>
+                  {year && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{year}</Text>}
                 </View>
               </Pressable>
             );

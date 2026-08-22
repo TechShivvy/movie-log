@@ -14,6 +14,7 @@
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface Option { label: string; value: string }
 
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   label: {
-    fontSize: 13,
+    fontSize: fontSizes.sm,
   },
   labelActive: {
     fontWeight: "500",

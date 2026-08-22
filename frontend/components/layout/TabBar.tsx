@@ -50,6 +50,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
+import { type as fontSizes } from "../../constants/fonts";
 
 const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] = [
   { icon: "film-strip",       label: "Library", href: "/(app)",         owns: ["/log/", "/movie", "/venue", "/stats"] },
@@ -105,7 +106,7 @@ export function TabBar() {
         <View style={[styles.tabPill, active && { backgroundColor: `${theme.accent}21` }]}>
           <Icon name={t.icon} size={22} color={active ? theme.accent : inactive} />
         </View>
-        <Text style={{ fontSize: 10, color: active ? theme.accent : inactive }}>{t.label}</Text>
+        <Text style={{ fontSize: fontSizes.xs, color: active ? theme.accent : inactive }}>{t.label}</Text>
       </Pressable>
     );
   };

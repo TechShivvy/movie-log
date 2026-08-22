@@ -25,6 +25,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { Input } from "../components/ui/Input";
 import { UsernameStatus } from "../components/ui/UsernameStatus";
 import { ThemedText } from "../components/ui/ThemedText";
+import { type as fontSizes } from "../constants/fonts";
 
 export function OnboardingScreen() {
   const { theme } = useTheme();
@@ -168,7 +169,7 @@ export function OnboardingScreen() {
             {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <PencilSimple size={12} color="#fff" />}
           </View>
         </View>
-        <Text style={{ fontSize: 12, color: theme.accent, marginTop: 8, fontWeight: "600" }}>Add a photo (optional)</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: theme.accent, marginTop: 8, fontWeight: "600" }}>Add a photo (optional)</Text>
       </Pressable>
 
       <Input
@@ -183,7 +184,7 @@ export function OnboardingScreen() {
         <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
-          <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
         </Pressable>
       </View>
       <View style={{ height: 12 }} />
@@ -236,10 +237,10 @@ export function OnboardingScreen() {
         }}
       >
         {saving && <ActivityIndicator size="small" color={theme.onAccent} />}
-        <Text style={{ color: theme.onAccent, fontSize: 15, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
+        <Text style={{ color: theme.onAccent, fontSize: fontSizes.md, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
       </Pressable>
       <Pressable onPress={() => signOut()} style={{ alignItems: "center", marginTop: 14, padding: 8 }}>
-        <Text style={{ color: `${theme.text}66`, fontSize: 13 }}>Sign out</Text>
+        <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.sm }}>Sign out</Text>
       </Pressable>
     </ScrollView>
   );

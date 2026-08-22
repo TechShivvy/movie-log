@@ -9,6 +9,7 @@ import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { FilmSlate } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { type as fontSizes } from "../constants/fonts";
 
 export default function NotFoundScreen() {
   const { theme } = useTheme();
@@ -19,7 +20,7 @@ export default function NotFoundScreen() {
         <FilmSlate size={48} color={theme.accent} />
         <Text style={[styles.title, { color: theme.text }]}>This screen doesn't exist.</Text>
         <Link href="/" style={styles.link}>
-          <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "600" }}>Go back to Library</Text>
+          <Text style={{ color: theme.accent, fontSize: fontSizes.md, fontWeight: "600" }}>Go back to Library</Text>
         </Link>
       </View>
     </>
@@ -28,6 +29,6 @@ export default function NotFoundScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 12 },
-  title: { fontSize: 18, fontWeight: "700", textAlign: "center" },
+  title: { fontSize: fontSizes.xl, fontWeight: "700", textAlign: "center" },
   link: { marginTop: 8, paddingVertical: 10 },
 });

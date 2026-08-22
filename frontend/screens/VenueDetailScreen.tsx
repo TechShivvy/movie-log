@@ -24,6 +24,7 @@ import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
 import { venueDisplayName, venueMapsUrl, venueMapsEmbedUrl } from "../lib/venue";
 import type { MovieLog, Screen } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 const STATUS_LABEL: Record<string, string> = { open: "Open", closed: "Closed", renovation: "Renovation" };
 
@@ -34,7 +35,7 @@ function StatusBadge({ status, theme }: { status: string; theme: any }) {
     <span className="tag" style={{ background: `${color}22`, color, fontWeight: 600 } as React.CSSProperties}>{label}</span>
   ) : (
     <View style={{ backgroundColor: `${color}22`, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-      <Text style={{ color, fontSize: 11, fontWeight: "700" }}>{label}</Text>
+      <Text style={{ color, fontSize: fontSizes.xs, fontWeight: "700" }}>{label}</Text>
     </View>
   );
 }
@@ -82,7 +83,7 @@ export function VenueDetailScreen() {
   if (!theatre) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
-        <Text style={{ fontSize: 16, color: theme.text }}>Theatre not found.</Text>
+        <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>Theatre not found.</Text>
       </View>
     );
   }
@@ -108,35 +109,35 @@ export function VenueDetailScreen() {
   const header = (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" } as React.CSSProperties}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: theme.text, margin: 0, letterSpacing: -0.5 } as React.CSSProperties}>
+        <h1 style={{ fontSize: fontSizes.h2, fontWeight: 700, color: theme.text, margin: 0, letterSpacing: -0.5 } as React.CSSProperties}>
           {displayName}
         </h1>
         <StatusBadge status={theatre.status} theme={theme} />
         {me?.is_admin && (
-          <button className="btn btn-secondary" style={{ marginLeft: "auto", fontSize: 12 } as React.CSSProperties} onClick={startEditNickname}>
+          <button className="btn btn-secondary" style={{ marginLeft: "auto", fontSize: fontSizes.sm } as React.CSSProperties} onClick={startEditNickname}>
             <PencilSimple size={13} />
             Edit nickname
           </button>
         )}
       </div>
-      {theatre.chain && <div style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>{theatre.chain}</div>}
+      {theatre.chain && <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 4 } as React.CSSProperties}>{theatre.chain}</div>}
       {displayAddress && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: 13, color: `${theme.text}88`, marginBottom: 16 } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, fontSize: fontSizes.sm, color: `${theme.text}88`, marginBottom: 16 } as React.CSSProperties}>
           <MapPin size={14} color={`${theme.text}66`} style={{ marginTop: 2, flexShrink: 0 } as any} />
           {mapsUrl ? <a href={mapsUrl} target="_blank" rel="noreferrer" style={{ color: "inherit" } as React.CSSProperties}>{displayAddress}</a> : displayAddress}
         </div>
       )}
       {statsLoading ? (
-        <div className="pulse-loading" style={{ marginBottom: 16, fontSize: 13, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
+        <div className="pulse-loading" style={{ marginBottom: 16, fontSize: fontSizes.sm, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
       ) : ratingText ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 15, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: fontSizes.md, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
           ★ {ratingText}
-          <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: 13 } as React.CSSProperties}>overall rating</span>
+          <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: fontSizes.sm } as React.CSSProperties}>overall rating</span>
         </div>
       ) : null}
       {editingNickname && (
         <div className="card" style={{ marginBottom: 16 } as React.CSSProperties}>
-          <div style={{ fontSize: 12, color: `${theme.text}88`, marginBottom: 8 } as React.CSSProperties}>
+          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, marginBottom: 8 } as React.CSSProperties}>
             Nickname is an alternate label shown instead of "{theatre.name}" — not a correction, only visible when set.
           </div>
           <input className="input" value={nicknameDraft} onChange={(e) => setNicknameDraft(e.target.value)} placeholder="Nickname" style={{ marginBottom: 8 } as React.CSSProperties} />
@@ -161,9 +162,9 @@ export function VenueDetailScreen() {
 
   const screensSection = (
     <div style={{ marginBottom: 28 } as React.CSSProperties}>
-      <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Screens</h3>
+      <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>Screens</h3>
       {screensLoading ? null : (screens?.length ?? 0) === 0 ? (
-        <div style={{ color: `${theme.text}55`, fontSize: 13 } as React.CSSProperties}>No screens recorded yet.</div>
+        <div style={{ color: `${theme.text}55`, fontSize: fontSizes.sm } as React.CSSProperties}>No screens recorded yet.</div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 } as React.CSSProperties}>
           {screens!.map((s) => (
@@ -192,34 +193,34 @@ export function VenueDetailScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-        <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, flexShrink: 1 }}>{displayName}</Text>
+        <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.text, flexShrink: 1 }}>{displayName}</Text>
         <StatusBadge status={theatre.status} theme={theme} />
       </View>
-      {theatre.chain && <Text style={{ fontSize: 13, color: `${theme.text}66`, marginBottom: 4 }}>{theatre.chain}</Text>}
+      {theatre.chain && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 4 }}>{theatre.chain}</Text>}
       {displayAddress && (
         <Pressable onPress={() => mapsUrl && Linking.openURL(mapsUrl)} style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
           <MapPin size={14} color={`${theme.text}66`} style={{ marginTop: 2 }} />
-          <Text style={{ fontSize: 13, color: `${theme.text}88`, flex: 1 }}>{displayAddress}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, flex: 1 }}>{displayAddress}</Text>
         </Pressable>
       )}
       {statsLoading ? (
-        <Text style={{ fontSize: 13, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
       ) : ratingText ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <Star size={16} color={theme.accent} weight="fill" />
-          <Text style={{ fontSize: 15, color: theme.accent, fontWeight: "700" }}>{ratingText}</Text>
-          <Text style={{ fontSize: 13, color: `${theme.text}66` }}>overall rating</Text>
+          <Text style={{ fontSize: fontSizes.md, color: theme.accent, fontWeight: "700" }}>{ratingText}</Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66` }}>overall rating</Text>
         </View>
       ) : null}
       {me?.is_admin && !editingNickname && (
         <Pressable onPress={startEditNickname} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
           <PencilSimple size={13} color={theme.accent} />
-          <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>Edit nickname</Text>
+          <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "600" }}>Edit nickname</Text>
         </Pressable>
       )}
       {editingNickname && (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <Text style={{ fontSize: 12, color: `${theme.text}88`, marginBottom: 8 }}>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, marginBottom: 8 }}>
             Nickname is an alternate label shown instead of "{theatre.name}" — not a correction, only visible when set.
           </Text>
           <View style={{ gap: 8 }}>
@@ -236,14 +237,14 @@ export function VenueDetailScreen() {
       <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
 
       <View style={{ marginBottom: 20 }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 10 }}>Screens</Text>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: 10 }}>Screens</Text>
         {screensLoading ? null : (screens?.length ?? 0) === 0 ? (
-          <Text style={{ color: `${theme.text}55`, fontSize: 13 }}>No screens recorded yet.</Text>
+          <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.sm }}>No screens recorded yet.</Text>
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {screens!.map((s) => (
               <Pressable key={s.id} onPress={() => openScreen(s)} style={{ backgroundColor: theme.surfaceHigh, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 }}>
-                <Text style={{ color: theme.text, fontSize: 13 }}>{s.name}{s.screen_type ? ` · ${s.screen_type}` : ""}</Text>
+                <Text style={{ color: theme.text, fontSize: fontSizes.sm }}>{s.name}{s.screen_type ? ` · ${s.screen_type}` : ""}</Text>
               </Pressable>
             ))}
           </View>

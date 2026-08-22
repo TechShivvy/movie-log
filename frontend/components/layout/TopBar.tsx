@@ -19,6 +19,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon } from "../ui/Icon";
+import { type as fontSizes } from "../../constants/fonts";
 
 export function TopBar() {
   const { theme } = useTheme();
@@ -101,7 +102,7 @@ export function TopBar() {
         style={[styles.searchTap, { backgroundColor: theme.surface, borderColor: theme.divider }]}
       >
         <Icon name="magnifying-glass" size={16} color={theme.accent} />
-        <Text style={{ fontSize: 14, color: `${theme.text}55` }}>Search films, theatres, people…</Text>
+        <Text style={{ fontSize: fontSizes.base, color: `${theme.text}55` }}>Search films, theatres, people…</Text>
       </Pressable>
 
       <Pressable onPress={() => router.push("/(app)/notifications" as any)} style={styles.bellBtn}>

@@ -26,6 +26,7 @@ import {
 } from "../hooks/useExtractTicket";
 import type { ExtractionResult, BatchExtractionItem } from "../types";
 import { styles } from "./AITicketModal.styles";
+import { type as fontSizes } from "../constants/fonts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -218,7 +219,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                   )}
                 </Pressable>
                 {extractSingle.isError && (
-                  <Text style={{ color: "#ff4444", textAlign: "center", fontSize: 13 }}>
+                  <Text style={{ color: "#ff4444", textAlign: "center", fontSize: fontSizes.sm }}>
                     {(extractSingle.error as any)?.detail ?? (extractSingle.error as any)?.message ?? "Extraction failed. Make sure it's a valid ticket photo."}
                   </Text>
                 )}
@@ -330,7 +331,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                     borderRadius: 10,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
-                    fontSize: 14,
+                    fontSize: fontSizes.base,
                     borderWidth: 1,
                     borderColor: theme.divider,
                   }}
@@ -349,7 +350,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                   )}
                 </Pressable>
                 {extractLink.isError && (
-                  <Text style={{ color: "#ff4444", textAlign: "center", fontSize: 13 }}>
+                  <Text style={{ color: "#ff4444", textAlign: "center", fontSize: fontSizes.sm }}>
                     {(extractLink.error as any)?.detail ?? (extractLink.error as any)?.message ?? "Link extraction failed."}
                   </Text>
                 )}
@@ -368,7 +369,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
           {/* Dialog actions */}
           <View style={styles.footer}>
             <Pressable onPress={handleClose} style={[styles.cancelBtn, { borderColor: theme.divider }]}>
-              <Text style={{ color: `${theme.text}88`, fontSize: 14 }}>Cancel</Text>
+              <Text style={{ color: `${theme.text}88`, fontSize: fontSizes.base }}>Cancel</Text>
             </Pressable>
             {tab === "batch" && batchDone && successResults.length > 0 ? (
               <Pressable

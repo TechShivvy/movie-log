@@ -17,6 +17,7 @@ import { useMovie } from "../../hooks/useSearch";
 import { tmdbPosterUrl } from "../../lib/tmdb";
 import { Poster } from "./Poster";
 import type { MovieLog } from "../../types";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface PosterCardProps {
   log: MovieLog;
@@ -56,7 +57,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
               position: "absolute", top: 8, right: 8,
               background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
               borderRadius: 20, padding: "3px 8px",
-              fontSize: 11, color: "#fff", fontWeight: 600,
+              fontSize: fontSizes.xs, color: "#fff", fontWeight: 600,
               zIndex: 1,
             } as React.CSSProperties}>
               ★ {log.rating.toFixed(1)}
@@ -65,11 +66,11 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 
           {/* Hover overlay */}
           <div className="ov">
-            <div style={{ fontWeight: 600, fontSize: 13, color: "#fff", lineHeight: 1.3 } as React.CSSProperties}>
+            <div style={{ fontWeight: 600, fontSize: fontSizes.sm, color: "#fff", lineHeight: 1.3 } as React.CSSProperties}>
               {log.movie}
             </div>
             {(log.theater || log.created_at) && (
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)", marginTop: 3 } as React.CSSProperties}>
+              <div style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,.7)", marginTop: 3 } as React.CSSProperties}>
                 {[log.theater, new Date(log.created_at).getFullYear()]
                   .filter(Boolean).join(" · ")}
               </div>
@@ -79,7 +80,7 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 
         {/* Below poster: title + format */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 } as React.CSSProperties}>
-          <span style={{ fontSize: 13, color: theme.text, fontWeight: 500, lineHeight: 1.3, flex: 1 } as React.CSSProperties} className="tapc">
+          <span style={{ fontSize: fontSizes.sm, color: theme.text, fontWeight: 500, lineHeight: 1.3, flex: 1 } as React.CSSProperties} className="tapc">
             {log.movie}
           </span>
           {log.format && (
@@ -139,12 +140,12 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 const styles = StyleSheet.create({
   card:        { flexDirection: "column", gap: 6 },
   starBadge:   { position: "absolute", top: 8, right: 8, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
-  starText:    { fontSize: 11, color: "#fff", fontWeight: "600" },
+  starText:    { fontSize: fontSizes.xs, color: "#fff", fontWeight: "600" },
   overlay:     { position: "absolute", inset: 0, justifyContent: "flex-end", padding: 12 },
-  overlayTitle:{ fontSize: 13, fontWeight: "600", color: "#fff", lineHeight: 17 },
-  overlayMeta: { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 },
+  overlayTitle:{ fontSize: fontSizes.sm, fontWeight: "600", color: "#fff", lineHeight: 17 },
+  overlayMeta: { fontSize: fontSizes.xs, color: "rgba(255,255,255,0.7)", marginTop: 3 },
   footer:      { flexDirection: "row", alignItems: "flex-start", gap: 4 },
-  title:       { flex: 1, fontSize: 13, fontWeight: "500", lineHeight: 17 },
+  title:       { flex: 1, fontSize: fontSizes.sm, fontWeight: "500", lineHeight: 17 },
   format:      { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 6, flexShrink: 0 },
-  formatText:  { fontSize: 11 },
+  formatText:  { fontSize: fontSizes.xs },
 });

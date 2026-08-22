@@ -9,22 +9,23 @@ import React from "react";
 import { Text } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { type useUsernameAvailability } from "../../hooks/useProfile";
+import { type as fontSizes } from "../../constants/fonts";
 
 type AvailabilityStatus = ReturnType<typeof useUsernameAvailability>["status"];
 
 export function UsernameStatus({ status }: { status: AvailabilityStatus }) {
   const { theme } = useTheme();
   if (status === "checking") {
-    return <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 4 }}>Checking…</Text>;
+    return <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginTop: 4 }}>Checking…</Text>;
   }
   if (status === "available") {
-    return <Text style={{ fontSize: 12, color: theme.success, marginTop: 4 }}>Username available</Text>;
+    return <Text style={{ fontSize: fontSizes.sm, color: theme.success, marginTop: 4 }}>Username available</Text>;
   }
   if (status === "taken") {
-    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>Username not available</Text>;
+    return <Text style={{ fontSize: fontSizes.sm, color: theme.error, marginTop: 4 }}>Username not available</Text>;
   }
   if (status === "invalid") {
-    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>3-30 lowercase letters, digits, or underscores</Text>;
+    return <Text style={{ fontSize: fontSizes.sm, color: theme.error, marginTop: 4 }}>3-30 lowercase letters, digits, or underscores</Text>;
   }
   return null;
 }

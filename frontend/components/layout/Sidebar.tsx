@@ -37,6 +37,7 @@ import { Avatar } from "../ui/Avatar";
 import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
 import { fontFamily } from "../../constants/fonts";
+import { type as fontSizes } from "../../constants/fonts";
 
 // `badge` was a hardcoded `3` here regardless of any real unread count —
 // every account, forever, saw "3 new notifications." No notifications
@@ -151,7 +152,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             </div>
             <div
               className="lbl"
-              style={{ fontFamily: headingFamily, fontSize: 19, letterSpacing: "-.01em", flex: 1 } as React.CSSProperties}
+              style={{ fontFamily: headingFamily, fontSize: fontSizes.xl, letterSpacing: "-.01em", flex: 1 } as React.CSSProperties}
             >
               CineLog
             </div>
@@ -179,7 +180,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   <span
                     className="lbl"
                     style={{
-                      background: theme.accent, color: theme.onAccent, fontSize: 10,
+                      background: theme.accent, color: theme.onAccent, fontSize: fontSizes.xs,
                       borderRadius: 999, padding: "1px 6px",
                     } as React.CSSProperties}
                   >
@@ -205,7 +206,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             <div className="lbl">
               <div
                 style={{
-                  fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase",
+                  fontSize: fontSizes.xs, letterSpacing: ".1em", textTransform: "uppercase",
                   opacity: 0.45, marginBottom: 7, paddingLeft: 4,
                 } as React.CSSProperties}
               >
@@ -230,7 +231,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               <div
                 className="lbl"
                 style={{
-                  display: "flex", alignItems: "center", gap: 7, fontSize: 11,
+                  display: "flex", alignItems: "center", gap: 7, fontSize: fontSizes.xs,
                   color: muted, padding: 8,
                   border: `1px solid ${theme.divider}`, borderRadius: 8,
                 } as React.CSSProperties}
@@ -250,10 +251,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   same 32px this box always was. */}
               <Avatar name={displayName} uri={avatarUrl(profile?.avatar_path)} size="sm" />
               <div className="lbl" style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
-                <div style={{ fontSize: 13, fontFamily: headingFamily, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as React.CSSProperties}>
+                <div style={{ fontSize: fontSizes.sm, fontFamily: headingFamily, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as React.CSSProperties}>
                   {displayName}
                 </div>
-                <div className="text-muted" style={{ fontSize: 11 } as React.CSSProperties}>@{handle}</div>
+                <div className="text-muted" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>@{handle}</div>
               </div>
               <Icon
                 name="gear-six"
@@ -286,7 +287,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             <Icon name="film-slate" weight="fill" size={18} color={theme.accent} />
           </View>
           {!collapsed && (
-            <Text style={{ fontFamily: headingFamily, fontSize: 19, letterSpacing: -0.19, flex: 1, color: theme.text }}>
+            <Text style={{ fontFamily: headingFamily, fontSize: fontSizes.xl, letterSpacing: -0.19, flex: 1, color: theme.text }}>
               CineLog
             </Text>
           )}
@@ -310,13 +311,13 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               >
                 <Icon name={n.icon} size={19} color={active ? theme.accent : `${theme.text}9e`} />
                 {!collapsed && (
-                  <Text style={{ flex: 1, fontSize: 14, color: active ? theme.accent : `${theme.text}9e` }}>
+                  <Text style={{ flex: 1, fontSize: fontSizes.base, color: active ? theme.accent : `${theme.text}9e` }}>
                     {n.label}
                   </Text>
                 )}
                 {!collapsed && n.badge ? (
                   <View style={{ backgroundColor: theme.accent, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <Text style={{ fontSize: 10, color: theme.onAccent }}>{n.badge}</Text>
+                    <Text style={{ fontSize: fontSizes.xs, color: theme.onAccent }}>{n.badge}</Text>
                   </View>
                 ) : null}
               </Pressable>
@@ -329,7 +330,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           >
             <Icon name="plus-circle" size={16} color={theme.accent} />
             {!collapsed && (
-              <Text style={{ fontFamily: headingFamily, fontSize: 14, color: theme.accent }}>Log a screening</Text>
+              <Text style={{ fontFamily: headingFamily, fontSize: fontSizes.base, color: theme.accent }}>Log a screening</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -365,10 +366,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             <Avatar name={displayName} uri={avatarUrl(profile?.avatar_path)} size="sm" />
             {!collapsed && (
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: headingFamily, color: theme.text }}>
+                <Text numberOfLines={1} style={{ fontSize: fontSizes.sm, fontFamily: headingFamily, color: theme.text }}>
                   {displayName}
                 </Text>
-                <Text style={{ fontSize: 11, color: muted }}>@{handle}</Text>
+                <Text style={{ fontSize: fontSizes.xs, color: muted }}>@{handle}</Text>
               </View>
             )}
             {!collapsed && <Icon name="gear-six" size={17} color={muted} />}
@@ -396,6 +397,6 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     marginTop: 12, borderWidth: 1, borderRadius: 8, paddingVertical: 5.6, paddingHorizontal: 10,
   },
-  paletteLabel: { fontSize: 10, letterSpacing: 1, opacity: 0.45, marginBottom: 7, paddingLeft: 4 },
+  paletteLabel: { fontSize: fontSizes.xs, letterSpacing: 1, opacity: 0.45, marginBottom: 7, paddingLeft: 4 },
   userRow: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 6, paddingHorizontal: 4 },
 });

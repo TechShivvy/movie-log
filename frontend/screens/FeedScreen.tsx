@@ -30,6 +30,7 @@ import { StarRating } from "../components/ui/StarRating";
 import { Poster } from "../components/ui/Poster";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 // ─── Feed card ────────────────────────────────────────────────────────────────
 
@@ -63,13 +64,13 @@ function FeedCard({ log }: { log: MovieLog }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
             <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
             <div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: theme.text } as React.CSSProperties}>
+              <span style={{ fontSize: fontSizes.sm, fontWeight: 700, color: theme.text } as React.CSSProperties}>
                 {log.display_name ?? log.username ?? "User"}
               </span>
-              <span style={{ fontSize: 12, color: `${theme.text}55`, marginLeft: 6 } as React.CSSProperties}>logged</span>
+              <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginLeft: 6 } as React.CSSProperties}>logged</span>
             </div>
             {log.created_at && (
-              <span style={{ fontSize: 11, color: `${theme.text}44`, marginLeft: "auto" } as React.CSSProperties}>
+              <span style={{ fontSize: fontSizes.xs, color: `${theme.text}44`, marginLeft: "auto" } as React.CSSProperties}>
                 {new Date(log.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </span>
             )}
@@ -78,7 +79,7 @@ function FeedCard({ log }: { log: MovieLog }) {
           {/* Title */}
           <div
             onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-            style={{ fontSize: 15, fontWeight: 700, color: theme.text, cursor: "pointer", lineHeight: 1.3 } as React.CSSProperties}
+            style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, cursor: "pointer", lineHeight: 1.3 } as React.CSSProperties}
             className="tapc"
           >
             {log.movie}
@@ -93,7 +94,7 @@ function FeedCard({ log }: { log: MovieLog }) {
           {/* Notes preview */}
           {log.notes && (
             <p style={{
-              fontSize: 13,
+              fontSize: fontSizes.sm,
               color: `${theme.text}88`,
               lineHeight: 1.5,
               margin: 0,
@@ -111,7 +112,7 @@ function FeedCard({ log }: { log: MovieLog }) {
             <button
               className={`btn btn-ghost`}
               onClick={() => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller })}
-              style={{ fontSize: 12, padding: "4px 0", color: log.liked_by_caller ? theme.accent : `${theme.text}66` } as React.CSSProperties}
+              style={{ fontSize: fontSizes.sm, padding: "4px 0", color: log.liked_by_caller ? theme.accent : `${theme.text}66` } as React.CSSProperties}
             >
               <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
               {log.like_count}
@@ -122,7 +123,7 @@ function FeedCard({ log }: { log: MovieLog }) {
             <button
               className="btn btn-ghost"
               onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-              style={{ fontSize: 12, padding: "4px 0", color: `${theme.text}66` } as React.CSSProperties}
+              style={{ fontSize: fontSizes.sm, padding: "4px 0", color: `${theme.text}66` } as React.CSSProperties}
             >
               <ChatCircle size={13} color={`${theme.text}66`} />
             </button>
@@ -153,13 +154,13 @@ function FeedCard({ log }: { log: MovieLog }) {
         {/* User row */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
-          <Text style={{ fontSize: 12, fontWeight: "700", color: theme.text }} numberOfLines={1}>
+          <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }} numberOfLines={1}>
             {log.display_name ?? log.username ?? "User"}
           </Text>
         </View>
 
         {/* Title */}
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text }} numberOfLines={2}>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text }} numberOfLines={2}>
           {log.movie}
         </Text>
 
@@ -168,14 +169,14 @@ function FeedCard({ log }: { log: MovieLog }) {
           {log.rating != null && <StarRating value={log.rating} onChange={() => {}} readonly size="small" />}
           {log.format && (
             <View style={{ backgroundColor: theme.neutral800, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 10, color: theme.neutral100, fontWeight: "700" }}>{log.format}</Text>
+              <Text style={{ fontSize: fontSizes.xs, color: theme.neutral100, fontWeight: "700" }}>{log.format}</Text>
             </View>
           )}
         </View>
 
         {/* Notes */}
         {log.notes && (
-          <Text style={{ fontSize: 12, color: `${theme.text}88`, lineHeight: 16 }} numberOfLines={2}>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, lineHeight: 16 }} numberOfLines={2}>
             {log.notes}
           </Text>
         )}
@@ -187,7 +188,7 @@ function FeedCard({ log }: { log: MovieLog }) {
             style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
           >
             <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
-            <Text style={{ fontSize: 12, color: log.liked_by_caller ? theme.accent : `${theme.text}66` }}>{log.like_count}</Text>
+            <Text style={{ fontSize: fontSizes.sm, color: log.liked_by_caller ? theme.accent : `${theme.text}66` }}>{log.like_count}</Text>
           </Pressable>
           {/* No per-log comment count on the backend — icon-only affordance. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -206,7 +207,7 @@ function WebSidebar({ theme }: { theme: any }) {
     <div style={{ width: 260, flexShrink: 0 } as React.CSSProperties}>
       {/* Who to follow */}
       <div className="card" style={{ marginBottom: 14 } as React.CSSProperties}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
+        <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
           Who to follow
         </h3>
         {[
@@ -224,10 +225,10 @@ function WebSidebar({ theme }: { theme: any }) {
           } as React.CSSProperties}>
             <Avatar name={u.name} hue={u.hue} size="sm" />
             <div style={{ flex: 1 } as React.CSSProperties}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: theme.text } as React.CSSProperties}>{u.name}</div>
-              <div style={{ fontSize: 11, color: `${theme.text}55` } as React.CSSProperties}>{u.handle}</div>
+              <div style={{ fontSize: fontSizes.sm, fontWeight: 700, color: theme.text } as React.CSSProperties}>{u.name}</div>
+              <div style={{ fontSize: fontSizes.xs, color: `${theme.text}55` } as React.CSSProperties}>{u.handle}</div>
             </div>
-            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" } as React.CSSProperties}>
+            <button className="btn btn-secondary" style={{ fontSize: fontSizes.sm, padding: "4px 10px" } as React.CSSProperties}>
               <UserPlus size={12} />
               Follow
             </button>
@@ -237,7 +238,7 @@ function WebSidebar({ theme }: { theme: any }) {
 
       {/* Trending */}
       <div className="card">
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
+        <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
           Trending this week
         </h3>
         {["Dune: Part Two", "Oppenheimer", "Poor Things", "Anatomy of a Fall", "The Zone of Interest"].map((title, i) => (
@@ -249,8 +250,8 @@ function WebSidebar({ theme }: { theme: any }) {
             marginBottom: 8,
             borderBottom: `1px solid ${theme.divider}`,
           } as React.CSSProperties}>
-            <span style={{ fontSize: 13, color: `${theme.text}44`, fontWeight: 700, width: 16 } as React.CSSProperties}>{i + 1}</span>
-            <span style={{ fontSize: 13, color: theme.text, flex: 1 } as React.CSSProperties}>{title}</span>
+            <span style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, fontWeight: 700, width: 16 } as React.CSSProperties}>{i + 1}</span>
+            <span style={{ fontSize: fontSizes.sm, color: theme.text, flex: 1 } as React.CSSProperties}>{title}</span>
           </div>
         ))}
       </div>
@@ -284,7 +285,7 @@ export function FeedScreen() {
       <div style={{ padding: "28px 32px 40px", maxWidth: 1080, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         {/* Header */}
         <h1 style={{
-          fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 24px",
+          fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 24px",
           letterSpacing: -0.5,
         } as React.CSSProperties}>
           Feed
@@ -300,7 +301,7 @@ export function FeedScreen() {
             ) : feedLogs.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
                 <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-                <p style={{ color: `${theme.text}55`, fontSize: 15 } as React.CSSProperties}>
+                <p style={{ color: `${theme.text}55`, fontSize: fontSizes.md } as React.CSSProperties}>
                   No activity yet — log a film to get started!
                 </p>
               </div>
@@ -325,7 +326,7 @@ export function FeedScreen() {
       contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
       contentInsetAdjustmentBehavior="automatic"
       ListHeaderComponent={
-        <Text style={{ fontSize: 22, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Feed</Text>
+        <Text style={{ fontSize: fontSizes.xxl, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Feed</Text>
       }
       ListEmptyComponent={
         isLoading ? (
@@ -335,7 +336,7 @@ export function FeedScreen() {
         ) : (
           <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
             <Text style={{ fontSize: 40 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}55`, fontSize: 15 }}>No activity yet</Text>
+            <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.md }}>No activity yet</Text>
           </View>
         )
       }

@@ -53,6 +53,7 @@ import { Poster, type Poster as PosterType } from "../components/ui/Poster";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import { fontFamily } from "../constants/fonts";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 /**
  * Every card's poster used to hard-code the hue-gradient placeholder, even
@@ -218,10 +219,10 @@ export function LibraryScreen() {
             392px-wide column. */}
         <div className="lib-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
           <div>
-            <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
+            <div style={{ fontSize: fontSizes.xs, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
               Your library
             </div>
-            <h1 className={`lib-title${isLoading ? " pulse-loading" : ""}`} style={{ fontSize: 34, margin: "4px 0 0" } as React.CSSProperties}>
+            <h1 className={`lib-title${isLoading ? " pulse-loading" : ""}`} style={{ fontSize: fontSizes.h1, margin: "4px 0 0" } as React.CSSProperties}>
               {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
             </h1>
           </div>
@@ -294,7 +295,7 @@ export function LibraryScreen() {
                     style={{
                       position: "absolute", top: 8, right: 8,
                       background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
-                      borderRadius: 6, padding: "2px 7px", fontSize: 11, color: "#fff",
+                      borderRadius: 6, padding: "2px 7px", fontSize: fontSizes.xs, color: "#fff",
                       display: "flex", alignItems: "center", gap: 3,
                     } as React.CSSProperties}
                   >
@@ -303,10 +304,10 @@ export function LibraryScreen() {
                   </div>
 
                   <div className="ov" style={{ padding: 12 } as React.CSSProperties}>
-                    <div style={{ fontFamily: heading, fontSize: 15, color: "#fff" } as React.CSSProperties}>
+                    <div style={{ fontFamily: heading, fontSize: fontSizes.md, color: "#fff" } as React.CSSProperties}>
                       {log.movie}
                     </div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
+                    <div style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
                       {log.theater ?? "—"} · {fmtLogDate(log)}
                     </div>
                   </div>
@@ -321,10 +322,10 @@ export function LibraryScreen() {
                       row (dateShort + format), which never repeated the
                       title either. Both spans always render; the CSS below
                       shows exactly one depending on viewport/pointer. */}
-                  <span className="lib-card-title" style={{ fontSize: 13, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
-                  <span className="lib-card-date text-muted" style={{ fontSize: 11 } as React.CSSProperties}>{fmtLogDate(log)}</span>
+                  <span className="lib-card-title" style={{ fontSize: fontSizes.sm, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
+                  <span className="lib-card-date text-muted" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>{fmtLogDate(log)}</span>
                   {log.format ? (
-                    <span className="tag tag-neutral" style={{ fontSize: 10, padding: "1px 6px" } as React.CSSProperties}>
+                    <span className="tag tag-neutral" style={{ fontSize: fontSizes.xs, padding: "1px 6px" } as React.CSSProperties}>
                       {log.format}
                     </span>
                   ) : null}
@@ -347,22 +348,22 @@ export function LibraryScreen() {
                 <LogPoster log={log} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8 } as React.CSSProperties}>
-                    <div style={{ fontFamily: heading, fontSize: 16 } as React.CSSProperties}>{log.movie}</div>
-                    <span style={{ fontSize: 12, color: theme.accent, whiteSpace: "nowrap" } as React.CSSProperties}>
+                    <div style={{ fontFamily: heading, fontSize: fontSizes.lg } as React.CSSProperties}>{log.movie}</div>
+                    <span style={{ fontSize: fontSizes.sm, color: theme.accent, whiteSpace: "nowrap" } as React.CSSProperties}>
                       <Icon name="star" weight="fill" size={11} /> {(log.rating ?? 0).toFixed(1)}
                     </span>
                   </div>
-                  <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
+                  <div className="text-muted" style={{ fontSize: fontSizes.sm, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
                     <Icon name="map-pin" size={12} />
                     {log.theater ?? "—"}
                   </div>
-                  <div className="text-muted" style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
+                  <div className="text-muted" style={{ fontSize: fontSizes.sm, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
                     <Icon name="calendar-blank" size={12} />
                     {fmtLogDate(log)}
                   </div>
                   {log.format ? (
                     <div style={{ display: "flex", gap: 5, marginTop: 3, flexWrap: "wrap" } as React.CSSProperties}>
-                      <span className="tag tag-outline" style={{ fontSize: 10, padding: "1px 7px" } as React.CSSProperties}>
+                      <span className="tag tag-outline" style={{ fontSize: fontSizes.xs, padding: "1px 7px" } as React.CSSProperties}>
                         {log.format}
                       </span>
                     </div>
@@ -401,10 +402,10 @@ export function LibraryScreen() {
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
         <View>
-          <Text style={{ fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase", color: theme.accent }}>
+          <Text style={{ fontSize: fontSizes.xs, letterSpacing: 1.1, textTransform: "uppercase", color: theme.accent }}>
             Your library
           </Text>
-          <Text style={{ fontSize: 27, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4, opacity: isLoading ? 0.5 : 1 }}>
+          <Text style={{ fontSize: fontSizes.h2, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4, opacity: isLoading ? 0.5 : 1 }}>
             {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
           </Text>
         </View>
@@ -437,7 +438,7 @@ export function LibraryScreen() {
                 backgroundColor: on ? theme.accent800 : theme.neutral800,
               }}
             >
-              <Text style={{ fontSize: 11, color: on ? theme.accent100 : theme.neutral100 }}>{f}</Text>
+              <Text style={{ fontSize: fontSizes.xs, color: on ? theme.accent100 : theme.neutral100 }}>{f}</Text>
             </Pressable>
           );
         })}
@@ -445,7 +446,7 @@ export function LibraryScreen() {
 
       {/* Sort + view toggle */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 }}>
-        <Text style={{ fontSize: 12, color: muted }}>Sorted by recent</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: muted }}>Sorted by recent</Text>
         <View style={{ flexDirection: "row", borderWidth: 1, borderColor: theme.divider, borderRadius: 8, overflow: "hidden" }}>
           {(["grid", "list"] as const).map((m, i) => (
             <Pressable
@@ -487,7 +488,7 @@ export function LibraryScreen() {
                   }}
                 >
                   <Icon name="star" weight="fill" size={11} color={theme.accent} />
-                  <Text style={{ fontSize: 11, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
+                  <Text style={{ fontSize: fontSizes.xs, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
                 </View>
 
                 {/* .pt — title plate pinned to the poster's bottom. Used
@@ -505,10 +506,10 @@ export function LibraryScreen() {
                   pointerEvents="none"
                   style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, justifyContent: "flex-end", padding: 10 }}
                 >
-                  <Text numberOfLines={2} style={{ fontFamily: heading, fontSize: 16, lineHeight: 17.6, color: "#fff" }}>
+                  <Text numberOfLines={2} style={{ fontFamily: heading, fontSize: fontSizes.lg, lineHeight: 17.6, color: "#fff" }}>
                     {log.movie}
                   </Text>
-                  <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                  <Text style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
                     {log.theater ?? "—"} · {fmtLogDate(log)}
                   </Text>
                 </LinearGradient>
@@ -541,18 +542,18 @@ export function LibraryScreen() {
               <LogPoster log={log} style={{ width: 56, aspectRatio: 2 / 3 }} />
               <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: 16, color: theme.text }}>
+                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: fontSizes.lg, color: theme.text }}>
                     {log.movie}
                   </Text>
-                  <Text style={{ fontSize: 12, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
+                  <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Icon name="map-pin" size={12} color={muted} />
-                  <Text style={{ fontSize: 12, color: muted }}>{log.theater ?? "—"}</Text>
+                  <Text style={{ fontSize: fontSizes.sm, color: muted }}>{log.theater ?? "—"}</Text>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Icon name="calendar-blank" size={12} color={muted} />
-                  <Text style={{ fontSize: 12, color: muted }}>{fmtLogDate(log)}</Text>
+                  <Text style={{ fontSize: fontSizes.sm, color: muted }}>{fmtLogDate(log)}</Text>
                 </View>
                 {log.format ? (
                   <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
@@ -573,8 +574,8 @@ function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog:
     return (
       <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
         <Icon name="film-slate" size={44} color={theme.accent} />
-        <div style={{ fontSize: 16, marginTop: 12 } as React.CSSProperties}>No films yet</div>
-        <div style={{ fontSize: 13, color: muted, marginTop: 4 } as React.CSSProperties}>
+        <div style={{ fontSize: fontSizes.lg, marginTop: 12 } as React.CSSProperties}>No films yet</div>
+        <div style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 } as React.CSSProperties}>
           Log your first screening to start your library.
         </div>
         <button className="btn btn-primary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onLog}>
@@ -587,8 +588,8 @@ function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog:
   return (
     <View style={{ alignItems: "center", paddingVertical: 60 }}>
       <Icon name="film-slate" size={44} color={theme.accent} />
-      <Text style={{ fontSize: 16, color: theme.text, marginTop: 12 }}>No films yet</Text>
-      <Text style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+      <Text style={{ fontSize: fontSizes.lg, color: theme.text, marginTop: 12 }}>No films yet</Text>
+      <Text style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 }}>
         Log your first screening to start your library.
       </Text>
       <Pressable
@@ -600,7 +601,7 @@ function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog:
         }}
       >
         <Icon name="plus-circle" size={16} color={theme.accent} />
-        <Text style={{ color: theme.accent, fontSize: 14 }}>Log a screening</Text>
+        <Text style={{ color: theme.accent, fontSize: fontSizes.base }}>Log a screening</Text>
       </Pressable>
     </View>
   );
@@ -614,8 +615,8 @@ function ErrorState({ theme, muted, onRetry }: { theme: any; muted: string; onRe
     return (
       <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
         <Icon name="warning-circle" size={44} color={theme.error} />
-        <div style={{ fontSize: 16, marginTop: 12 } as React.CSSProperties}>Couldn't load your library</div>
-        <div style={{ fontSize: 13, color: muted, marginTop: 4 } as React.CSSProperties}>
+        <div style={{ fontSize: fontSizes.lg, marginTop: 12 } as React.CSSProperties}>Couldn't load your library</div>
+        <div style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 } as React.CSSProperties}>
           Check your connection and try again.
         </div>
         <button className="btn btn-secondary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onRetry}>
@@ -628,8 +629,8 @@ function ErrorState({ theme, muted, onRetry }: { theme: any; muted: string; onRe
   return (
     <View style={{ alignItems: "center", paddingVertical: 60 }}>
       <Icon name="warning-circle" size={44} color={theme.error} />
-      <Text style={{ fontSize: 16, color: theme.text, marginTop: 12 }}>Couldn't load your library</Text>
-      <Text style={{ fontSize: 13, color: muted, marginTop: 4 }}>Check your connection and try again.</Text>
+      <Text style={{ fontSize: fontSizes.lg, color: theme.text, marginTop: 12 }}>Couldn't load your library</Text>
+      <Text style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 }}>Check your connection and try again.</Text>
       <Pressable
         onPress={onRetry}
         style={{
@@ -639,7 +640,7 @@ function ErrorState({ theme, muted, onRetry }: { theme: any; muted: string; onRe
         }}
       >
         <Icon name="arrow-clockwise" size={16} color={theme.text} />
-        <Text style={{ color: theme.text, fontSize: 14 }}>Retry</Text>
+        <Text style={{ color: theme.text, fontSize: fontSizes.base }}>Retry</Text>
       </Pressable>
     </View>
   );

@@ -11,6 +11,7 @@ import { Platform, Text, TextInput, View } from "react-native";
 import { NotePencil } from "phosphor-react-native";
 import { useTheme } from "../../hooks/useTheme";
 import type { VenueNote } from "../../types";
+import { type as fontSizes } from "../../constants/fonts";
 
 export function PrivateNoteCard({ note, loading, onSave, saving }: {
   note: VenueNote | null | undefined;
@@ -45,10 +46,10 @@ export function PrivateNoteCard({ note, loading, onSave, saving }: {
       <div className="card" style={{ marginBottom: 20 } as React.CSSProperties}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 } as React.CSSProperties}>
           <NotePencil size={14} color={`${theme.text}88`} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: `${theme.text}88`, letterSpacing: 0.3 } as React.CSSProperties}>
+          <span style={{ fontSize: fontSizes.sm, fontWeight: 600, color: `${theme.text}88`, letterSpacing: 0.3 } as React.CSSProperties}>
             PRIVATE NOTE
           </span>
-          {saving && <span style={{ fontSize: 11, color: `${theme.text}55` } as React.CSSProperties}>Saving…</span>}
+          {saving && <span style={{ fontSize: fontSizes.xs, color: `${theme.text}55` } as React.CSSProperties}>Saving…</span>}
         </div>
         <textarea
           className="input"
@@ -67,8 +68,8 @@ export function PrivateNoteCard({ note, loading, onSave, saving }: {
     <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginBottom: 20 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
         <NotePencil size={14} color={`${theme.text}88`} />
-        <Text style={{ fontSize: 12, fontWeight: "600", color: `${theme.text}88`, letterSpacing: 0.3 }}>PRIVATE NOTE</Text>
-        {saving && <Text style={{ fontSize: 11, color: `${theme.text}55`, marginLeft: "auto" }}>Saving…</Text>}
+        <Text style={{ fontSize: fontSizes.sm, fontWeight: "600", color: `${theme.text}88`, letterSpacing: 0.3 }}>PRIVATE NOTE</Text>
+        {saving && <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}55`, marginLeft: "auto" }}>Saving…</Text>}
       </View>
       <TextInput
         value={draft}
@@ -77,7 +78,7 @@ export function PrivateNoteCard({ note, loading, onSave, saving }: {
         onChangeText={(v) => { setDraft(v); setDirty(true); }}
         onBlur={commit}
         multiline
-        style={{ color: theme.text, fontSize: 14, minHeight: 44, textAlignVertical: "top" }}
+        style={{ color: theme.text, fontSize: fontSizes.base, minHeight: 44, textAlignVertical: "top" }}
       />
     </View>
   );

@@ -20,6 +20,7 @@ import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 export function MovieDetailScreen() {
   const { theme } = useTheme();
@@ -59,7 +60,7 @@ export function MovieDetailScreen() {
   if (!movie) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
-        <Text style={{ fontSize: 16, color: theme.text }}>Movie not found.</Text>
+        <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>Movie not found.</Text>
       </View>
     );
   }
@@ -76,10 +77,10 @@ export function MovieDetailScreen() {
         <div style={{ display: "flex", gap: 28, marginBottom: 28 } as React.CSSProperties}>
           <Poster title={movie.title} imageUrl={posterUrl} style={{ width: 200, aspectRatio: "2/3", flexShrink: 0 } as React.CSSProperties} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end" } as React.CSSProperties}>
-            <h1 style={{ fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 6px", letterSpacing: -0.5 } as React.CSSProperties}>
+            <h1 style={{ fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 6px", letterSpacing: -0.5 } as React.CSSProperties}>
               {movie.title}
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, fontSize: 14, color: `${theme.text}88` } as React.CSSProperties}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, fontSize: fontSizes.base, color: `${theme.text}88` } as React.CSSProperties}>
               {year && <span>{year}</span>}
               {statsLoading ? (
                 <span className="pulse-loading" style={{ color: `${theme.text}44` } as React.CSSProperties}>★ …</span>
@@ -106,13 +107,13 @@ export function MovieDetailScreen() {
       <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
         <Poster title={movie.title} imageUrl={posterUrl} style={{ width: 110, height: 165, flexShrink: 0 }} />
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{movie.title}</Text>
+          <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{movie.title}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            {year && <Text style={{ fontSize: 13, color: `${theme.text}88` }}>{year}</Text>}
+            {year && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88` }}>{year}</Text>}
             {statsLoading ? (
-              <Text style={{ fontSize: 13, color: `${theme.text}44` }}>★ …</Text>
+              <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44` }}>★ …</Text>
             ) : ratingText ? (
-              <Text style={{ fontSize: 13, color: theme.accent, fontWeight: "600" }}>
+              <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>
                 {ratingText} <Text style={{ color: `${theme.text}66`, fontWeight: "400" }}>({stats!.rating_count})</Text>
               </Text>
             ) : null}

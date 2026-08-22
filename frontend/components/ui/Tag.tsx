@@ -12,6 +12,7 @@ import React from "react";
 import { Platform, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "./Icon";
+import { type as fontSizes } from "../../constants/fonts";
 
 type TagVariant = "accent" | "outline" | "neutral";
 /** "sm" — dense contexts (a poster-grid card footer, a library list row)
@@ -45,7 +46,7 @@ export function Tag({ label, variant = "neutral", size = "md", icon, style }: Ta
         className={`tag tag-${variant}`}
         style={{
           display: "inline-flex", alignItems: "center", gap: 4,
-          ...(size === "sm" ? { fontSize: 10, padding: "2px 7px" } : {}),
+          ...(size === "sm" ? { fontSize: fontSizes.xs, padding: "2px 7px" } : {}),
           ...(style as object),
         } as React.CSSProperties}
       >
@@ -81,6 +82,6 @@ export function Tag({ label, variant = "neutral", size = "md", icon, style }: Ta
 const styles = StyleSheet.create({
   tag:   { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 3, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: "transparent", alignSelf: "flex-start" },
   tagSm: { paddingVertical: 2, paddingHorizontal: 7 },
-  label: { fontSize: 11, letterSpacing: 0.22 },
+  label: { fontSize: fontSizes.xs, letterSpacing: 0.22 },
   mono:  { fontFamily: "JetBrainsMono" },
 });

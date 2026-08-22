@@ -31,6 +31,7 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { CheckCircle, XCircle, Info } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { type as fontSizes } from "../constants/fonts";
 
 type ToastVariant = "success" | "error" | "info";
 interface ToastItem { id: number; message: string; variant: ToastVariant }
@@ -97,7 +98,7 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
                 display: "flex", alignItems: "center", gap: 8,
                 background: theme.surface, color: theme.text,
                 padding: "10px 16px", borderRadius: 10,
-                boxShadow: "var(--shadow-lg)", fontSize: 13, fontWeight: 600,
+                boxShadow: "var(--shadow-lg)", fontSize: fontSizes.sm, fontWeight: 600,
                 maxWidth: 360,
               } as React.CSSProperties}
             >
@@ -117,7 +118,7 @@ function ToastStack({ toasts }: { toasts: ToastItem[] }) {
         return (
           <View key={t.id} style={[styles.nativeToast, { backgroundColor: theme.surface }]}>
             <Icon size={16} color={colorFor(t.variant)} weight="fill" />
-            <Text style={{ color: theme.text, fontSize: 13, fontWeight: "600", flexShrink: 1 }}>{t.message}</Text>
+            <Text style={{ color: theme.text, fontSize: fontSizes.sm, fontWeight: "600", flexShrink: 1 }}>{t.message}</Text>
           </View>
         );
       })}

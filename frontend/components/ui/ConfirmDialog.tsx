@@ -23,6 +23,7 @@ import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { Button } from "./Button";
+import { type as fontSizes } from "../../constants/fonts";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   dialog: { width: "100%", maxWidth: 340, borderRadius: 14, padding: 20, gap: 10 },
-  title: { fontSize: 18, fontWeight: "700" },
-  message: { fontSize: 14, lineHeight: 20 },
+  title: { fontSize: fontSizes.xl, fontWeight: "700" },
+  message: { fontSize: fontSizes.base, lineHeight: 20 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 6 },
 });

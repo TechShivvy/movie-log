@@ -50,6 +50,7 @@ import { PosterCard } from "../components/ui/PosterCard";
 import { EditProfileModal } from "../components/profile/EditProfileModal";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 type Tab = "logs" | "favorites" | "theatres";
 
@@ -97,15 +98,15 @@ function StatCard({ value, label, theme, isLoading }: { value: string | number; 
   if (Platform.OS === "web") {
     return (
       <div className="card" style={{ textAlign: "center", flex: 1 } as React.CSSProperties}>
-        <div style={{ fontSize: 24, fontWeight: 700, color: "var(--color-accent)", marginBottom: 2, opacity: isLoading ? 0.5 : 1 } as React.CSSProperties}>{display}</div>
-        <div style={{ fontSize: 12, color: `${theme.text}66` } as React.CSSProperties}>{label}</div>
+        <div style={{ fontSize: fontSizes.display, fontWeight: 700, color: "var(--color-accent)", marginBottom: 2, opacity: isLoading ? 0.5 : 1 } as React.CSSProperties}>{display}</div>
+        <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66` } as React.CSSProperties}>{label}</div>
       </div>
     );
   }
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
-      <Text style={{ fontSize: 22, fontWeight: "700", color: theme.accent, opacity: isLoading ? 0.5 : 1 }}>{display}</Text>
-      <Text style={{ fontSize: 11, color: `${theme.text}66`, marginTop: 2 }}>{label}</Text>
+      <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.accent, opacity: isLoading ? 0.5 : 1 }}>{display}</Text>
+      <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}66`, marginTop: 2 }}>{label}</Text>
     </View>
   );
 }
@@ -120,8 +121,8 @@ function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPr
         padding: "12px 0", borderBottom: `1px solid ${theme.divider}`, cursor: "pointer",
       } as React.CSSProperties}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: theme.text } as React.CSSProperties}>{t.name}</div>
-          <div style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
+          <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{t.name}</div>
+          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
             {t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}
           </div>
         </div>
@@ -132,8 +133,8 @@ function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPr
   return (
     <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
       <View>
-        <Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{t.name}</Text>
-        <Text style={{ fontSize: 12, color: `${theme.text}55`, marginTop: 2 }}>{t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}</Text>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{t.name}</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}</Text>
       </View>
       <CaretRight size={16} color={`${theme.text}44`} />
     </Pressable>
@@ -270,10 +271,10 @@ export function ProfileScreen() {
                     email-handle fallback — that fallback is only a
                     correct final answer once we actually know there's
                     no real display_name/username to show, not before. */}
-                <h2 style={{ fontSize: 22, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
+                <h2 style={{ fontSize: fontSizes.xxl, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
                   {isProfileLoading ? "Loading…" : displayName}
                 </h2>
-                <span style={{ fontSize: 13, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
+                <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
                   {isProfileLoading ? "" : `@${username}`}
                 </span>
               </div>
@@ -290,7 +291,7 @@ export function ProfileScreen() {
             </div>
           </div>
 
-          {bio && <p style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 1.5, margin: "0 0 20px" } as React.CSSProperties}>{bio}</p>}
+          {bio && <p style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 1.5, margin: "0 0 20px" } as React.CSSProperties}>{bio}</p>}
 
           {/* Stats row */}
           <div style={{ display: "flex", gap: 10, marginBottom: 28 } as React.CSSProperties}>
@@ -308,7 +309,7 @@ export function ProfileScreen() {
                 onClick={() => setActiveTab(t.id)}
                 style={{
                   padding: "10px 16px",
-                  fontSize: 14,
+                  fontSize: fontSizes.base,
                   fontWeight: 600,
                   color: activeTab === t.id ? theme.accent : `${theme.text}66`,
                   background: "none",
@@ -332,7 +333,7 @@ export function ProfileScreen() {
             theatres.length === 0 ? (
               <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
                 <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎦</div>
-                <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>No theatres linked to your logs yet.</p>
+                <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>No theatres linked to your logs yet.</p>
               </div>
             ) : (
               <div>
@@ -344,7 +345,7 @@ export function ProfileScreen() {
           ) : logsForTab.length === 0 ? (
             <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
               <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-              <p style={{ color: `${theme.text}44`, fontSize: 14 } as React.CSSProperties}>
+              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>
                 {activeTab === "favorites" ? "No favorites yet — star up to 4 logs from their detail page." : "No logs yet. Start by logging a film!"}
               </p>
             </div>
@@ -415,13 +416,13 @@ export function ProfileScreen() {
         {/* numberOfLines — an oversized fallback name (raw email-local-part,
             easily 20-30+ chars) had no truncation at all here and just
             ran past the screen edge at phone width. */}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 18, fontWeight: "700", color: theme.text, opacity: isProfileLoading ? 0.5 : 1 }}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text, opacity: isProfileLoading ? 0.5 : 1 }}>
           {isProfileLoading ? "Loading…" : displayName}
         </Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 13, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>
           {isProfileLoading ? "" : `@${username}`}
         </Text>
-        {bio && <Text style={{ fontSize: 14, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
+        {bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
 
         {/* Stats row */}
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 24 }}>
@@ -447,7 +448,7 @@ export function ProfileScreen() {
               }}
             >
               <Text style={{
-                fontSize: 13,
+                fontSize: fontSizes.sm,
                 fontWeight: "600",
                 color: activeTab === t.id ? theme.accent : `${theme.text}66`,
               }}>
@@ -464,7 +465,7 @@ export function ProfileScreen() {
           theatres.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
               <Text style={{ fontSize: 36 }}>🎦</Text>
-              <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>No theatres linked to your logs yet.</Text>
+              <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No theatres linked to your logs yet.</Text>
             </View>
           ) : (
             <View>
@@ -476,7 +477,7 @@ export function ProfileScreen() {
         ) : logsForTab.length === 0 ? (
           <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
             <Text style={{ fontSize: 36 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: 14 }}>
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>
               {activeTab === "favorites" ? "No favorites yet" : "No logs yet"}
             </Text>
           </View>

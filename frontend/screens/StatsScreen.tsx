@@ -21,6 +21,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import type { MovieLog } from "../types";
+import { type as fontSizes } from "../constants/fonts";
 
 // ─── Computed stats ────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export function StatsScreen() {
          below this maxWidth+margin:auto shape. */
       <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
         <h1 style={{
-          fontSize: 32, fontWeight: 700, color: theme.text, margin: "0 0 28px",
+          fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 28px",
           letterSpacing: -0.5,
         } as React.CSSProperties}>
           Your year in film
@@ -94,8 +95,8 @@ export function StatsScreen() {
             { label: "FDFS screenings", value: stats.fdfsCount },
           ].map((s) => (
             <div key={s.label} className="card" style={{ textAlign: "center" } as React.CSSProperties}>
-              <div style={{ fontSize: 30, fontWeight: 700, color: theme.accent, marginBottom: 4 } as React.CSSProperties}>{s.value}</div>
-              <div style={{ fontSize: 13, color: `${theme.text}66` } as React.CSSProperties}>{s.label}</div>
+              <div style={{ fontSize: fontSizes.h2, fontWeight: 700, color: theme.accent, marginBottom: 4 } as React.CSSProperties}>{s.value}</div>
+              <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66` } as React.CSSProperties}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -104,7 +105,7 @@ export function StatsScreen() {
         <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16, marginBottom: 20 } as React.CSSProperties}>
           {/* Monthly bar chart */}
           <div className="card">
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Films per month</h3>
+            <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Films per month</h3>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 120 } as React.CSSProperties}>
               {stats.monthly.map((count, i) => (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } as React.CSSProperties}>
@@ -125,11 +126,11 @@ export function StatsScreen() {
 
           {/* Rating distribution */}
           <div className="card">
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Rating distribution</h3>
+            <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Rating distribution</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 } as React.CSSProperties}>
               {[5, 4, 3, 2, 1].map((star) => (
                 <div key={star} style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
-                  <span style={{ fontSize: 12, color: `${theme.text}66`, width: 16 } as React.CSSProperties}>{star}★</span>
+                  <span style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, width: 16 } as React.CSSProperties}>{star}★</span>
                   <div style={{ flex: 1, height: 8, background: theme.neutral800, borderRadius: 4, overflow: "hidden" } as React.CSSProperties}>
                     <div style={{
                       width: `${(stats.ratingDist[star - 1] / maxRating) * 100}%`,
@@ -138,7 +139,7 @@ export function StatsScreen() {
                       borderRadius: 4,
                     } as React.CSSProperties} />
                   </div>
-                  <span style={{ fontSize: 11, color: `${theme.text}44`, width: 24 } as React.CSSProperties}>{stats.ratingDist[star - 1]}</span>
+                  <span style={{ fontSize: fontSizes.xs, color: `${theme.text}44`, width: 24 } as React.CSSProperties}>{stats.ratingDist[star - 1]}</span>
                 </div>
               ))}
             </div>
@@ -148,7 +149,7 @@ export function StatsScreen() {
         {/* Format breakdown */}
         {topFormats.length > 0 && (
           <div className="card">
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Format breakdown</h3>
+            <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Format breakdown</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 } as React.CSSProperties}>
               {topFormats.map(([fmt, cnt]) => (
                 <div key={fmt} style={{ display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties}>
@@ -161,7 +162,7 @@ export function StatsScreen() {
                       borderRadius: 4,
                     } as React.CSSProperties} />
                   </div>
-                  <span style={{ fontSize: 12, color: `${theme.text}55`, width: 24, textAlign: "right" } as React.CSSProperties}>{cnt}</span>
+                  <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, width: 24, textAlign: "right" } as React.CSSProperties}>{cnt}</span>
                 </div>
               ))}
             </div>
@@ -174,7 +175,7 @@ export function StatsScreen() {
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
-      <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>Your year in film</Text>
+      <Text style={{ fontSize: fontSizes.display, fontWeight: "800", color: theme.text, marginBottom: 20 }}>Your year in film</Text>
 
       {/* 2-col stat tiles on mobile */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
@@ -191,15 +192,15 @@ export function StatsScreen() {
             padding: 14,
             alignItems: "center",
           }}>
-            <Text style={{ fontSize: 26, fontWeight: "700", color: theme.accent }}>{s.value}</Text>
-            <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 2 }}>{s.label}</Text>
+            <Text style={{ fontSize: fontSizes.display, fontWeight: "700", color: theme.accent }}>{s.value}</Text>
+            <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginTop: 2 }}>{s.label}</Text>
           </View>
         ))}
       </View>
 
       {/* Monthly bar chart */}
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Films per month</Text>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Films per month</Text>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 4, height: 80 }}>
           {stats.monthly.map((count, i) => (
             <View key={i} style={{ flex: 1, alignItems: "center", gap: 3 }}>
@@ -217,10 +218,10 @@ export function StatsScreen() {
 
       {/* Rating distribution */}
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-        <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Rating distribution</Text>
+        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Rating distribution</Text>
         {[5, 4, 3, 2, 1].map((star) => (
           <View key={star} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Text style={{ fontSize: 12, color: `${theme.text}66`, width: 20 }}>{star}★</Text>
+            <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, width: 20 }}>{star}★</Text>
             <View style={{ flex: 1, height: 8, backgroundColor: theme.neutral800, borderRadius: 4, overflow: "hidden" }}>
               <View style={{
                 width: `${(stats.ratingDist[star - 1] / maxRating) * 100}%`,
@@ -229,7 +230,7 @@ export function StatsScreen() {
                 borderRadius: 4,
               }} />
             </View>
-            <Text style={{ fontSize: 11, color: `${theme.text}44`, width: 20, textAlign: "right" }}>{stats.ratingDist[star - 1]}</Text>
+            <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}44`, width: 20, textAlign: "right" }}>{stats.ratingDist[star - 1]}</Text>
           </View>
         ))}
       </View>
@@ -237,14 +238,14 @@ export function StatsScreen() {
       {/* Format breakdown */}
       {topFormats.length > 0 && (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Format breakdown</Text>
+          <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: 14 }}>Format breakdown</Text>
           {topFormats.map(([fmt, cnt]) => (
             <View key={fmt} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <View style={{
                 backgroundColor: theme.neutral800, borderRadius: 6,
                 paddingHorizontal: 8, paddingVertical: 3, width: 64, alignItems: "center",
               }}>
-                <Text style={{ fontSize: 11, color: theme.neutral100, fontWeight: "600" }}>{fmt}</Text>
+                <Text style={{ fontSize: fontSizes.xs, color: theme.neutral100, fontWeight: "600" }}>{fmt}</Text>
               </View>
               <View style={{ flex: 1, height: 8, backgroundColor: theme.neutral800, borderRadius: 4, overflow: "hidden" }}>
                 <View style={{
@@ -252,7 +253,7 @@ export function StatsScreen() {
                   height: 8, backgroundColor: theme.accent, borderRadius: 4,
                 }} />
               </View>
-              <Text style={{ fontSize: 12, color: `${theme.text}55`, width: 20, textAlign: "right" }}>{cnt}</Text>
+              <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, width: 20, textAlign: "right" }}>{cnt}</Text>
             </View>
           ))}
         </View>
