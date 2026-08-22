@@ -17,6 +17,7 @@ import { suggestAvailableUsername } from "../../lib/usernameGenerator";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
 import { Input } from "../ui/Input";
+import { UsernameStatus } from "../ui/UsernameStatus";
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -24,25 +25,6 @@ interface EditProfileModalProps {
   onClose: () => void;
 }
 
-type AvailabilityStatus = ReturnType<typeof useUsernameAvailability>["status"];
-
-/** Inline, debounced feedback under the Username field — replaces the
- * old "type it, hit Save, get a toast back if it was taken" round trip. */
-function UsernameStatus({ status, theme }: { status: AvailabilityStatus; theme: any }) {
-  if (status === "checking") {
-    return <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 4 }}>Checking…</Text>;
-  }
-  if (status === "available") {
-    return <Text style={{ fontSize: 12, color: theme.success ?? "#22C55E", marginTop: 4 }}>Username available</Text>;
-  }
-  if (status === "taken") {
-    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>Username not available</Text>;
-  }
-  if (status === "invalid") {
-    return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>3-30 lowercase letters, digits, or underscores</Text>;
-  }
-  return null;
-}
 
 export function EditProfileModal({ visible, profile, onClose }: EditProfileModalProps) {
   const { theme } = useTheme();
@@ -195,7 +177,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
 
       <Input label="Username" value={username} onChangeText={(t) => { setUsername(t.toLowerCase()); setUsernameError(undefined); }} placeholder="lowercase_letters_digits" autoCapitalize="none" error={usernameError} />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-        <UsernameStatus status={availability.status} theme={theme} />
+        <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
           <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>

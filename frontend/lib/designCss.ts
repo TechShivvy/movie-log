@@ -75,6 +75,7 @@ export const DESIGN_SYSTEM_CSS = `
   --color-accent-900: #2b2741;
 
   --color-error: #EF4444;
+  --color-success: #22C55E;
 
   /* Typeface — swapped by the Settings "Typeface" seg (Cinematic·Sora /
      Inter / System). ThemeContext writes these. */

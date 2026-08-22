@@ -23,14 +23,7 @@ import { suggestAvailableUsername } from "../lib/usernameGenerator";
 import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
 import { Input } from "../components/ui/Input";
-
-function UsernameStatus({ status, theme }: { status: string; theme: any }) {
-  if (status === "checking") return <Text style={{ fontSize: 12, color: `${theme.text}66`, marginTop: 4 }}>Checking…</Text>;
-  if (status === "available") return <Text style={{ fontSize: 12, color: "#22C55E", marginTop: 4 }}>Username available</Text>;
-  if (status === "taken") return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>Username not available</Text>;
-  if (status === "invalid") return <Text style={{ fontSize: 12, color: theme.error, marginTop: 4 }}>3-30 lowercase letters, digits, or underscores</Text>;
-  return null;
-}
+import { UsernameStatus } from "../components/ui/UsernameStatus";
 
 export function OnboardingScreen() {
   const { theme } = useTheme();
@@ -186,7 +179,7 @@ export function OnboardingScreen() {
         autoFocus
       />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-        <UsernameStatus status={availability.status} theme={theme} />
+        <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
           <Text style={{ fontSize: 12, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>

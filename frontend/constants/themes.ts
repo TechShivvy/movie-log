@@ -32,6 +32,13 @@ export interface Theme {
   surfaceHigh: string;
   /** fixed error red */
   error: string;
+  /** fixed success green — same "fixed, not derived" reasoning as error:
+   * a semantic status color, not a brand color, so it doesn't vary by
+   * theme. Was previously referenced as `theme.success` in two places
+   * that both compiled fine but always evaluated to undefined (no such
+   * field existed) and silently fell back to a hardcoded literal either
+   * way — same value, now a real token instead of dead optional-chaining. */
+  success: string;
   /** Text/icon color for content sitting directly on a solid theme.accent
    * fill (a primary button, a filled badge) — computed per-theme (see
    * contrastingOnColor below), not a blanket white. Every accent color
@@ -129,6 +136,7 @@ function buildTheme(raw: RawTheme): Theme {
     divider:     rgba(raw.text, 0.15),
     surfaceHigh: blend(raw.text,   0.06, raw.surface),
     error:       "#EF4444",
+    success:     "#22C55E",
     onAccent:    contrastingOnColor(raw.accent),
   };
 }
