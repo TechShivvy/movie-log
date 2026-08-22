@@ -20,8 +20,9 @@
  * returned.
  */
 import React from "react";
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { Button } from "./Button";
 
 interface ConfirmDialogProps {
   visible: boolean;
@@ -70,19 +71,15 @@ export function ConfirmDialog({
           {message && <div className="dialog-body">{message}</div>}
           <div className="dialog-actions">
             {!hideCancel && (
-              <button className="btn btn-secondary" onClick={onCancel} disabled={loading}>
-                {cancelLabel}
-              </button>
+              <Button variant="secondary" label={cancelLabel} onPress={onCancel} disabled={loading} />
             )}
-            <button
-              className="btn btn-primary"
-              style={{ color: confirmColor, borderColor: confirmColor } as React.CSSProperties}
-              onClick={onConfirm}
+            <Button
+              color={confirmColor}
+              label={loading ? "Working…" : confirmLabel}
+              loading={loading}
+              onPress={onConfirm}
               disabled={loading}
-            >
-              {loading && <span className="spin">◌</span>}
-              {loading ? "Working…" : confirmLabel}
-            </button>
+            />
           </div>
         </div>
       </div>
@@ -100,24 +97,15 @@ export function ConfirmDialog({
           {message && <Text style={[styles.message, { color: `${theme.text}99` }]}>{message}</Text>}
           <View style={styles.actions}>
             {!hideCancel && (
-              <Pressable
-                onPress={onCancel}
-                disabled={loading}
-                style={[styles.btn, { borderColor: theme.divider }]}
-              >
-                <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>{cancelLabel}</Text>
-              </Pressable>
+              <Button variant="secondary" label={cancelLabel} onPress={onCancel} disabled={loading} />
             )}
-            <Pressable
+            <Button
+              color={confirmColor}
+              label={loading ? "Working…" : confirmLabel}
+              loading={loading}
               onPress={onConfirm}
               disabled={loading}
-              style={[styles.btn, { borderColor: confirmColor, flexDirection: "row", alignItems: "center", gap: 6 }]}
-            >
-              {loading && <ActivityIndicator size="small" color={confirmColor} />}
-              <Text style={{ color: confirmColor, fontSize: 14, fontWeight: "600" }}>
-                {loading ? "Working…" : confirmLabel}
-              </Text>
-            </Pressable>
+            />
           </View>
         </Pressable>
       </Pressable>
@@ -137,5 +125,4 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: "700" },
   message: { fontSize: 14, lineHeight: 20 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 6 },
-  btn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, borderWidth: 1 },
 });

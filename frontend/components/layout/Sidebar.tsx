@@ -179,7 +179,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   <span
                     className="lbl"
                     style={{
-                      background: theme.accent, color: theme.bg, fontSize: 10,
+                      background: theme.accent, color: theme.onAccent, fontSize: 10,
                       borderRadius: 999, padding: "1px 6px",
                     } as React.CSSProperties}
                   >
@@ -316,7 +316,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                 )}
                 {!collapsed && n.badge ? (
                   <View style={{ backgroundColor: theme.accent, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <Text style={{ fontSize: 10, color: theme.bg }}>{n.badge}</Text>
+                    <Text style={{ fontSize: 10, color: theme.onAccent }}>{n.badge}</Text>
                   </View>
                 ) : null}
               </Pressable>

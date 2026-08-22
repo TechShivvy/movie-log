@@ -28,6 +28,16 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   block?: boolean;
+  /**
+   * Overrides the variant's own color/border (both platforms) — for the
+   * one real case that needs a color the variant system doesn't have,
+   * not a general escape hatch: a destructive confirm button
+   * (ConfirmDialog) needs theme.error instead of theme.accent, and nothing
+   * else in this app currently needs a fourth color. Composition over
+   * a new "destructive" variant, since it's exactly one property that
+   * varies, not a whole new visual shape.
+   */
+  color?: string;
   style?: ViewStyle | any;
   /**
    * Full content override. Unlike `icon`+`label`, children fully replace
@@ -45,7 +55,7 @@ interface ButtonProps {
 }
 
 export function Button({
-  onPress, label, icon, variant = "primary", loading, disabled, block, style, children, type = "button",
+  onPress, label, icon, variant = "primary", loading, disabled, block, color, style, children, type = "button",
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDisabled = disabled || loading;
@@ -60,11 +70,11 @@ export function Button({
         className={classes}
         onClick={onPress}
         disabled={isDisabled}
-        style={style as React.CSSProperties}
+        style={{ ...(color ? { color, borderColor: color } : {}), ...(style as object) } as React.CSSProperties}
       >
         {children ?? (
           <>
-            {shownIcon ? <Icon name={shownIcon} size={16} /> : null}
+            {shownIcon ? <Icon name={shownIcon} size={16} color={color} /> : null}
             {label ? <span>{label}</span> : null}
           </>
         )}
@@ -73,10 +83,10 @@ export function Button({
   }
 
   // ── Native ─────────────────────────────────────────────────────────────────
-  const nativeColor = variant === "primary" || variant === "ghost" ? theme.accent : theme.text;
-  const nativeBorder = variant === "primary"   ? theme.accent
+  const nativeColor = color ?? (variant === "primary" || variant === "ghost" ? theme.accent : theme.text);
+  const nativeBorder = color ?? (variant === "primary"   ? theme.accent
                      : variant === "secondary" ? theme.divider
-                     : "transparent";
+                     : "transparent");
 
   return (
     <Pressable

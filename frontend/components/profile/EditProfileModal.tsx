@@ -16,6 +16,7 @@ import { avatarUrl, bannerUrl, pickAndUploadImage } from "../../lib/storage";
 import { suggestAvailableUsername } from "../../lib/usernameGenerator";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
+import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { UsernameStatus } from "../ui/UsernameStatus";
 
@@ -198,11 +199,13 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
           <div className="dialog-title">Edit profile</div>
           <div style={{ marginTop: 12 } as React.CSSProperties}>{body}</div>
           <div className="dialog-actions" style={{ marginTop: 16 } as React.CSSProperties}>
-            <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking}>
-              {saving && <span className="spin">◌</span>}
-              {saving ? "Saving…" : "Save"}
-            </button>
+            <Button variant="secondary" label="Cancel" onPress={onClose} disabled={saving} />
+            <Button
+              label={saving ? "Saving…" : "Save"}
+              loading={saving}
+              onPress={handleSave}
+              disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking}
+            />
           </div>
         </div>
       </div>
@@ -219,13 +222,13 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
             {body}
           </ScrollView>
           <View style={styles.actions}>
-            <Pressable onPress={onClose} disabled={saving} style={[styles.btn, { borderColor: theme.divider }]}>
-              <Text style={{ color: theme.text, fontSize: 14, fontWeight: "600" }}>Cancel</Text>
-            </Pressable>
-            <Pressable onPress={handleSave} disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking} style={[styles.btn, { borderColor: theme.accent, flexDirection: "row", gap: 6, alignItems: "center" }]}>
-              {saving && <ActivityIndicator size="small" color={theme.accent} />}
-              <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "600" }}>{saving ? "Saving…" : "Save"}</Text>
-            </Pressable>
+            <Button variant="secondary" label="Cancel" onPress={onClose} disabled={saving} />
+            <Button
+              label={saving ? "Saving…" : "Save"}
+              loading={saving}
+              onPress={handleSave}
+              disabled={saving || uploadingAvatar || uploadingBanner || usernameBlocking}
+            />
           </View>
         </Pressable>
       </Pressable>
@@ -238,5 +241,4 @@ const styles = StyleSheet.create({
   sheet: { maxHeight: "85%", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   title: { fontSize: 18, fontWeight: "700" },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 16 },
-  btn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, borderWidth: 1 },
 });
