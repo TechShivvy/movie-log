@@ -48,6 +48,7 @@ import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useMovie } from "../hooks/useSearch";
 import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
+import { Tag } from "../components/ui/Tag";
 import { Poster, type Poster as PosterType } from "../components/ui/Poster";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import { fontFamily } from "../constants/fonts";
@@ -520,9 +521,7 @@ export function LibraryScreen() {
                   footer (which never repeated date either). */}
               {log.format ? (
                 <View style={{ flexDirection: "row", marginTop: 7 }}>
-                  <View style={{ backgroundColor: theme.neutral800, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 10, color: theme.neutral100 }}>{log.format}</Text>
-                  </View>
+                  <Tag variant="neutral" size="sm" label={log.format} />
                 </View>
               ) : null}
             </Pressable>
@@ -557,9 +556,7 @@ export function LibraryScreen() {
                 </View>
                 {log.format ? (
                   <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
-                    <View style={{ borderWidth: 1, borderColor: theme.accent, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 1 }}>
-                      <Text style={{ fontSize: 10, color: theme.accent }}>{log.format}</Text>
-                    </View>
+                    <Tag variant="outline" size="sm" label={log.format} />
                   </View>
                 ) : null}
               </View>

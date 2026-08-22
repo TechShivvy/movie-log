@@ -49,6 +49,7 @@ import { fontFamily } from "../constants/fonts";
 import { useMovieLog, useArchiveLog, useDeleteLog } from "../hooks/useMovieLogs";
 import { useLikeLog, useComments, useAddComment, useLikeComment, useDeleteComment, useEditComment, useLogLikes, useCommentLikes } from "../hooks/useSocial";
 import { LikesListModal } from "../components/social/LikesListModal";
+import { Tag } from "../components/ui/Tag";
 import { useAuth } from "../hooks/useAuth";
 import { useVenueRating } from "../hooks/useVenueRating";
 import { useMovie } from "../hooks/useSearch";
@@ -675,18 +676,13 @@ export function LogDetailScreen() {
                 <span className="tag" style={{ backgroundColor: vcol + "22", color: vcol } as React.CSSProperties}>
                   {log.visibility.replace("_", " ")}
                 </span>
-                {log.is_fdfs && <span className="tag tag-accent">FDFS 🎟️</span>}
+                {log.is_fdfs && <Tag variant="accent" label="FDFS 🎟️" />}
                 {/* is_fdfs implies is_first_day server-side (schemas/movie_logs.py's
                     _fdfs_implies_first_day) — showing both tags when both are
                     true would just repeat "opening day" twice. */}
-                {log.is_first_day && !log.is_fdfs && <span className="tag tag-accent">Opening Day</span>}
-                {log.favorite_position != null && (
-                  <span className="tag" style={{ backgroundColor: theme.accent800, color: theme.accent100, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
-                    <Star size={11} weight="fill" color={theme.accent100} />
-                    Favorite
-                  </span>
-                )}
-                {log.format && <span className="tag tag-neutral">{log.format}</span>}
+                {log.is_first_day && !log.is_fdfs && <Tag variant="accent" label="Opening Day" />}
+                {log.favorite_position != null && <Tag variant="accent" icon="star" label="Favorite" />}
+                {log.format && <Tag variant="neutral" label={log.format} />}
                 {(log.extraction_provider || log.extraction_model) && (
                   <span className="tag" style={{ backgroundColor: theme.surface, color: theme.accent, display: "flex", alignItems: "center", gap: 4 } as React.CSSProperties}>
                     <Robot size={11} color={theme.accent} />
@@ -917,29 +913,12 @@ export function LogDetailScreen() {
               {log.visibility.replace("_", " ")}
             </Text>
           </View>
-          {log.is_fdfs && (
-            <View style={{ backgroundColor: theme.accent800, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-              <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>FDFS 🎟️</Text>
-            </View>
-          )}
+          {log.is_fdfs && <Tag variant="accent" label="FDFS 🎟️" />}
           {/* is_fdfs implies is_first_day server-side — showing both would
               just repeat "opening day" twice. */}
-          {log.is_first_day && !log.is_fdfs && (
-            <View style={{ backgroundColor: theme.accent800, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-              <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>Opening Day</Text>
-            </View>
-          )}
-          {log.favorite_position != null && (
-            <View style={{ backgroundColor: theme.accent800, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-              <Star size={11} weight="fill" color={theme.accent100} />
-              <Text style={{ color: theme.accent100, fontSize: 11, fontWeight: "700" }}>Favorite</Text>
-            </View>
-          )}
-          {log.format && (
-            <View style={{ backgroundColor: theme.neutral800, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-              <Text style={{ color: theme.neutral100, fontSize: 11, fontWeight: "700" }}>{log.format}</Text>
-            </View>
-          )}
+          {log.is_first_day && !log.is_fdfs && <Tag variant="accent" label="Opening Day" />}
+          {log.favorite_position != null && <Tag variant="accent" icon="star" label="Favorite" />}
+          {log.format && <Tag variant="neutral" label={log.format} />}
         </View>
 
         {/* Title — see the web branch's identical comment on movie_id */}
@@ -1076,7 +1055,7 @@ export function LogDetailScreen() {
             onPress={handleSendComment}
             style={{ backgroundColor: theme.accent, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 }}
           >
-            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700" }}>Send</Text>
+            <Text style={{ color: theme.onAccent, fontSize: 14, fontWeight: "700" }}>Send</Text>
           </Pressable>
         </View>
 

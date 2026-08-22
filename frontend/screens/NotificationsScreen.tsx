@@ -199,7 +199,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
             paddingHorizontal: 10,
             paddingVertical: 5,
           }}>
-            <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>Accept</Text>
+            <Text style={{ color: theme.onAccent, fontSize: 12, fontWeight: "600" }}>Accept</Text>
           </Pressable>
           <Pressable style={{
             borderWidth: 1,

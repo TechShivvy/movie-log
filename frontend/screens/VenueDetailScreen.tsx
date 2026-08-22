@@ -5,7 +5,7 @@
  * MovieDetailScreen (see ScopedLogGrid).
  */
 import React, { useState } from "react";
-import { Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MapPin, PencilSimple, Star } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
@@ -18,6 +18,8 @@ import {
 } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useFeed } from "../hooks/useFeed";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
 import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
 import { venueDisplayName, venueMapsUrl, venueMapsEmbedUrl } from "../lib/venue";
@@ -221,16 +223,12 @@ export function VenueDetailScreen() {
             Nickname is an alternate label shown instead of "{theatre.name}" — not a correction, only visible when set.
           </Text>
           <View style={{ gap: 8 }}>
-            <TextInputLike theme={theme} value={nicknameDraft} onChangeText={setNicknameDraft} placeholder="Nickname" />
-            <TextInputLike theme={theme} value={addressDraft} onChangeText={setAddressDraft} placeholder="Alternate address" />
+            <Input value={nicknameDraft} onChangeText={setNicknameDraft} placeholder="Nickname" />
+            <Input value={addressDraft} onChangeText={setAddressDraft} placeholder="Alternate address" />
           </View>
           <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-            <Pressable onPress={saveNickname} style={{ backgroundColor: theme.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 }}>
-              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>Save</Text>
-            </Pressable>
-            <Pressable onPress={() => setEditingNickname(false)} style={{ borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.divider }}>
-              <Text style={{ color: theme.text, fontSize: 13, fontWeight: "700" }}>Cancel</Text>
-            </Pressable>
+            <Button label="Save" onPress={saveNickname} loading={setNickname.isPending} />
+            <Button label="Cancel" variant="secondary" onPress={() => setEditingNickname(false)} />
           </View>
         </View>
       )}
@@ -257,17 +255,3 @@ export function VenueDetailScreen() {
   );
 }
 
-// Minimal themed text input for the native nickname-edit form — not worth
-// pulling in the full Input.tsx component here (that one carries a label/
-// error layout this inline two-field form doesn't need).
-function TextInputLike({ theme, value, onChangeText, placeholder }: { theme: any; value: string; onChangeText: (v: string) => void; placeholder: string }) {
-  return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={`${theme.text}44`}
-      style={{ backgroundColor: theme.bg, borderRadius: 8, borderWidth: 1, borderColor: theme.divider, color: theme.text, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 }}
-    />
-  );
-}

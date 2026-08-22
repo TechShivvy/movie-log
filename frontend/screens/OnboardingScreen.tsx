@@ -241,8 +241,8 @@ export function OnboardingScreen() {
           flexDirection: "row", justifyContent: "center", gap: 8,
         }}
       >
-        {saving && <ActivityIndicator size="small" color="#fff" />}
-        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
+        {saving && <ActivityIndicator size="small" color={theme.onAccent} />}
+        <Text style={{ color: theme.onAccent, fontSize: 15, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
       </Pressable>
       <Pressable onPress={() => signOut()} style={{ alignItems: "center", marginTop: 14, padding: 8 }}>
         <Text style={{ color: `${theme.text}66`, fontSize: 13 }}>Sign out</Text>

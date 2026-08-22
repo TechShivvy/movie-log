@@ -94,12 +94,12 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
           }}
           style={
             error
-              ? ({ borderColor: "#EF4444" } as React.CSSProperties)
+              ? ({ borderColor: theme.error } as React.CSSProperties)
               : {}
           }
         />
         {error && (
-          <span style={{ fontSize: 12, color: "#EF4444", marginTop: 4, display: "block" } as React.CSSProperties}>
+          <span style={{ fontSize: 12, color: theme.error, marginTop: 4, display: "block" } as React.CSSProperties}>
             {error}
           </span>
         )}
@@ -141,7 +141,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
         {...restNoFocus}
       />
       {error ? (
-        <Text style={styles.error}>{error}</Text>
+        <Text style={[styles.error, { color: theme.error }]}>{error}</Text>
       ) : null}
     </View>
   );
@@ -161,5 +161,5 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   multiline: { minHeight: 90, textAlignVertical: "top" },
-  error:     { fontSize: 12, color: "#EF4444", marginTop: 4 },
+  error:     { fontSize: 12, marginTop: 4 },
 });

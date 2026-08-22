@@ -24,7 +24,7 @@ import {
   MapPin, MapTrifold, Monitor, Note, Palette, PaperPlaneTilt, PencilSimple,
   Plus, PlusCircle, Popcorn, ProjectorScreen, Robot, Rows, Rss, ShareNetwork,
   SidebarSimple, SignIn, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
-  Ticket, Timer, Trash, Upload, UploadSimple, User, UserPlus, Users, Warning,
+  Ticket, Timer, Trash, Upload, UploadSimple, User, UserCheck, UserPlus, Users, Warning,
   WarningCircle, WifiHigh, WifiSlash, X,
 } from "phosphor-react-native";
 
@@ -94,6 +94,7 @@ const NATIVE = {
   "upload": Upload,
   "upload-simple": UploadSimple,
   "user": User,
+  "user-check": UserCheck,
   "user-plus": UserPlus,
   "users": Users,
   "warning": Warning,

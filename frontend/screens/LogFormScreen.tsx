@@ -37,6 +37,7 @@ import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../context/ToastContext";
 import { StarRating } from "../components/ui/StarRating";
+import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { AITicketModal } from "../modals/AITicketModal";
@@ -1323,8 +1324,8 @@ export function LogFormScreen() {
           disabled={isPending}
           style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}
         >
-          {isPending && <ActivityIndicator color="#fff" size="small" />}
-          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
+          {isPending && <ActivityIndicator color={theme.onAccent} size="small" />}
+          <Text style={{ color: theme.onAccent, fontSize: 14, fontWeight: "600" }}>
             {isPending ? "Saving…" : "Save"}
           </Text>
         </Pressable>
@@ -1545,18 +1546,12 @@ export function LogFormScreen() {
                   <Input value={manualCity} onChangeText={setManualCity} placeholder="City" />
                 </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
+                  <Button
+                    label={createTheatreManual.isPending ? "Adding…" : "Add"}
                     onPress={handleAddManually}
                     disabled={createTheatreManual.isPending || !manualName.trim() || !manualCity.trim()}
-                    style={{ backgroundColor: theme.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, opacity: (createTheatreManual.isPending || !manualName.trim() || !manualCity.trim()) ? 0.5 : 1 }}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-                      {createTheatreManual.isPending ? "Adding…" : "Add"}
-                    </Text>
-                  </Pressable>
-                  <Pressable onPress={() => setShowManualAdd(false)} style={{ borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.divider }}>
-                    <Text style={{ color: theme.text, fontSize: 13, fontWeight: "700" }}>Cancel</Text>
-                  </Pressable>
+                  />
+                  <Button label="Cancel" variant="secondary" onPress={() => setShowManualAdd(false)} />
                 </View>
               </View>
             ) : (

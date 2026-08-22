@@ -9,12 +9,12 @@ import React, { useState } from "react";
 import { Image, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { UserPlus, UserCheck } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { usePublicProfile, useFollowers, useFollowUser } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
+import { Button } from "../components/ui/Button";
 import { PosterCard } from "../components/ui/PosterCard";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
 import { avatarUrl, bannerUrl } from "../lib/storage";
@@ -107,15 +107,13 @@ export function PublicProfileScreen() {
           </div>
         </div>
         {!isOwnProfile && (
-          <button className={isFollowing ? "btn btn-secondary" : "btn btn-primary"} onClick={toggleFollow} style={{ marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
-            {/* Explicit color, matching each button's own text color
-                (.btn-primary's accent / .btn-secondary's default text) —
-                left unset here it fell back to phosphor's own hardcoded
-                black default (see app/_layout.tsx's IconContext.Provider
-                comment), unreadable against a dark fill either way. */}
-            {isFollowing ? <UserCheck size={14} color={theme.text} /> : <UserPlus size={14} color={theme.accent} />}
-            {isFollowing ? "Following" : "Follow"}
-          </button>
+          <Button
+            variant={isFollowing ? "secondary" : "primary"}
+            icon={isFollowing ? "user-check" : "user-plus"}
+            label={isFollowing ? "Following" : "Follow"}
+            onPress={toggleFollow}
+            style={{ marginBottom: 4, flexShrink: 0 } as React.CSSProperties}
+          />
         )}
       </div>
       {profile.bio && (
@@ -188,20 +186,12 @@ export function PublicProfileScreen() {
             <Avatar name={displayName} uri={avatar} size="xl" />
           </Pressable>
           {!isOwnProfile && (
-            <Pressable
+            <Button
+              variant={isFollowing ? "secondary" : "primary"}
+              icon={isFollowing ? "user-check" : "user-plus"}
+              label={isFollowing ? "Following" : "Follow"}
               onPress={toggleFollow}
-              style={{
-                flexDirection: "row", alignItems: "center", gap: 6,
-                backgroundColor: isFollowing ? theme.surface : theme.accent,
-                borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14,
-                borderWidth: isFollowing ? 1 : 0, borderColor: theme.divider,
-              }}
-            >
-              {isFollowing ? <UserCheck size={14} color={theme.text} /> : <UserPlus size={14} color="#fff" />}
-              <Text style={{ color: isFollowing ? theme.text : "#fff", fontSize: 13, fontWeight: "700" }}>
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </Pressable>
+            />
           )}
         </View>
         {/* numberOfLines — same fix as ProfileScreen.tsx's own hero: an

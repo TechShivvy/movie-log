@@ -64,6 +64,7 @@ function injectWebCSSVars(theme: Theme, fontCfg: FontConfig) {
   root.setProperty("--color-divider",      theme.divider);
   root.setProperty("--color-surface-high", theme.surfaceHigh);
   root.setProperty("--color-error",        theme.error);
+  root.setProperty("--color-on-accent",    theme.onAccent);
 
   // ── Shadow tokens ──────────────────────────────────────────────────────
   const t = theme.text;

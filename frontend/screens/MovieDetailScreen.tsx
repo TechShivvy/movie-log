@@ -6,15 +6,15 @@
  * reviews from anyone.
  */
 import React from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Platform, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Plus } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useMovie, useMovieStats, useMovieReviews, useMovieNote, useSetMovieNote } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
 import { useFeed } from "../hooks/useFeed";
+import { Button } from "../components/ui/Button";
 import { Poster } from "../components/ui/Poster";
 import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
@@ -89,10 +89,7 @@ export function MovieDetailScreen() {
                 </span>
               ) : null}
             </div>
-            <button className="btn btn-primary" style={{ width: "fit-content" } as React.CSSProperties} onClick={logThisMovie}>
-              <Plus size={15} weight="bold" />
-              Log this movie
-            </button>
+            <Button label="Log this movie" icon="plus" onPress={logThisMovie} style={{ width: "fit-content" } as React.CSSProperties} />
           </div>
         </div>
 
@@ -120,13 +117,7 @@ export function MovieDetailScreen() {
               </Text>
             ) : null}
           </View>
-          <Pressable
-            onPress={logThisMovie}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.accent, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14, alignSelf: "flex-start" }}
-          >
-            <Plus size={15} weight="bold" color="#fff" />
-            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>Log this movie</Text>
-          </Pressable>
+          <Button label="Log this movie" icon="plus" onPress={logThisMovie} style={{ alignSelf: "flex-start" }} />
         </View>
       </View>
 
