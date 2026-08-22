@@ -16,11 +16,21 @@ export const DESIGN_SYSTEM_CSS = `
 /* Webfonts + icons. MUST be first — CSS requires @import before other rules.
    Matches the design file's own <link>s exactly. Without the font import every
    glyph falls back to system-ui, which also shifts every line-height. Without
-   the Phosphor web font the <i class="ph ph-*"> icons render as nothing.      */
+   the Phosphor web font the <i class="ph ph-*"> icons render as nothing.
+
+   Phosphor is self-hosted from public/phosphor/ (woff2 only, extracted from
+   @phosphor-icons/web@2.1.1) instead of unpkg — it was live, unauthenticated
+   third-party code running in the app's own origin on every load, and @import
+   can't carry integrity/SRI so there was no way to pin it. Google Fonts stays
+   on the CDN: self-hosting four variable-weight families is a real visual-
+   regression risk across every theme for one pass, and Google's CSS response
+   varies by user-agent so SRI was never viable there either way — it's kept
+   inside the CSP's explicit allow-list below instead (the same tradeoff nearly
+   every production CSP makes for Google Fonts). */
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-@import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css');
-@import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css');
-@import url('https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css');
+@import url('/phosphor/regular.css');
+@import url('/phosphor/fill.css');
+@import url('/phosphor/bold.css');
 
 /* ══════════════════════════════════════════════════════════════════════════
    1. Nocturne design system — ported from the nocturne folder's styles.css

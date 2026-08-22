@@ -20,6 +20,38 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#e50914" />
 
+    <!-- Content-Security-Policy — no policy existed before this. style-src
+         needs 'unsafe-inline': react-native-web renders this app's own
+         style={{...}} JSX as literal inline style attributes throughout,
+         and injects its own atomic classes via a runtime <style> sheet —
+         both are governed by style-src, and there's no practical way to
+         nonce/hash either one without a much larger change to how this app
+         is built. script-src has no such exception (there is no inline
+         script left — see sw-register.js below), so the main XSS vector
+         this actually blocks is arbitrary script injection, not styling.
+         connect-src covers Supabase (any project), this app's own Render
+         deployments, and localhost for local dev (the same index.html
+         serves both). img-src covers TMDB posters and Supabase Storage.
+         frame-src is scoped to just the Google Maps embed. -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob: https://image.tmdb.org https://*.supabase.co;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*;
+      frame-src https://www.google.com;
+      object-src 'none';
+      base-uri 'self';
+    " />
+    <!-- frame-ancestors is a real, valuable header (stops this app being
+         embedded in someone else's page) but the CSP spec says browsers
+         must ignore it when delivered via <meta> — it only works as an
+         actual HTTP response header, which is a hosting/serving-layer
+         config (e.g. Render's static-site headers), not something
+         index.html itself can set. Left out here rather than shipping a
+         directive that silently does nothing. -->
+
     <!-- iOS Safari discovers PWAs through these specific tags, not the
          manifest the way Chrome/Edge do — manifest icons are ignored for
          the actual home-screen glyph; apple-touch-icon is the only thing
@@ -33,16 +65,9 @@
     <!-- Feature-detected and deferred to window.load so it never competes
          with the app's own initial bundle fetch/parse. See public/sw.js for
          why this is a small hand-written worker rather than a Workbox
-         build step. -->
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/sw.js").catch(function (err) {
-            console.error("Service worker registration failed:", err);
-          });
-        });
-      }
-    </script>
+         build step. Moved out of an inline <script> so the CSP above can
+         use a strict script-src with no 'unsafe-inline'. -->
+    <script src="/sw-register.js" defer></script>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
       /* These styles make the body full-height */
