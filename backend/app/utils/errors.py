@@ -109,11 +109,18 @@ async def validation_exception_handler(
             return str(obj)
         return obj
 
+    # Pydantic v2's error dicts echo the offending input value verbatim
+    # under 'input' — for a large rejected field (bounded to 8MB by
+    # MaxBodySizeMiddleware, but still) that means the whole thing gets
+    # reflected back in the 422 response. loc/msg/type carry everything a
+    # client needs to fix its request; 'input' isn't worth echoing back.
+    errors = [
+        {k: v for k, v in error.items() if k != 'input'} for error in exc.errors()
+    ]
+
     return JSONResponse(
         status_code=422,
-        content=_body(
-            'VALIDATION_ERROR', 'Request validation failed', _safe(exc.errors())
-        ),
+        content=_body('VALIDATION_ERROR', 'Request validation failed', _safe(errors)),
     )
 
 
