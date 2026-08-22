@@ -134,7 +134,7 @@ export function SettingsScreen() {
 
   // ── Mobile layout ──────────────────────────────────────────────────────────
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ padding: 16, paddingBottom: 60 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ padding: 16, paddingBottom: 60 }} contentInsetAdjustmentBehavior="automatic">
       <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 20 }}>Settings</Text>
 
       {/* Section selector */}

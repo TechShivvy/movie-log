@@ -371,6 +371,7 @@ export function ProfileScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: "transparent" }}
       contentContainerStyle={{ paddingBottom: 100 }}
+      contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
       {/* Hero — bottom fade into theme.bg so the flat banner rectangle

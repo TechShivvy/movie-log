@@ -65,7 +65,7 @@ export function ConfirmDialog({
       // firing-and-navigating: the user should never lose sight of a
       // destructive action before it's actually done).
       <div className="dialog-backdrop" onClick={loading ? undefined : onCancel}>
-        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 340 } as React.CSSProperties}>
+        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 340 } as React.CSSProperties}>
           <div className="dialog-title">{title}</div>
           {message && <div className="dialog-body">{message}</div>}
           <div className="dialog-actions">

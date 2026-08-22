@@ -100,7 +100,7 @@ export function ScreenDetailScreen() {
 
   // ── Native ─────────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
       {theatreName && (
         <Text
           onPress={() => router.push(`/(app)/venue/${id}` as any)}

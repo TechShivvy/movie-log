@@ -188,7 +188,7 @@ export function VenueDetailScreen() {
 
   // ── Native ─────────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
         <Text style={{ fontSize: 22, fontWeight: "700", color: theme.text, flexShrink: 1 }}>{displayName}</Text>
         <StatusBadge status={theatre.status} theme={theme} />

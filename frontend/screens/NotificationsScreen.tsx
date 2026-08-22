@@ -243,7 +243,7 @@ export function NotificationsScreen() {
   }
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
       <Text style={{ fontSize: 24, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Notifications</Text>
       {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
     </ScrollView>

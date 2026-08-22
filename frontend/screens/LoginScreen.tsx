@@ -478,6 +478,7 @@ export function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
             flexGrow: 1,
             paddingTop: 48 + insets.top,

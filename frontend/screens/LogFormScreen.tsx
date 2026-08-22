@@ -1307,6 +1307,7 @@ export function LogFormScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: "transparent" }}
       contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+      contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
     >
       {/* Mobile header */}

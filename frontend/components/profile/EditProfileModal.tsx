@@ -212,7 +212,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
   if (Platform.OS === "web") {
     return (
       <div className="dialog-backdrop" onClick={saving ? undefined : onClose}>
-        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 420, maxHeight: "85vh", overflowY: "auto" } as React.CSSProperties}>
+        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto" } as React.CSSProperties}>
           <div className="dialog-title">Edit profile</div>
           <div style={{ marginTop: 12 } as React.CSSProperties}>{body}</div>
           <div className="dialog-actions" style={{ marginTop: 16 } as React.CSSProperties}>

@@ -401,6 +401,7 @@ export function SearchScreen() {
           ]}
           keyExtractor={(item, i) => `${item.kind}-${i}`}
           contentContainerStyle={{ padding: 16 }}
+          contentInsetAdjustmentBehavior="automatic"
           ListEmptyComponent={
             <Text style={{ color: `${theme.text}44`, fontSize: 14, textAlign: "center", paddingTop: 40 }}>
               No results for "{query}"

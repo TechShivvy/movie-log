@@ -323,6 +323,7 @@ export function FeedScreen() {
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+      contentInsetAdjustmentBehavior="automatic"
       ListHeaderComponent={
         <Text style={{ fontSize: 22, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Feed</Text>
       }

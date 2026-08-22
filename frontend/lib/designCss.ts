@@ -316,7 +316,14 @@ textarea.input { min-height: 90px; resize: vertical; }
   background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 }
 .dialog {
-  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  /* max-height + overflow-y here, not per-caller — AITicketModal's web
+     dialog had neither at all (its native counterpart already caps at
+     maxHeight:"85%" with its own scrolling content), so a tall batch
+     result list rendered with the Apply button permanently off-screen
+     on any viewport shorter than the content. Every .dialog now gets
+     the safety net for free instead of each instance opting in. */
+  width: min(440px, 100%); max-height: 85vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-4); border-radius: var(--radius-lg);
   background: var(--color-surface); box-shadow: var(--shadow-lg);
 }

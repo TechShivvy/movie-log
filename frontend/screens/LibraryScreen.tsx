@@ -388,6 +388,7 @@ export function LibraryScreen() {
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 24 }}
       showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="automatic"
       // Pull-to-refresh — react-native-web renders RefreshControl as a
       // no-op wrapper (there's no native touch/overscroll to hook), so
       // this is free on real native and harmless on mobile web.

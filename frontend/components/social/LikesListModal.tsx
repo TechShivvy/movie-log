@@ -73,7 +73,7 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
   if (Platform.OS === "web") {
     return (
       <div className="dialog-backdrop" onClick={onClose}>
-        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 340 } as React.CSSProperties}>
+        <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 340 } as React.CSSProperties}>
           <div className="dialog-title">Likes</div>
           <div style={{ marginTop: 8 } as React.CSSProperties}>{list}</div>
         </div>

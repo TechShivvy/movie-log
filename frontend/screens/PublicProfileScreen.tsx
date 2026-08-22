@@ -168,6 +168,7 @@ export function PublicProfileScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
       contentContainerStyle={{ paddingBottom: 100 }}
+      contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
       {/* Same multi-stop fade as ProfileScreen.tsx's own hero — a plain

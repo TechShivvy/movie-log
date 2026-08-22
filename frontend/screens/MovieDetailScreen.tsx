@@ -105,7 +105,7 @@ export function MovieDetailScreen() {
 
   // ── Native ─────────────────────────────────────────────────────────────────
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
       <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
         <Poster title={movie.title} imageUrl={posterUrl} style={{ width: 110, height: 165, flexShrink: 0 }} />
         <View style={{ flex: 1, justifyContent: "flex-end" }}>

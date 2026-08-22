@@ -12,8 +12,10 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter, Redirect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useUpdateUsername, useUpdateProfile, useUsernameAvailability, useMyProfile } from "../hooks/useProfile";
 import { avatarUrl, pickAndUploadImage } from "../lib/storage";
@@ -32,6 +34,8 @@ function UsernameStatus({ status, theme }: { status: string; theme: any }) {
 
 export function OnboardingScreen() {
   const { theme } = useTheme();
+  const { isMobile } = useBreakpoint();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, session, signOut } = useAuth();
   const { showToast } = useToast();
@@ -199,10 +203,10 @@ export function OnboardingScreen() {
     </View>
   );
 
-  // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web (desktop/tablet only — narrower falls through to native) ──────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: theme.bg } as React.CSSProperties}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom, background: theme.bg } as React.CSSProperties}>
         <div style={{ width: "100%", maxWidth: 400 } as React.CSSProperties}>
           {content}
           <button className="btn btn-primary btn-block" onClick={handleContinue} disabled={!canContinue || saving} style={{ marginTop: 20 } as React.CSSProperties}>
@@ -217,11 +221,15 @@ export function OnboardingScreen() {
     );
   }
 
-  // ── Native ─────────────────────────────────────────────────────────────────
+  // ── Native (also mobile web — see the isMobile comment above) ───────────────
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }}
+      contentContainerStyle={{
+        flexGrow: 1, justifyContent: "center", padding: 24,
+        paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom,
+      }}
+      contentInsetAdjustmentBehavior="automatic"
     >
       {content}
       <Pressable
