@@ -131,7 +131,7 @@ export function useMovieNote(movieId: string | undefined) {
         const { data } = await api.get<VenueNote>(`/movies/${movieId}/note`);
         return data;
       } catch (err: any) {
-        if (err?.response?.status === 404) return null;
+        if (err?.status === 404) return null;
         throw err;
       }
     },
@@ -310,7 +310,7 @@ export function useTheatreStats(theatreId: string | undefined) {
         const { data } = await api.get<TheatreStats>(`/venues/theatres/${theatreId}/stats`);
         return data;
       } catch (err: any) {
-        if (err?.response?.status === 404) return null;
+        if (err?.status === 404) return null;
         throw err;
       }
     },
@@ -375,7 +375,7 @@ export function useScreenStats(screenId: string | undefined) {
         const { data } = await api.get<ScreenStats>(`/venues/screens/${screenId}/stats`);
         return data;
       } catch (err: any) {
-        if (err?.response?.status === 404) return null;
+        if (err?.status === 404) return null;
         throw err;
       }
     },
@@ -413,7 +413,7 @@ export function useTheatreNote(theatreId: string | undefined) {
         const { data } = await api.get<VenueNote>(`/venues/theatres/${theatreId}/note`);
         return data;
       } catch (err: any) {
-        if (err?.response?.status === 404) return null;
+        if (err?.status === 404) return null;
         throw err;
       }
     },
@@ -455,7 +455,7 @@ export function useScreenNote(screenId: string | undefined) {
         const { data } = await api.get<VenueNote>(`/venues/screens/${screenId}/note`);
         return data;
       } catch (err: any) {
-        if (err?.response?.status === 404) return null;
+        if (err?.status === 404) return null;
         throw err;
       }
     },

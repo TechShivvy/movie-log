@@ -105,7 +105,7 @@ export function OnboardingScreen() {
       }
       router.replace("/(app)");
     } catch (e: any) {
-      const msg = e?.response?.data?.message || "Couldn't save — try again";
+      const msg = e?.message || "Couldn't save — try again";
       showToast(msg, "error");
     }
   }

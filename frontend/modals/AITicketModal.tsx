@@ -96,7 +96,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
       onClose();
     } catch (err: any) {
       // NOT_A_TICKET (422): show in UI, don't close
-      console.warn("Extraction failed:", err?.response?.data?.message ?? err?.message);
+      console.warn("Extraction failed:", err?.message);
     }
   }, [extractSingle, onResult, onClose]);
 
@@ -108,7 +108,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
       onResult(extracted);
       onClose();
     } catch (err: any) {
-      console.warn("Link extraction failed:", err?.response?.data?.message ?? err?.message);
+      console.warn("Link extraction failed:", err?.message);
     }
   }, [linkUrl, extractLink, onResult, onClose]);
 
@@ -219,7 +219,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                 </Pressable>
                 {extractSingle.isError && (
                   <Text style={{ color: "#ff4444", textAlign: "center", fontSize: 13 }}>
-                    {(extractSingle.error as any)?.response?.data?.detail ?? "Extraction failed. Make sure it's a valid ticket photo."}
+                    {(extractSingle.error as any)?.detail ?? (extractSingle.error as any)?.message ?? "Extraction failed. Make sure it's a valid ticket photo."}
                   </Text>
                 )}
               </View>
@@ -350,7 +350,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                 </Pressable>
                 {extractLink.isError && (
                   <Text style={{ color: "#ff4444", textAlign: "center", fontSize: 13 }}>
-                    {(extractLink.error as any)?.response?.data?.detail ?? "Link extraction failed."}
+                    {(extractLink.error as any)?.detail ?? (extractLink.error as any)?.message ?? "Link extraction failed."}
                   </Text>
                 )}
               </View>

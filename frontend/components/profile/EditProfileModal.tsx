@@ -125,11 +125,11 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
       // live check makes this the rare "someone else grabbed it in the
       // last second" race rather than the normal path, but it's still
       // possible.
-      if (e?.response?.data?.code === "USERNAME_TAKEN") {
+      if (e?.code === "USERNAME_TAKEN") {
         setUsernameError("That username is already taken.");
         return;
       }
-      const msg = e?.response?.data?.message || "Couldn't save your profile — try again";
+      const msg = e?.message || "Couldn't save your profile — try again";
       showToast(msg, "error");
     }
   }

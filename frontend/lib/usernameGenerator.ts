@@ -63,7 +63,7 @@ async function isUsernameAvailable(username: string): Promise<boolean> {
     await api.get(`/public/users/${username}`);
     return false; // 200 = someone already has it
   } catch (e: any) {
-    return e?.response?.status === 404; // nobody has it
+    return e?.status === 404; // nobody has it
   }
 }
 

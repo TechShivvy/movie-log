@@ -118,7 +118,7 @@ export function useUsernameAvailability(username: string, currentUsername?: stri
         await api.get(`/public/users/${trimmed}`);
         return false; // 200 = someone already has it
       } catch (e: any) {
-        if (e?.response?.status === 404) return true; // nobody has it
+        if (e?.status === 404) return true; // nobody has it
         throw e;
       }
     },

@@ -523,7 +523,7 @@ export function LogDetailScreen() {
       goBackOrHome();
     } catch (e: any) {
       setConfirmingDelete(false);
-      showToast(e?.response?.data?.detail ?? "Couldn't delete — try again", "error");
+      showToast(e?.detail ?? e?.message ?? "Couldn't delete — try again", "error");
     }
   };
   const handleDelete = () => setConfirmingDelete(true);

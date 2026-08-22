@@ -27,7 +27,7 @@ export function useVenueRating(logId: string): VenueRating | undefined {
         const { data } = await api.get<VenueRating>(`/movie-logs/${logId}/venue-rating`);
         return data;
       } catch (e: any) {
-        if (e?.response?.status === 404) return null;
+        if (e?.status === 404) return null;
         throw e;
       }
     },

@@ -30,6 +30,53 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+/**
+ * Every backend error response (backend/app/utils/errors.py's `_body`
+ * helper — APIError, HTTPException, validation, rate-limit, and the
+ * unhandled-exception fallback all funnel through it) is shaped
+ * `{ code, message, detail? }`. Call sites used to catch a raw AxiosError
+ * and either show `.message` (axios's own generic "Request failed with
+ * status code 4xx", not the backend's real message) or reach into
+ * `err.response.data.message` by hand, inconsistently, call site by call
+ * site. ApiError surfaces the real fields directly and lets error-handling
+ * branch on `code` (a stable machine-readable string, e.g.
+ * "MISSING_MOVIE_TITLE") instead of parsing `message` text.
+ */
+export class ApiError extends Error {
+  readonly status: number | undefined;
+  readonly code: string;
+  readonly detail: unknown;
+
+  constructor(message: string, code: string, status?: number, detail?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+// Normalizes every rejected response onto ApiError. A network failure (no
+// response at all — offline, DNS, CORS) has no backend body to read, so it
+// falls back to a generic code rather than pretending one exists.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error)) {
+      const body = error.response?.data as { code?: string; message?: string; detail?: unknown } | undefined;
+      return Promise.reject(
+        new ApiError(
+          body?.message ?? error.message,
+          body?.code ?? "NETWORK_ERROR",
+          error.response?.status,
+          body?.detail
+        )
+      );
+    }
+    return Promise.reject(error);
+  }
+);
+
 /** Temporarily inject a BYO LLM key header for extraction calls */
 export function withLLMKey(key: string) {
   return { headers: { "X-LLM-API-Key": key } };
