@@ -146,7 +146,13 @@ export function VenueDetailScreen() {
         </div>
       )}
       {embedUrl && (
-        <iframe src={embedUrl} style={{ width: "100%", height: 220, border: "none", borderRadius: 12, marginBottom: 20 } as React.CSSProperties} loading="lazy" />
+        <iframe
+          src={embedUrl}
+          style={{ width: "100%", height: 220, border: "none", borderRadius: 12, marginBottom: 20 } as React.CSSProperties}
+          loading="lazy"
+          sandbox="allow-scripts allow-same-origin"
+          referrerPolicy="no-referrer"
+        />
       )}
     </>
   );

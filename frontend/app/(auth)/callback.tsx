@@ -2,11 +2,17 @@
  * Legacy catch — the canonical OAuth callback is now at /auth/callback
  * (app/auth/callback.tsx). This file handles the /callback path in case
  * any old Supabase redirect URL still points here.
+ *
+ * Delegates to lib/authCallback's completeAuthFromUrl (same as the
+ * canonical route) rather than calling exchangeCodeForSession directly —
+ * a PKCE code is single-use, and hand-rolling the exchange here used to
+ * mean a code delivered to this legacy path could race the canonical
+ * route or LoginScreen's own Linking listener over the same code.
  */
 import { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { completeAuthFromUrl } from "../../lib/authCallback";
 import { useTheme } from "../../hooks/useTheme";
 
 export default function AuthCallbackLegacy() {
@@ -19,23 +25,25 @@ export default function AuthCallbackLegacy() {
   }>();
 
   useEffect(() => {
-    async function handle() {
+    let cancelled = false;
+
+    (async () => {
       if (params.error) {
-        router.replace("/(auth)");
+        if (!cancelled) router.replace("/(auth)");
         return;
       }
       if (params.code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(
-          params.code as string
-        );
-        if (error) {
+        const result = await completeAuthFromUrl(`?code=${params.code}`);
+        if (cancelled) return;
+        if (result.status === "error") {
           router.replace("/(auth)");
           return;
         }
       }
-      router.replace("/(app)");
-    }
-    handle();
+      if (!cancelled) router.replace("/(app)");
+    })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

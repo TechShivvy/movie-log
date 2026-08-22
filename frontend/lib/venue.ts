@@ -32,7 +32,10 @@ export function venueMapsUrl(v: Pick<Theatre, "lat" | "lng" | "place_id">): stri
  * fallback case above. */
 export function venueMapsEmbedUrl(v: Pick<Theatre, "lat" | "lng">): string | undefined {
   if (v.lat == null || v.lng == null) return undefined;
-  return `https://www.google.com/maps?q=${v.lat},${v.lng}&output=embed`;
+  const lat = Number(v.lat);
+  const lng = Number(v.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return undefined;
+  return `https://www.google.com/maps?q=${lat},${lng}&output=embed`;
 }
 
 /**
