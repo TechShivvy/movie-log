@@ -582,8 +582,11 @@ export function LogDetailScreen() {
     />
   );
 
-  // ── Web layout ─────────────────────────────────────────────────────────────
-  if (Platform.OS === "web") {
+  // ── Web layout (desktop/tablet only — phone width falls through to the
+  // dedicated "Mobile layout" branch below; the isMobile checks inside
+  // this branch are for the tablet-width poster/content reflow, not for
+  // excluding phone width entirely) ───────────────────────────────────────
+  if (Platform.OS === "web" && !isMobile) {
     return (
       /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
          same shrink-wrap-instead-of-filling bug as every other screen

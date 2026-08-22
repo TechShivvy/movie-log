@@ -243,7 +243,16 @@ textarea.input { min-height: 90px; resize: vertical; }
   box-shadow: inset 0 0 0 4px var(--color-bg);
 }
 .seg {
-  display: inline-flex; overflow: hidden;
+  /* width:fit-content, not just display:inline-flex — react-native-web's
+     own reset stylesheet loads after this one and forces display:flex
+     (specificity ties go to source order) on every element it touches,
+     which turns inline-flex's natural shrink-to-fit sizing into a
+     block-level stretch-to-fill-parent. That left a big empty strip
+     after the last segment inside the still-full-width bordered box —
+     looked like the last option "extending to the right edge" on any
+     narrow (mobile-width) screen. width:fit-content pins the box to its
+     content regardless of which display value wins the cascade. */
+  display: inline-flex; width: fit-content; overflow: hidden;
   border: 1.5px solid var(--color-divider); border-radius: var(--radius-md);
 }
 .seg-opt {
