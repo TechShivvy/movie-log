@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
+import { patchLogInEveryCache } from "./useMovieLogs";
 import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse } from "../types";
 
 // ─── Public profile ─────────────────────────────────────────────────────────
@@ -52,43 +53,10 @@ export function useFollowing(username: string | undefined) {
   });
 }
 
-/**
- * A liked/logged-in-cache MovieLog can be sitting in any number of
- * differently-shaped query caches at once — its own detail query, the
- * caller's own filtered lists, the follow feed, a movie's/theatre's/
- * screen's public reviews — and none of those know about each other.
- * Rather than hand-enumerate every prefix (the exact bug this replaces:
- * the old code only ever invalidated ["movie-logs"], which doesn't even
- * prefix-match ["feed",...], so liking from the feed never updated
- * anything), this walks every currently-cached query and patches this
- * log wherever it's actually sitting — single-object caches (the detail
- * query) and array caches (every list/feed/reviews shape) alike. The
- * `"like_count" in` shape check is what keeps this from touching an
- * unrelated cache entry that happens to share an `id` field (a Theatre,
- * a Comment, ...). Returns a snapshot for onError to roll back to.
- */
-function patchLogInEveryCache(
-  qc: QueryClient,
-  logId: string,
-  patch: (log: MovieLog) => MovieLog
-): Array<{ queryKey: QueryKey; data: unknown }> {
-  const snapshot: Array<{ queryKey: QueryKey; data: unknown }> = [];
-  for (const query of qc.getQueryCache().getAll()) {
-    const data = query.state.data as unknown;
-    if (Array.isArray(data)) {
-      const idx = data.findIndex((item) => item && typeof item === "object" && (item as any).id === logId && "like_count" in item);
-      if (idx === -1) continue;
-      snapshot.push({ queryKey: query.queryKey, data });
-      const next = data.slice();
-      next[idx] = patch(next[idx] as MovieLog);
-      qc.setQueryData(query.queryKey, next);
-    } else if (data && typeof data === "object" && (data as any).id === logId && "like_count" in data) {
-      snapshot.push({ queryKey: query.queryKey, data });
-      qc.setQueryData(query.queryKey, patch(data as MovieLog));
-    }
-  }
-  return snapshot;
-}
+// patchLogInEveryCache moved to hooks/useMovieLogs.ts — it's general-purpose
+// (any field patch, not just likes), and useUpdateLog/useArchiveLog there
+// now use it too for real onMutate-based optimistic updates. Re-exported
+// from there rather than duplicated here.
 
 // ─── Comments ────────────────────────────────────────────────────────────────
 //

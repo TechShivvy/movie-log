@@ -141,6 +141,7 @@ export function useMovieNote(movieId: string | undefined) {
 
 export function useSetMovieNote(movieId: string | undefined) {
   const qc = useQueryClient();
+  const key = ["movies", movieId, "note"];
   return useMutation({
     mutationFn: async (note: string) => {
       const trimmed = note.trim();
@@ -151,7 +152,18 @@ export function useSetMovieNote(movieId: string | undefined) {
       const { data } = await api.put<VenueNote>(`/movies/${movieId}/note`, { note: trimmed });
       return data;
     },
-    onSuccess: (data) => qc.setQueryData(["movies", movieId, "note"], data),
+    // A note save should feel instant, not wait on a round-trip before the
+    // textarea's own "saved" state reflects it — onMutate writes the
+    // trimmed value straight into the cache; onSuccess still overwrites
+    // with the server's real row (id/timestamps) once it lands.
+    onMutate: async (note) => {
+      const previous = qc.getQueryData<VenueNote | null>(key);
+      const trimmed = note.trim();
+      qc.setQueryData<VenueNote | null>(key, () => (trimmed ? { ...(previous ?? ({} as VenueNote)), note: trimmed } : null));
+      return { previous };
+    },
+    onError: (_err, _note, context) => qc.setQueryData(key, context?.previous),
+    onSuccess: (data) => qc.setQueryData(key, data),
   });
 }
 
@@ -411,6 +423,7 @@ export function useTheatreNote(theatreId: string | undefined) {
 
 export function useSetTheatreNote(theatreId: string | undefined) {
   const qc = useQueryClient();
+  const key = ["venues", "theatres", theatreId, "note"];
   return useMutation({
     mutationFn: async (note: string) => {
       const trimmed = note.trim();
@@ -421,7 +434,15 @@ export function useSetTheatreNote(theatreId: string | undefined) {
       const { data } = await api.put<VenueNote>(`/venues/theatres/${theatreId}/note`, { note: trimmed });
       return data;
     },
-    onSuccess: (data) => qc.setQueryData(["venues", "theatres", theatreId, "note"], data),
+    // Same instant-feel optimism as useSetMovieNote above.
+    onMutate: async (note) => {
+      const previous = qc.getQueryData<VenueNote | null>(key);
+      const trimmed = note.trim();
+      qc.setQueryData<VenueNote | null>(key, () => (trimmed ? { ...(previous ?? ({} as VenueNote)), note: trimmed } : null));
+      return { previous };
+    },
+    onError: (_err, _note, context) => qc.setQueryData(key, context?.previous),
+    onSuccess: (data) => qc.setQueryData(key, data),
   });
 }
 
@@ -444,6 +465,7 @@ export function useScreenNote(screenId: string | undefined) {
 
 export function useSetScreenNote(screenId: string | undefined) {
   const qc = useQueryClient();
+  const key = ["venues", "screens", screenId, "note"];
   return useMutation({
     mutationFn: async (note: string) => {
       const trimmed = note.trim();
@@ -454,6 +476,14 @@ export function useSetScreenNote(screenId: string | undefined) {
       const { data } = await api.put<VenueNote>(`/venues/screens/${screenId}/note`, { note: trimmed });
       return data;
     },
-    onSuccess: (data) => qc.setQueryData(["venues", "screens", screenId, "note"], data),
+    // Same instant-feel optimism as useSetMovieNote above.
+    onMutate: async (note) => {
+      const previous = qc.getQueryData<VenueNote | null>(key);
+      const trimmed = note.trim();
+      qc.setQueryData<VenueNote | null>(key, () => (trimmed ? { ...(previous ?? ({} as VenueNote)), note: trimmed } : null));
+      return { previous };
+    },
+    onError: (_err, _note, context) => qc.setQueryData(key, context?.previous),
+    onSuccess: (data) => qc.setQueryData(key, data),
   });
 }

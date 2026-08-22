@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { MOCK_LOGS } from "../lib/mockData";
 import type { MovieLog, MovieLogInput } from "../types";
@@ -9,6 +9,49 @@ export const logKeys = {
   list: (params?: object) => [...logKeys.all, "list", params] as const,
   detail: (id: string) => [...logKeys.all, "detail", id] as const,
 };
+
+/**
+ * A MovieLog can be sitting in any number of differently-shaped query
+ * caches at once — its own detail query, a filtered list, the follow
+ * feed, a movie's/theatre's/screen's public reviews — and none of those
+ * know about each other. Rather than hand-enumerate every prefix (the
+ * exact bug this originally replaced in useLikeLog: invalidating just
+ * ["movie-logs"] doesn't prefix-match ["feed",...], so liking from the
+ * feed never updated anything), this walks every currently-cached query
+ * and patches this log wherever it's actually sitting — single-object
+ * caches (the detail query) and array caches (every list/feed/reviews
+ * shape) alike. The `"like_count" in` check is a MovieLog shape guard
+ * (every real MovieLog has it), not a likes-specific one — this is
+ * reused by useUpdateLog/useArchiveLog below for real onMutate-based
+ * optimism on any field, and by useSocial.ts's useLikeLog/useLikeComment.
+ * Returns a snapshot for onError to roll back to.
+ */
+export function patchLogInEveryCache(
+  qc: QueryClient,
+  logId: string,
+  patch: (log: MovieLog) => MovieLog
+): Array<{ queryKey: QueryKey; data: unknown }> {
+  const snapshot: Array<{ queryKey: QueryKey; data: unknown }> = [];
+  for (const query of qc.getQueryCache().getAll()) {
+    const data = query.state.data as unknown;
+    if (Array.isArray(data)) {
+      const idx = data.findIndex((item) => item && typeof item === "object" && (item as any).id === logId && "like_count" in item);
+      if (idx === -1) continue;
+      snapshot.push({ queryKey: query.queryKey, data });
+      const next = data.slice();
+      next[idx] = patch(next[idx] as MovieLog);
+      qc.setQueryData(query.queryKey, next);
+    } else if (data && typeof data === "object" && (data as any).id === logId && "like_count" in data) {
+      snapshot.push({ queryKey: query.queryKey, data });
+      qc.setQueryData(query.queryKey, patch(data as MovieLog));
+    }
+  }
+  return snapshot;
+}
+
+function restoreLogSnapshot(qc: QueryClient, snapshot?: Array<{ queryKey: QueryKey; data: unknown }>) {
+  snapshot?.forEach(({ queryKey, data }) => qc.setQueryData(queryKey, data));
+}
 
 // ─── Fetch all logs ───────────────────────────────────────────────────────────
 export function useMovieLogs(params?: { archived?: boolean; visibility?: string; movieId?: string; theatreId?: string; screenId?: string }) {
@@ -112,6 +155,20 @@ export function useUpdateLog() {
       const { data } = await api.patch<MovieLog>(`/movie-logs/${id}`, payload);
       return data;
     },
+    // Real optimistic update, on top of the already-correct onSuccess
+    // priming below (kept as-is — this only adds an earlier, provisional
+    // write). onMutate merges the edited fields into whatever's cached
+    // right now, before the network round-trip, so the detail screen and
+    // any list row reflect the edit instantly instead of after the PATCH
+    // resolves; onSuccess then overwrites with the server's authoritative
+    // row (picking up anything server-computed the optimistic merge
+    // couldn't know, e.g. `edited_at`); onError rolls back to the exact
+    // pre-edit snapshot.
+    onMutate: async ({ id, payload }) => {
+      const snapshot = patchLogInEveryCache(qc, id, (log) => ({ ...log, ...payload }));
+      return { snapshot };
+    },
+    onError: (_err, _vars, context) => restoreLogSnapshot(qc, context?.snapshot),
     // Was invalidateQueries(logKeys.all) + invalidateQueries(logKeys.detail(id))
     // — the second call was always redundant (logKeys.all, ["movie-logs"],
     // already prefix-matches ["movie-logs","detail",id]) and neither one
@@ -198,15 +255,21 @@ export function useArchiveLog() {
       const { data } = await api.patch<MovieLog>(`/movie-logs/${id}`, { is_archived: archive });
       return data;
     },
-    // Only primes the detail cache, not list caches — unlike a plain
-    // field edit (useUpdateLog), archiving changes exactly the field
-    // most list views filter *on* (Library's default view excludes
-    // archived; its Archived chip includes only archived), so an
-    // unconditional by-id patch-in-place would leave the log sitting in
-    // the wrong list until the background invalidate's refetch catches
-    // up anyway — not worth hand-replicating every list's filter logic
-    // here just to skip that one refetch. The detail view (where the
-    // archive button and its toast actually live) is what benefits.
+    // Optimistically flips is_archived on the detail cache only — same
+    // reasoning as onSuccess below for why list caches are left to the
+    // background invalidate instead of a patch-in-place (archiving
+    // changes exactly the field most lists filter on, so a patched row
+    // would just need correcting again once that filter is re-applied).
+    // The detail view (where the archive button and its toast live) is
+    // what benefits from not waiting on the round-trip.
+    onMutate: async ({ id, archive }) => {
+      const previous = qc.getQueryData<MovieLog>(logKeys.detail(id));
+      if (previous) qc.setQueryData(logKeys.detail(id), { ...previous, is_archived: archive });
+      return { previous };
+    },
+    onError: (_err, { id }, context) => {
+      if (context?.previous) qc.setQueryData(logKeys.detail(id), context.previous);
+    },
     onSuccess: (log) => {
       if (log) qc.setQueryData(logKeys.detail(log.id), log);
       qc.invalidateQueries({ queryKey: logKeys.all });
