@@ -488,6 +488,28 @@ class ProductionSettings(Settings):
     def require_llm_key_encryption_key(cls, v: Optional[SecretStr]) -> Optional[SecretStr]:
         return _require_llm_key_encryption_key(v)
 
+    @field_validator('allowed_origins', mode='after')
+    @classmethod
+    def reject_wildcard_or_localhost_origins(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        # allowed_origins is already correctly explicit today (never
+        # wildcarded) — this is a guard against a *future* misconfiguration,
+        # same reasoning as reject_dev_bypass_auth above: a stray '*' or a
+        # leftover localhost/127.0.0.1 entry that made it into a PROD env
+        # var should crash startup immediately and obviously, not silently
+        # widen CORS in production.
+        bad = [
+            origin for origin in v
+            if origin == '*' or 'localhost' in origin or '127.0.0.1' in origin
+        ]
+        if bad:
+            raise ValueError(
+                f'ALLOWED_ORIGINS must not contain a wildcard or a localhost/127.0.0.1 '
+                f'entry when ENV=PROD (found: {bad!r}). Remove it from the environment — '
+                'refusing to start rather than silently allowing a misconfiguration this '
+                'sensitive.'
+            )
+        return v
+
 
 def get_settings() -> Settings | DevelopmentSettings | ProductionSettings:
     config = dict(LOCAL=Settings, DEV=DevelopmentSettings, PROD=ProductionSettings)
