@@ -277,6 +277,21 @@ export function ProfileScreen() {
                 <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
                   {isProfileLoading ? "" : `@${username}`}
                 </span>
+                {/* Deliberate "View as" escape hatch (same idea as Slack's) —
+                    landing on your own /profile/{username} any other way
+                    (a typed URL, an old link, finding yourself in People
+                    search) redirects straight back here instead, so this
+                    link is the one intentional door into seeing your own
+                    profile the way a stranger/follower would. */}
+                {!isProfileLoading && profile?.username && (
+                  <a
+                    onClick={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)}
+                    className="tapc"
+                    style={{ fontSize: fontSizes.xs, color: theme.accent, marginTop: 2, display: "inline-block", cursor: "pointer" } as React.CSSProperties}
+                  >
+                    Preview as others see it
+                  </a>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
@@ -419,9 +434,17 @@ export function ProfileScreen() {
         <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text, opacity: isProfileLoading ? 0.5 : 1 }}>
           {isProfileLoading ? "Loading…" : displayName}
         </Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2, marginBottom: bio ? 8 : 16 }}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
           {isProfileLoading ? "" : `@${username}`}
         </Text>
+        {/* Deliberate "View as" escape hatch — see the web branch's
+            identical comment above for why this is the one intentional
+            door into seeing your own profile the way a stranger would. */}
+        {!isProfileLoading && profile?.username && (
+          <Pressable onPress={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)} style={{ marginTop: 2, marginBottom: bio ? 8 : 16, alignSelf: "flex-start" }}>
+            <Text style={{ fontSize: fontSizes.xs, color: theme.accent }}>Preview as others see it</Text>
+          </Pressable>
+        )}
         {bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
 
         {/* Stats row */}

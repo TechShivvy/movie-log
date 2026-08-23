@@ -7,7 +7,7 @@
  */
 import React, { useState } from "react";
 import { Image, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Redirect, Link } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -26,7 +26,14 @@ export function PublicProfileScreen() {
   const { isMobile } = useBreakpoint();
   const router = useRouter();
   const { user } = useAuth();
-  const { username } = useLocalSearchParams<{ username: string }>();
+  // `preview` is the deliberate, explicit escape hatch — Slack calls this
+  // "View as" on your own profile. Without it, landing here on your own
+  // username (typed directly, an old link, or a People search hit on
+  // yourself) redirects straight to the real /profile screen below —
+  // nobody should see themselves rendered as a stranger with a Follow
+  // button by accident. See ProfileScreen.tsx's own "Preview as others
+  // see it" link for the one deliberate way in.
+  const { username, preview } = useLocalSearchParams<{ username: string; preview?: string }>();
 
   const { data, isLoading, refetch } = usePublicProfile(username);
   const { data: followers } = useFollowers(username);
@@ -38,6 +45,7 @@ export function PublicProfileScreen() {
   const logs = data?.logs ?? [];
   const isFollowing = !!followers?.some((f) => f.user_id === user?.id);
   const isOwnProfile = !!profile && profile.user_id === user?.id;
+  const isPreviewingSelf = isOwnProfile && !!preview;
 
   const openLog = (log: MovieLog) => router.push(`/(app)/log/${log.id}` as any);
   const toggleFollow = () => {
@@ -60,6 +68,9 @@ export function PublicProfileScreen() {
         <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>User not found.</Text>
       </View>
     );
+  }
+  if (isOwnProfile && !preview) {
+    return <Redirect href="/(app)/profile" />;
   }
 
   const banner = bannerUrl(profile.banner_path);
@@ -127,6 +138,18 @@ export function PublicProfileScreen() {
   if (Platform.OS === "web" && !isMobile) {
     return (
       <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
+        {isPreviewingSelf && (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+            padding: "10px 16px", background: theme.accent900, color: theme.text,
+            fontSize: fontSizes.sm, textAlign: "center",
+          } as React.CSSProperties}>
+            <span>You're viewing your own profile as others see it.</span>
+            <Link href="/(app)/profile" style={{ color: theme.accent, fontWeight: "700" }}>
+              Exit preview
+            </Link>
+          </div>
+        )}
         {header}
         <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
           {!profile.can_view_content ? (
@@ -170,6 +193,19 @@ export function PublicProfileScreen() {
       contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
+      {isPreviewingSelf && (
+        <View style={{
+          flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
+          paddingVertical: 10, paddingHorizontal: 16, backgroundColor: theme.accent900,
+        }}>
+          <Text style={{ color: theme.text, fontSize: fontSizes.sm, textAlign: "center" }}>
+            You're viewing your own profile as others see it.
+          </Text>
+          <Pressable onPress={() => router.replace("/(app)/profile")}>
+            <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "700" }}>Exit preview</Text>
+          </Pressable>
+        </View>
+      )}
       {/* Same multi-stop fade as ProfileScreen.tsx's own hero — a plain
           2-stop fade still reads as an abrupt cut against real banner
           image detail. */}
