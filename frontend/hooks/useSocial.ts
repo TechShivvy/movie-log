@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { patchLogInEveryCache } from "./useMovieLogs";
-import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse } from "../types";
+import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse, UserSearchResult } from "../types";
 
 // ─── Public profile ─────────────────────────────────────────────────────────
 
@@ -14,6 +14,26 @@ export function usePublicProfile(username: string | undefined) {
       return data;
     },
     enabled: !DEMO_MODE && !!username,
+  });
+}
+
+// GET /public/users/search — public (no sign-in required), unrestricted by
+// privacy state (a private account still turns up, same as searching for a
+// private Instagram account would — account_visibility on each result is
+// what a caller uses to show a lock indicator before tapping in). Backend
+// enforces q.length >= 2 itself (422 below that) and excludes anyone the
+// caller has blocked/been blocked by when a bearer token is present — this
+// hook doesn't need to duplicate either check, just match the same floor
+// so it doesn't fire a request that's guaranteed to 422.
+export function useSearchUsers(query: string) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: ["search", "users", q],
+    queryFn: async () => {
+      const { data } = await api.get<UserSearchResult[]>("/public/users/search", { params: { q } });
+      return data;
+    },
+    enabled: !DEMO_MODE && q.length >= 2,
   });
 }
 

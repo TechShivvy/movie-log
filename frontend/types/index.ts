@@ -35,6 +35,21 @@ export interface PublicProfileResponse {
   favorites: MovieLog[];
 }
 
+// GET /public/users/search's own response_model — a narrower shape than
+// PublicProfile above (no is_blocked/can_view_content; those come from
+// the single-profile RPC, not the search one, and FastAPI's response_model
+// strips anything the search endpoint's Pydantic schema doesn't declare).
+export interface UserSearchResult {
+  user_id: string;
+  username?: string;
+  display_name?: string;
+  bio?: string;
+  account_visibility: AccountVisibility;
+  avatar_path?: string;
+  banner_path?: string;
+  profile_links: ProfileLink[];
+}
+
 // A short user reference as embedded in comments/followers lists/etc. —
 // the backend never returns a nested "User" object with an `id` field;
 // it resolves usernames/avatars inline on whichever row needs them

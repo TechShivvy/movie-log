@@ -24,17 +24,20 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { MagnifyingGlass } from "phosphor-react-native";
+import { MagnifyingGlass, Lock } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieSearch, useVenueSearch, useCreateMovie, useCreateTheatre, useSearchPlaces } from "../hooks/useSearch";
 import { useMovieLogs } from "../hooks/useMovieLogs";
+import { useSearchUsers } from "../hooks/useSocial";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
+import { Avatar } from "../components/ui/Avatar";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
+import { avatarUrl } from "../lib/storage";
 import { useToast } from "../context/ToastContext";
-import type { MovieLog, TheatreMatchCandidate, TheatrePlaceSuggestion } from "../types";
+import type { MovieLog, TheatreMatchCandidate, TheatrePlaceSuggestion, UserSearchResult } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
 type Scope = "all" | "logs" | "movies" | "theatres" | "people";
@@ -58,6 +61,7 @@ export function SearchScreen() {
   const debouncedQuery = useDebouncedValue(query, 300);
   const { data: movieResults, isLoading: moviesLoading } = useMovieSearch(debouncedQuery);
   const { data: theatreResults, isLoading: theatresLoading } = useVenueSearch(debouncedQuery);
+  const { data: peopleResults, isLoading: peopleLoading } = useSearchUsers(debouncedQuery);
   const { data: logs }                                    = useMovieLogs({ archived: false });
   const { mutateAsync: createMovie } = useCreateMovie();
 
@@ -97,6 +101,14 @@ export function SearchScreen() {
     if (movie) router.push(`/(app)/movie/${movie.id}` as any);
   };
   const openTheatre = (t: TheatreMatchCandidate) => router.push(`/(app)/venue/${t.id}` as any);
+  // Username-only route (PublicProfileScreen resolves by username, not
+  // user_id — same as every other profile link in the app) — a result
+  // with no username at all can't be navigated to (shouldn't happen in
+  // practice; every real account gets one via onboarding, but the type
+  // is Optional to match the backend schema honestly).
+  const openPerson = (p: UserSearchResult) => {
+    if (p.username) router.push(`/(app)/profile/${p.username}` as any);
+  };
   const openPlace = async (p: TheatrePlaceSuggestion) => {
     try {
       const theatre = await createTheatre.mutateAsync(p);
@@ -123,8 +135,9 @@ export function SearchScreen() {
   const hasAnyResults =
     (showLogs && logMatches.length > 0) ||
     (showMovies && (movieResults?.length ?? 0) > 0) ||
-    (showTheatres && (theatreResults?.length ?? 0) > 0 || placesResults.length > 0);
-  const stillLoading = (showMovies && moviesLoading) || (showTheatres && theatresLoading);
+    (showTheatres && (theatreResults?.length ?? 0) > 0 || placesResults.length > 0) ||
+    (showPeople && (peopleResults?.length ?? 0) > 0);
+  const stillLoading = (showMovies && moviesLoading) || (showTheatres && theatresLoading) || (showPeople && peopleLoading);
 
   const placesFooter = (
     <div className="tapc" onClick={handleSearchPlaces} style={{
@@ -299,12 +312,43 @@ export function SearchScreen() {
             )}
 
             {/* People section */}
-            {showPeople && (
+            {showPeople && (peopleResults?.length ?? 0) > 0 && (
               <div style={{ marginTop: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
-                <div className="card" style={{ color: `${theme.text}55`, fontSize: fontSizes.sm } as React.CSSProperties}>
-                  People search — coming soon.
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
+                  {peopleResults!.map((p) => (
+                    <div
+                      key={p.user_id}
+                      className="tapc"
+                      onClick={() => openPerson(p)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        padding: "10px 0", borderBottom: `1px solid ${theme.divider}`, cursor: "pointer",
+                      } as React.CSSProperties}
+                    >
+                      <Avatar name={p.display_name ?? p.username ?? "?"} uri={avatarUrl(p.avatar_path)} size="sm" />
+                      <div style={{ flex: 1, minWidth: 0 } as React.CSSProperties}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 } as React.CSSProperties}>
+                          <span style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+                            {p.display_name ?? p.username}
+                          </span>
+                          {p.account_visibility !== "public" && <Lock size={12} color={`${theme.text}66`} />}
+                        </div>
+                        {p.username && (
+                          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
+                            @{p.username}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
+            )}
+            {showPeople && peopleLoading && (
+              <div style={{ marginTop: 28 } as React.CSSProperties}>
+                <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
+                <span className="spin" style={{ fontSize: fontSizes.h2, color: theme.accent } as React.CSSProperties}>◌</span>
               </div>
             )}
 
@@ -342,7 +386,7 @@ export function SearchScreen() {
               setPlacesResults([]);
               setPlacesSearched(false);
             }}
-            placeholder="Search movies, logs…"
+            placeholder="Search movies, logs, or people…"
             placeholderTextColor={`${theme.text}44`}
             style={{ flex: 1, color: theme.text, fontSize: fontSizes.md, paddingVertical: 10 }}
             autoFocus
@@ -399,6 +443,7 @@ export function SearchScreen() {
             ...(showMovies ? (movieResults?.slice(0, 10) ?? []).map((movie) => ({ kind: "movie" as const, movie })) : []),
             ...(showTheatres ? (theatreResults?.slice(0, 6) ?? []).map((theatre) => ({ kind: "theatre" as const, theatre })) : []),
             ...(showTheatres ? placesResults.map((place) => ({ kind: "place" as const, place })) : []),
+            ...(showPeople ? (peopleResults?.slice(0, 8) ?? []).map((person) => ({ kind: "person" as const, person })) : []),
           ]}
           keyExtractor={(item, i) => `${item.kind}-${i}`}
           contentContainerStyle={{ padding: 16 }}
@@ -463,6 +508,31 @@ export function SearchScreen() {
                 >
                   <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{p.main_text ?? p.description}</Text>
                   <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{p.secondary_text ?? "via Google"}</Text>
+                </Pressable>
+              );
+            }
+            if (item.kind === "person") {
+              const p = item.person;
+              return (
+                <Pressable
+                  onPress={() => openPerson(p)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 12,
+                    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.divider,
+                  }}
+                >
+                  <Avatar name={p.display_name ?? p.username ?? "?"} uri={avatarUrl(p.avatar_path)} size="sm" />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>
+                        {p.display_name ?? p.username}
+                      </Text>
+                      {p.account_visibility !== "public" && <Lock size={12} color={`${theme.text}66`} />}
+                    </View>
+                    {p.username && (
+                      <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>@{p.username}</Text>
+                    )}
+                  </View>
                 </Pressable>
               );
             }
