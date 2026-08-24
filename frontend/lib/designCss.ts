@@ -349,8 +349,22 @@ textarea.input { min-height: 90px; resize: vertical; }
    2. App-level classes — ported verbatim from CineLog Web.dc.html <style>
    ══════════════════════════════════════════════════════════════════════ */
 
-.clg-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.clg-scroll::-webkit-scrollbar-thumb { background: var(--color-neutral-800); border-radius: 8px; }
+/* Was scoped to just .clg-scroll (only ever applied to .mainscroll) —
+   widened to the whole app shell once <Tabs> moved the REAL scrolling
+   element to its own internal scene wrapper, an anonymous
+   react-native-web div with no className this app controls (sceneStyle
+   is inline-style-only). A selector this app DOES own is the only way
+   to reach it, so this now covers every scrollable region under
+   .app-shell, not just the one div .clg-scroll used to name — still
+   harmless/redundant, not wrong, anywhere else it happens to apply. */
+.app-shell ::-webkit-scrollbar, .clg-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.app-shell ::-webkit-scrollbar-track, .clg-scroll::-webkit-scrollbar-track { background: transparent; }
+.app-shell ::-webkit-scrollbar-thumb, .clg-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-800); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
+}
+.app-shell ::-webkit-scrollbar-thumb:hover, .clg-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-divider); }
+/* Firefox has no ::-webkit-scrollbar — this is its equivalent, same shell scope. */
+.app-shell { scrollbar-width: thin; scrollbar-color: var(--color-neutral-800) transparent; }
 .tapc { cursor: pointer; }
 .poster { position: relative; border-radius: var(--radius-md); overflow: hidden; }
 /* A poster whose real artwork is still resolving (catalog lookup, then

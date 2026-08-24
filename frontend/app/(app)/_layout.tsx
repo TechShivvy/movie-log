@@ -152,7 +152,25 @@ export default function AppLayout() {
   const tabs = (
     <Tabs
       tabBar={(props) => (isMobile ? <TabBar {...props} /> : null)}
-      screenOptions={{ headerShown: false }}
+      // sceneStyle:{overflow:"auto"} — <Tabs> renders every screen inside
+      // a container that's `flex:1, overflow:'hidden'` internally (a
+      // react-navigation/bottom-tabs constant, not something these
+      // screenOptions can remove) — without this, a screen taller than
+      // the space it's given is clipped rather than scrollable, where it
+      // used to rely on .mainscroll's own page-level scroll. This alone
+      // produced a real rendering artifact first try: a pale rectangular
+      // gap partway down scrolled content. Root cause, confirmed live —
+      // not guessed: react-navigation's own Screen wrapper defaults to a
+      // light background (rgb(242,242,242), visible in this app's own
+      // DOM even with headerShown:false) sized independently of this
+      // app's actual (dark, auto-height) content div nested inside it;
+      // once that wrapper became a real scrollable box the size mismatch
+      // between the two showed as exactly that pale gap. backgroundColor
+      // here closes it — the scene's own box now matches this app's
+      // background regardless of any height rounding between it and its
+      // content. Kept global (not per-screen) on purpose: it's the one
+      // piece <Tabs> itself owns that these screenOptions actually reach.
+      screenOptions={{ headerShown: false, sceneStyle: { overflow: "auto", backgroundColor: theme.bg } as any }}
     >
       <Tabs.Screen name="(library)" />
       <Tabs.Screen name="(feed)" />
