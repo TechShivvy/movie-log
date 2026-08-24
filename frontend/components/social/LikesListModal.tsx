@@ -5,11 +5,12 @@
  * single-tap toggle.
  */
 import React from "react";
-import { ActivityIndicator, FlatList, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
 import { avatarUrl } from "../../lib/storage";
 import { Avatar } from "../ui/Avatar";
+import { SectionLoader } from "../ui/Spinner";
 import type { LikeEntry } from "../../hooks/useSocial";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -34,11 +35,7 @@ export function LikesListModal({ visible, entries, isLoading, onClose }: LikesLi
   const rows = entries ?? [];
 
   const list = isLoading ? (
-    <View style={{ paddingVertical: 30, alignItems: "center" }}>
-      {Platform.OS === "web"
-        ? <span className="spin" style={{ fontSize: 22, color: theme.accent } as React.CSSProperties}>◌</span>
-        : <ActivityIndicator color={theme.accent} />}
-    </View>
+    <SectionLoader padding={30} />
   ) : rows.length === 0 ? (
     <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.base, textAlign: "center", paddingVertical: 30 }}>No likes yet.</Text>
   ) : Platform.OS === "web" ? (

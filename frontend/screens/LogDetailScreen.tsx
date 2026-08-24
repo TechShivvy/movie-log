@@ -13,7 +13,6 @@
  */
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   Platform,
   Pressable,
@@ -58,6 +57,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { hueFromTitle } from "../components/ui/Poster";
+import { ScreenLoader, Spinner } from "../components/ui/Spinner";
 import { type as fontSizes } from "../constants/fonts";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import { avatarUrl } from "../lib/storage";
@@ -442,13 +442,7 @@ export function LogDetailScreen() {
   const [replyTo, setReplyTo] = useState<{ username: string; commentId: string } | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (isLoading) return <ScreenLoader />;
   if (error || !log) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
@@ -864,7 +858,7 @@ export function LogDetailScreen() {
         {/* Real artwork still resolving — see the matching web comment. */}
         {isMovieLoading && !posterUrl && (
           <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: "60%", alignItems: "center", justifyContent: "center" }}>
-            <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+            <Spinner size="sm" color="rgba(255,255,255,0.7)" />
           </View>
         )}
         {/* Gradient overlay from bottom */}

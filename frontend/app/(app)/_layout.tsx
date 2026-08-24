@@ -1,6 +1,6 @@
 import React from "react";
 import { Redirect, Stack } from "expo-router";
-import { Platform, StyleSheet, View, ActivityIndicator } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import { useMyProfile } from "../../hooks/useProfile";
@@ -10,6 +10,7 @@ import { FilmGrain } from "../../components/layout/FilmGrain";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { TabBar } from "../../components/layout/TabBar";
 import { TopBar } from "../../components/layout/TopBar";
+import { ScreenLoader } from "../../components/ui/Spinner";
 
 /**
  * Sidebar shell — the desktop/tablet layout (Sidebar + TopBar), not just a
@@ -108,13 +109,7 @@ export default function AppLayout() {
   const { theme } = useTheme();
   const { isMobile } = useBreakpoint();
 
-  if (loading || (session && profileLoading)) {
-    return (
-      <View style={[styles.loader, { backgroundColor: theme.bg }]}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (loading || (session && profileLoading)) return <ScreenLoader />;
 
   if (!session) {
     return <Redirect href="/(auth)" />;
@@ -154,7 +149,6 @@ export default function AppLayout() {
 }
 
 const styles = StyleSheet.create({
-  loader:        { flex: 1, alignItems: "center", justifyContent: "center" },
   mobileRoot:    { flex: 1, position: "relative" },
   mobileContent: { flex: 1, zIndex: 1 },
 });

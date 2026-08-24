@@ -14,11 +14,12 @@
  * See docs/mobile-oauth.md.
  */
 import { useEffect, useState } from "react";
-import { View, ActivityIndicator, Text, Platform } from "react-native";
+import { View, Text, Platform } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import * as Linking from "expo-linking";
 import { completeAuthFromUrl } from "../../lib/authCallback";
 import { useTheme } from "../../hooks/useTheme";
+import { Spinner } from "../../components/ui/Spinner";
 import { type as fontSizes } from "../../constants/fonts";
 
 export default function AuthCallback() {
@@ -70,7 +71,7 @@ export default function AuthCallback() {
 
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-      <ActivityIndicator color={theme.accent} size="large" />
+      <Spinner size="lg" />
       <Text style={{ color: theme.text, marginTop: 16, fontSize: fontSizes.base, opacity: 0.7 }}>
         {message ?? "Signing you in…"}
       </Text>

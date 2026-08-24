@@ -14,8 +14,9 @@
  * artwork, matching the design's per-item posterStyle.
  */
 import React from "react";
-import { ActivityIndicator, Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import { Image, Platform, StyleSheet, View, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Spinner } from "./Spinner";
 
 // Typed loosely on purpose: MovieLog.movie is optional (a title that failed
 // to resolve, a row written before extraction finished, etc.) so real API/DB
@@ -102,7 +103,7 @@ export function Poster({ title, imageUrl, loading, children, style, className, d
       )}
       {loading && !imageUrl && (
         <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" />
+          <Spinner size="sm" color="rgba(255,255,255,0.7)" />
         </View>
       )}
       {children}

@@ -6,7 +6,7 @@
  * semantics, but from here it's one form / one Save).
  */
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
@@ -19,6 +19,7 @@ import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { UsernameStatus } from "../ui/UsernameStatus";
+import { Spinner } from "../ui/Spinner";
 import { type as fontSizes } from "../../constants/fonts";
 
 interface EditProfileModalProps {
@@ -155,8 +156,11 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
         }}
       >
         {bannerPreview && <Image source={{ uri: bannerPreview }} style={{ position: "absolute", width: "100%", height: "100%" }} resizeMode="cover" />}
-        <View style={{ backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {uploadingBanner ? <ActivityIndicator size="small" color="#fff" /> : <PencilSimple size={14} color="#fff" />}
+        {/* height:30 (14px icon + 8px padding × 2) — fixed so the pill
+            can't reshape when the spinner (a slightly different
+            intrinsic size than the icon it replaces) swaps in. */}
+        <View style={{ backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, height: 30, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {uploadingBanner ? <Spinner size={14} color="#fff" scaleToSize /> : <PencilSimple size={14} color="#fff" />}
           <Text style={{ color: "#fff", fontSize: fontSizes.sm, fontWeight: "600" }}>{bannerPreview ? "Change banner" : "Add banner"}</Text>
         </View>
       </Pressable>
@@ -168,11 +172,17 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
       >
         <View>
           <Avatar name={displayName || username || "?"} uri={avatarPreview} size="xl" />
+          {/* Fixed 26x26 — a content-sized badge reshapes when its
+              content changes size, which is exactly what balloons a
+              12px icon into a ~20px ActivityIndicator mid-upload. */}
           <View style={{
             position: "absolute", bottom: 0, right: 0, backgroundColor: theme.accent,
-            borderRadius: 12, padding: 5, borderWidth: 2, borderColor: theme.surface,
+            borderRadius: 13, width: 26, height: 26, alignItems: "center", justifyContent: "center",
+            borderWidth: 2, borderColor: theme.surface,
           }}>
-            {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <PencilSimple size={12} color="#fff" />}
+            {uploadingAvatar
+              ? <Spinner size={12} color={theme.onAccent} scaleToSize />
+              : <PencilSimple size={12} color={theme.onAccent} />}
           </View>
         </View>
       </Pressable>
@@ -181,7 +191,7 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
         <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
+          {suggesting ? <Spinner size={12} color={theme.accent} scaleToSize /> : <Shuffle size={12} color={theme.accent} />}
           <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
         </Pressable>
       </View>

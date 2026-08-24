@@ -18,6 +18,7 @@ import { Button } from "../components/ui/Button";
 import { Poster } from "../components/ui/Poster";
 import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
+import { ScreenLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
@@ -48,15 +49,7 @@ export function MovieDetailScreen() {
     { id: "public" as LogScope, label: "Public", logs: publicLogs, loading: publicLoading, emptyText: "No public reviews yet." },
   ];
 
-  if (movieLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        {Platform.OS === "web"
-          ? <span className="spin" style={{ fontSize: 28, color: theme.accent } as React.CSSProperties}>◌</span>
-          : <Text style={{ color: theme.text }}>Loading…</Text>}
-      </View>
-    );
-  }
+  if (movieLoading) return <ScreenLoader />;
   if (!movie) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>

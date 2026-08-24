@@ -22,6 +22,7 @@ import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { PrivateNoteCard } from "../components/ui/PrivateNoteCard";
 import { ScopedLogGrid, type LogScope } from "../components/ui/ScopedLogGrid";
+import { ScreenLoader } from "../components/ui/Spinner";
 import { venueDisplayName, venueMapsUrl, venueMapsEmbedUrl } from "../lib/venue";
 import type { MovieLog, Screen } from "../types";
 import { type as fontSizes } from "../constants/fonts";
@@ -71,15 +72,7 @@ export function VenueDetailScreen() {
     { id: "public" as LogScope, label: "Public", logs: publicLogs, loading: publicLoading, emptyText: "No public reviews yet." },
   ];
 
-  if (theatreLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        {Platform.OS === "web"
-          ? <span className="spin" style={{ fontSize: 28, color: theme.accent } as React.CSSProperties}>◌</span>
-          : <Text style={{ color: theme.text }}>Loading…</Text>}
-      </View>
-    );
-  }
+  if (theatreLoading) return <ScreenLoader />;
   if (!theatre) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>

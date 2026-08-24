@@ -6,8 +6,9 @@
  * images larger than the small hero thumbnail before this.
  */
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { X, WarningCircle } from "phosphor-react-native";
+import { Spinner } from "./Spinner";
 import { useTheme } from "../../hooks/useTheme";
 
 interface ImageLightboxProps {
@@ -178,7 +179,7 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
           )}
           {!loaded && !errored && (
             <View style={[StyleSheet.absoluteFill, styles.placeholder, { backgroundColor: theme.surfaceHigh }]}>
-              <ActivityIndicator color={theme.accent} />
+              <Spinner />
             </View>
           )}
           {errored && (

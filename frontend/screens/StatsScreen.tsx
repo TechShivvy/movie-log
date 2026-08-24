@@ -11,7 +11,6 @@
  */
 import React, { useMemo } from "react";
 import {
-  ActivityIndicator,
   Platform,
   ScrollView,
   Text,
@@ -20,6 +19,7 @@ import {
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useMovieLogs } from "../hooks/useMovieLogs";
+import { ScreenLoader } from "../components/ui/Spinner";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
@@ -63,13 +63,7 @@ export function StatsScreen() {
   const maxRating = Math.max(...stats.ratingDist, 1);
   const topFormats = Object.entries(stats.formatCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (isLoading) return <ScreenLoader />;
 
   // ── Web layout (tablet & desktop only — see ProfileScreen.tsx's
   //     identical fix for why the mobile exclusion matters) ────────────────────

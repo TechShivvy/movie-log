@@ -10,7 +10,7 @@
  * skippable, and editable later from Edit Profile either way.
  */
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter, Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PencilSimple, Shuffle } from "phosphor-react-native";
@@ -22,9 +22,11 @@ import { avatarUrl, pickAndUploadImage } from "../lib/storage";
 import { suggestAvailableUsername } from "../lib/usernameGenerator";
 import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
+import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { UsernameStatus } from "../components/ui/UsernameStatus";
 import { ThemedText } from "../components/ui/ThemedText";
+import { ScreenLoader, Spinner } from "../components/ui/Spinner";
 import { type as fontSizes } from "../constants/fonts";
 
 export function OnboardingScreen() {
@@ -134,13 +136,7 @@ export function OnboardingScreen() {
   if (profileLoaded && profile?.username) {
     return <Redirect href="/(app)" />;
   }
-  if (profileLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (profileLoading) return <ScreenLoader />;
 
   const avatarPreview = avatarUrl(avatarPath);
 
@@ -162,11 +158,17 @@ export function OnboardingScreen() {
       <Pressable onPress={handleUpload} style={{ alignItems: "center", marginBottom: 24 }}>
         <View>
           <Avatar name={displayName || trimmed || "?"} uri={avatarPreview} size="xl" />
+          {/* Fixed 26x26 — a content-sized badge reshapes when its
+              content changes size, which is exactly what balloons a
+              12px icon into a ~20px ActivityIndicator mid-upload. */}
           <View style={{
             position: "absolute", bottom: 0, right: 0, backgroundColor: theme.accent,
-            borderRadius: 12, padding: 5, borderWidth: 2, borderColor: theme.bg,
+            borderRadius: 13, width: 26, height: 26, alignItems: "center", justifyContent: "center",
+            borderWidth: 2, borderColor: theme.bg,
           }}>
-            {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <PencilSimple size={12} color="#fff" />}
+            {uploadingAvatar
+              ? <Spinner size={12} color={theme.onAccent} scaleToSize />
+              : <PencilSimple size={12} color={theme.onAccent} />}
           </View>
         </View>
         <Text style={{ fontSize: fontSizes.sm, color: theme.accent, marginTop: 8, fontWeight: "600" }}>Add a photo (optional)</Text>
@@ -183,7 +185,7 @@ export function OnboardingScreen() {
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
         <UsernameStatus status={availability.status} />
         <Pressable onPress={handleSuggest} disabled={suggesting} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          {suggesting ? <ActivityIndicator size="small" color={theme.accent} /> : <Shuffle size={12} color={theme.accent} />}
+          {suggesting ? <Spinner size={12} color={theme.accent} scaleToSize /> : <Shuffle size={12} color={theme.accent} />}
           <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>{suggesting ? "Checking…" : "Suggest one"}</Text>
         </Pressable>
       </View>
@@ -204,13 +206,15 @@ export function OnboardingScreen() {
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom, background: theme.bg } as React.CSSProperties}>
         <div style={{ width: "100%", maxWidth: 400 } as React.CSSProperties}>
           {content}
-          <button className="btn btn-primary btn-block" onClick={handleContinue} disabled={!canContinue || saving} style={{ marginTop: 20 } as React.CSSProperties}>
-            {saving && <span className="spin">◌</span>}
-            {saving ? "Saving…" : "Continue"}
-          </button>
-          <button className="btn btn-ghost btn-block" onClick={() => signOut()} style={{ marginTop: 10 } as React.CSSProperties}>
-            Sign out
-          </button>
+          <Button
+            label={saving ? "Saving…" : "Continue"}
+            loading={saving}
+            onPress={handleContinue}
+            disabled={!canContinue || saving}
+            block
+            style={{ marginTop: 20 } as React.CSSProperties}
+          />
+          <Button variant="ghost" label="Sign out" onPress={() => signOut()} block style={{ marginTop: 10 } as React.CSSProperties} />
         </div>
       </div>
     );
@@ -236,7 +240,7 @@ export function OnboardingScreen() {
           flexDirection: "row", justifyContent: "center", gap: 8,
         }}
       >
-        {saving && <ActivityIndicator size="small" color={theme.onAccent} />}
+        {saving && <Spinner size="sm" color={theme.onAccent} />}
         <Text style={{ color: theme.onAccent, fontSize: fontSizes.md, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
       </Pressable>
       <Pressable onPress={() => signOut()} style={{ alignItems: "center", marginTop: 14, padding: 8 }}>

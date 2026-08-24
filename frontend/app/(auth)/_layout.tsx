@@ -1,7 +1,7 @@
 import { Redirect, Stack } from "expo-router";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
-import { View, ActivityIndicator } from "react-native";
+import { ScreenLoader } from "../../components/ui/Spinner";
 
 export default function AuthLayout() {
   const { session, loading } = useAuth();
@@ -10,13 +10,7 @@ export default function AuthLayout() {
   // Cinematic-colored regardless of what the user actually picked.
   const { theme } = useTheme();
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (loading) return <ScreenLoader />;
 
   if (session) {
     return <Redirect href="/(app)" />;

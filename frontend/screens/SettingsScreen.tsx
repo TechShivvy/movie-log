@@ -16,7 +16,6 @@
  */
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -27,6 +26,7 @@ import { CheckCircle, Palette, User, Lock, Robot, Database, Trash, SignOut } fro
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
+import { Spinner } from "../components/ui/Spinner";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
@@ -311,7 +311,7 @@ function WebPrivacySection({ theme }: any) {
       <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Blocked accounts</h3>
       {isLoading ? (
         <div className="card" style={{ textAlign: "center", padding: 24 } as React.CSSProperties}>
-          <span className="spin" style={{ fontSize: 22, color: theme.accent } as React.CSSProperties}>◌</span>
+          <Spinner size="md" />
         </div>
       ) : rows.length === 0 ? (
         <div className="card" style={{ color: `${theme.text}66`, fontSize: fontSizes.base } as React.CSSProperties}>
@@ -519,7 +519,7 @@ function NativePrivacySection({ theme }: any) {
       <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>BLOCKED ACCOUNTS</Text>
       {isLoading ? (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 24, alignItems: "center" }}>
-          <ActivityIndicator color={theme.accent} />
+          <Spinner size="md" />
         </View>
       ) : rows.length === 0 ? (
         <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>

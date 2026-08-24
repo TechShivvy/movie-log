@@ -18,7 +18,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ActivityIndicator,
   Image,
   Platform,
   Pressable,
@@ -40,6 +39,7 @@ import { StarRating } from "../components/ui/StarRating";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { ScreenLoader, Spinner } from "../components/ui/Spinner";
 import { AITicketModal } from "../modals/AITicketModal";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
@@ -1167,13 +1167,7 @@ export function LogFormScreen() {
   // Edit mode, still fetching the log to populate the form — show a
   // spinner instead of a blank "new entry" form that's about to change
   // out from under whoever's looking at it.
-  if (isEditing && isLoadingExisting) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 60 }}>
-        <ActivityIndicator color={theme.accent} size="large" />
-      </View>
-    );
-  }
+  if (isEditing && isLoadingExisting) return <ScreenLoader />;
 
   // ── Web layout (tablet & desktop only — see the isMobile comment above) ─────
   if (Platform.OS === "web" && !isMobile) {
@@ -1217,21 +1211,18 @@ export function LogFormScreen() {
                 the request lands read as a race between "did my save
                 actually happen" and "I just left", same reasoning as
                 blocking the delete dialog from being dismissed mid-flight. */}
-            <button className="btn btn-secondary" onClick={() => router.back()} disabled={isPending}>
-              <X size={14} color={theme.text} />
-              Discard
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={handleSubmit}
+            <Button variant="secondary" icon="x" label="Discard" onPress={() => router.back()} disabled={isPending} />
+            {/* Label itself changes ("Saving…"), not just a spinner next
+                to an otherwise-unchanged "Save log" — that was easy to
+                miss entirely, so Button's own loading prop (keeps the
+                label, swaps in a spinner beside it) isn't quite enough
+                on its own; the label swap still has to be explicit. */}
+            <Button
+              label={isPending ? "Saving…" : isEditing ? "Save changes" : "Save log"}
+              loading={isPending}
+              onPress={handleSubmit}
               disabled={isPending}
-            >
-              {/* Label itself now changes ("Saving…"), not just a small
-                  spin glyph next to an otherwise-unchanged "Save log" —
-                  that was easy to miss entirely. */}
-              {isPending && <span className="spin">◌</span>}
-              {isPending ? "Saving…" : isEditing ? "Save changes" : "Save log"}
-            </button>
+            />
           </div>
         </div>
 
@@ -1325,7 +1316,7 @@ export function LogFormScreen() {
           disabled={isPending}
           style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}
         >
-          {isPending && <ActivityIndicator color={theme.onAccent} size="small" />}
+          {isPending && <Spinner size="sm" color={theme.onAccent} />}
           <Text style={{ color: theme.onAccent, fontSize: fontSizes.base, fontWeight: "600" }}>
             {isPending ? "Saving…" : "Save"}
           </Text>

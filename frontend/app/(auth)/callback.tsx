@@ -10,13 +10,11 @@
  * route or LoginScreen's own Linking listener over the same code.
  */
 import { useEffect } from "react";
-import { View, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { completeAuthFromUrl } from "../../lib/authCallback";
-import { useTheme } from "../../hooks/useTheme";
+import { ScreenLoader } from "../../components/ui/Spinner";
 
 export default function AuthCallbackLegacy() {
-  const { theme } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
     code?: string;
@@ -47,16 +45,5 @@ export default function AuthCallbackLegacy() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme.bg,
-      }}
-    >
-      <ActivityIndicator color={theme.accent} size="large" />
-    </View>
-  );
+  return <ScreenLoader />;
 }

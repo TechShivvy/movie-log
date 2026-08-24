@@ -8,9 +8,10 @@
  * never the fetching itself.
  */
 import React, { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { PosterCard } from "./PosterCard";
+import { SectionLoader } from "./Spinner";
 import type { MovieLog } from "../../types";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -81,9 +82,7 @@ export function ScopedLogGrid({ tabs, onLogPress, isSignedIn }: {
   const isEmpty = !current.loading && !showSignedOut && (current.logs?.length ?? 0) === 0;
 
   const body = current.loading ? (
-    Platform.OS === "web"
-      ? <div style={{ textAlign: "center", padding: 40, color: theme.accent } as React.CSSProperties}><span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span></div>
-      : <ActivityIndicator color={theme.accent} size="large" style={{ paddingTop: 40 }} />
+    <SectionLoader />
   ) : showSignedOut ? (
     Platform.OS === "web"
       ? <div style={{ textAlign: "center", padding: 40, color: `${theme.text}55`, fontSize: fontSizes.base } as React.CSSProperties}>{current.signedOutText}</div>

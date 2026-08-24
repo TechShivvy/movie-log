@@ -10,7 +10,6 @@
  */
 import React from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -28,6 +27,7 @@ import { useMovie } from "../hooks/useSearch";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { Poster } from "../components/ui/Poster";
+import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
@@ -295,9 +295,7 @@ export function FeedScreen() {
           {/* Main feed — flex:1, max-width:600px */}
           <div style={{ flex: 1, maxWidth: 600, minWidth: 0 } as React.CSSProperties}>
             {isLoading ? (
-              <div style={{ textAlign: "center", padding: 60, color: theme.accent } as React.CSSProperties}>
-                <span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span>
-              </div>
+              <SectionLoader padding={60} />
             ) : feedLogs.length === 0 ? (
               <div className="card" style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
                 <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
@@ -330,9 +328,7 @@ export function FeedScreen() {
       }
       ListEmptyComponent={
         isLoading ? (
-          <View style={{ flex: 1, alignItems: "center", paddingTop: 60 }}>
-            <ActivityIndicator color={theme.accent} size="large" />
-          </View>
+          <SectionLoader size="lg" padding={60} />
         ) : (
           <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
             <Text style={{ fontSize: 40 }}>🎬</Text>

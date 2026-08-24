@@ -15,7 +15,6 @@
  */
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -33,6 +32,7 @@ import { useSearchUsers } from "../hooks/useSocial";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
 import { Avatar } from "../components/ui/Avatar";
+import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
 import { avatarUrl } from "../lib/storage";
@@ -348,7 +348,7 @@ export function SearchScreen() {
             {showPeople && peopleLoading && (
               <div style={{ marginTop: 28 } as React.CSSProperties}>
                 <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 14px" } as React.CSSProperties}>People</h3>
-                <span className="spin" style={{ fontSize: fontSizes.h2, color: theme.accent } as React.CSSProperties}>◌</span>
+                <SectionLoader size="lg" padding={0} />
               </div>
             )}
 
@@ -425,9 +425,7 @@ export function SearchScreen() {
           <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>Type to search</Text>
         </View>
       ) : stillLoading ? (
-        <View style={{ flex: 1, alignItems: "center", paddingTop: 40 }}>
-          <ActivityIndicator color={theme.accent} size="large" />
-        </View>
+        <SectionLoader size="lg" />
       ) : (
         <FlatList
           // A discriminated union instead of the old `"movie" in item`

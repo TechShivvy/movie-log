@@ -49,7 +49,7 @@ export function PrivateNoteCard({ note, loading, onSave, saving }: {
           <span style={{ fontSize: fontSizes.sm, fontWeight: 600, color: `${theme.text}88`, letterSpacing: 0.3 } as React.CSSProperties}>
             PRIVATE NOTE
           </span>
-          {saving && <span style={{ fontSize: fontSizes.xs, color: `${theme.text}55` } as React.CSSProperties}>Saving…</span>}
+          {saving && <span style={{ fontSize: fontSizes.xs, color: `${theme.text}55`, marginLeft: "auto" } as React.CSSProperties}>Saving…</span>}
         </div>
         <textarea
           className="input"

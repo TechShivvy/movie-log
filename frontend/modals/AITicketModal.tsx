@@ -4,7 +4,6 @@
  */
 import React, { useState, useCallback } from "react";
 import {
-  ActivityIndicator,
   Modal,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { X, Ticket, Robot, WarningCircle, CheckCircle, Camera } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { Spinner } from "../components/ui/Spinner";
 import {
   useExtractTicket,
   useExtractTicketFromLink,
@@ -208,7 +208,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                   ]}
                 >
                   {extractSingle.isPending ? (
-                    <ActivityIndicator color={theme.accent} />
+                    <Spinner />
                   ) : (
                     <>
                       <Camera size={26} color={theme.accent} />
@@ -252,7 +252,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                       ]}
                     >
                       {startBatch.isPending ? (
-                        <ActivityIndicator color={theme.accent} />
+                        <Spinner />
                       ) : (
                         <>
                           <Camera size={26} color={theme.accent} />
@@ -344,7 +344,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
                   style={[styles.applyBtn, { backgroundColor: theme.accent }]}
                 >
                   {extractLink.isPending ? (
-                    <ActivityIndicator color="#fff" />
+                    <Spinner color={theme.onAccent} />
                   ) : (
                     <Text style={styles.applyBtnText}>Extract from link</Text>
                   )}
@@ -393,7 +393,7 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
               </Pressable>
             ) : (tab === "batch" && !!batchJobId && !batchDone) ? (
               <View style={[styles.applyBtn, { backgroundColor: theme.neutral800 }]}>
-                <ActivityIndicator color={theme.accent} size="small" />
+                <Spinner size="sm" />
                 <Text style={[styles.applyBtnText, { color: theme.text }]}>Processing…</Text>
               </View>
             ) : null}

@@ -18,6 +18,7 @@ import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PosterCard } from "../components/ui/PosterCard";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
+import { ScreenLoader } from "../components/ui/Spinner";
 import { avatarUrl, bannerUrl } from "../lib/storage";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
@@ -74,15 +75,7 @@ export function PublicProfileScreen() {
     blockUser.mutate({ username, blocked: false });
   };
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg }}>
-        {Platform.OS === "web"
-          ? <span className="spin" style={{ fontSize: 28, color: theme.accent } as React.CSSProperties}>◌</span>
-          : <Text style={{ color: theme.text }}>Loading…</Text>}
-      </View>
-    );
-  }
+  if (isLoading) return <ScreenLoader />;
   if (!profile) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>

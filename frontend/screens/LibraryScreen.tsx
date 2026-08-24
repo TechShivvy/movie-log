@@ -32,7 +32,6 @@
  */
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   RefreshControl,
@@ -50,6 +49,7 @@ import { CinematicBg } from "../components/layout/CinematicBg";
 import { Icon } from "../components/ui/Icon";
 import { Tag } from "../components/ui/Tag";
 import { Poster, type Poster as PosterType } from "../components/ui/Poster";
+import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import { fontFamily } from "../constants/fonts";
 import type { MovieLog } from "../types";
@@ -274,7 +274,7 @@ export function LibraryScreen() {
         </div>
 
         {isLoading ? (
-          <ActivityIndicator color={theme.accent} />
+          <SectionLoader />
         ) : isError ? (
           <ErrorState theme={theme} muted={muted} onRetry={refetch} />
         ) : shown.length === 0 ? (
@@ -469,7 +469,7 @@ export function LibraryScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color={theme.accent} />
+        <SectionLoader />
       ) : isError ? (
         <ErrorState theme={theme} muted={muted} onRetry={refetch} />
       ) : shown.length === 0 ? (

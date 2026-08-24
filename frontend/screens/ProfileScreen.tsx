@@ -26,7 +26,6 @@
  */
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   Platform,
   Pressable,
@@ -49,6 +48,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { PosterCard } from "../components/ui/PosterCard";
 import { EditProfileModal } from "../components/profile/EditProfileModal";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
+import { SectionLoader } from "../components/ui/Spinner";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
@@ -341,9 +341,7 @@ export function ProfileScreen() {
 
           {/* Content */}
           {isLoading ? (
-            <div style={{ textAlign: "center", padding: 40, color: theme.accent } as React.CSSProperties}>
-              <span className="spin" style={{ fontSize: 24 } as React.CSSProperties}>◌</span>
-            </div>
+            <SectionLoader />
           ) : activeTab === "theatres" ? (
             theatres.length === 0 ? (
               <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
@@ -483,7 +481,7 @@ export function ProfileScreen() {
 
         {/* Content */}
         {isLoading ? (
-          <ActivityIndicator color={theme.accent} size="large" style={{ paddingTop: 40 }} />
+          <SectionLoader />
         ) : activeTab === "theatres" ? (
           theatres.length === 0 ? (
             <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>

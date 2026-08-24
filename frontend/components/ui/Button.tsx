@@ -13,8 +13,9 @@
  *   .btn-block    → width:100%
  */
 import React from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { Spinner } from "./Spinner";
 import { Icon, type IconName } from "./Icon";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -108,7 +109,7 @@ export function Button({
       {children ?? (
         <>
           {loading ? (
-            <ActivityIndicator color={nativeColor} size="small" />
+            <Spinner size="sm" color={nativeColor} />
           ) : icon ? (
             <Icon name={icon} size={16} color={nativeColor} />
           ) : null}
