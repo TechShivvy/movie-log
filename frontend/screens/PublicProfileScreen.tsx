@@ -12,9 +12,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
-import { usePublicProfile, useFollowers, useFollowUser } from "../hooks/useSocial";
+import { usePublicProfile, useFollowers, useFollowUser, useBlockUser } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { PosterCard } from "../components/ui/PosterCard";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
 import { avatarUrl, bannerUrl } from "../lib/storage";
@@ -38,19 +39,39 @@ export function PublicProfileScreen() {
   const { data, isLoading, refetch } = usePublicProfile(username);
   const { data: followers } = useFollowers(username);
   const followUser = useFollowUser();
+  const blockUser = useBlockUser();
   const [refreshing, setRefreshing] = useState(false);
   const [lightbox, setLightbox] = useState<string | undefined>(undefined);
+  const [confirmingBlock, setConfirmingBlock] = useState(false);
 
   const profile = data?.profile;
   const logs = data?.logs ?? [];
   const isFollowing = !!followers?.some((f) => f.user_id === user?.id);
   const isOwnProfile = !!profile && profile.user_id === user?.id;
   const isPreviewingSelf = isOwnProfile && !!preview;
+  // is_blocking is caller-directional (see types/index.ts) — this is only
+  // ever true when *we* placed the block, so it's safe to drive the
+  // Block/Unblock button's own state from it.
+  const isBlocking = !!profile?.is_blocking;
 
   const openLog = (log: MovieLog) => router.push(`/(app)/log/${log.id}` as any);
   const toggleFollow = () => {
     if (!username) return;
     followUser.mutate({ username, following: isFollowing });
+  };
+  const toggleBlock = () => {
+    if (!username) return;
+    if (isBlocking) {
+      // Unblocking doesn't need confirmation — it's the safe direction.
+      blockUser.mutate({ username, blocked: true });
+    } else {
+      setConfirmingBlock(true);
+    }
+  };
+  const confirmBlock = () => {
+    setConfirmingBlock(false);
+    if (!username) return;
+    blockUser.mutate({ username, blocked: false });
   };
 
   if (isLoading) {
@@ -119,13 +140,20 @@ export function PublicProfileScreen() {
           </div>
         </div>
         {!isOwnProfile && (
-          <Button
-            variant={isFollowing ? "secondary" : "primary"}
-            icon={isFollowing ? "user-check" : "user-plus"}
-            label={isFollowing ? "Following" : "Follow"}
-            onPress={toggleFollow}
-            style={{ marginBottom: 4, flexShrink: 0 } as React.CSSProperties}
-          />
+          <div style={{ display: "flex", gap: 8, marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
+            <Button
+              variant={isFollowing ? "secondary" : "primary"}
+              icon={isFollowing ? "user-check" : "user-plus"}
+              label={isFollowing ? "Following" : "Follow"}
+              onPress={toggleFollow}
+            />
+            <Button
+              variant="icon"
+              icon="prohibit"
+              color={isBlocking ? theme.error : undefined}
+              onPress={toggleBlock}
+            />
+          </div>
         )}
       </div>
       {profile.bio && (
@@ -171,6 +199,15 @@ export function PublicProfileScreen() {
           )}
         </div>
         <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
+        <ConfirmDialog
+          visible={confirmingBlock}
+          title={`Block @${profile.username}`}
+          message="They won't be able to follow you or see your content, and you won't see theirs. They won't be notified."
+          confirmLabel="Block"
+          destructive
+          onConfirm={confirmBlock}
+          onCancel={() => setConfirmingBlock(false)}
+        />
       </div>
     );
   }
@@ -223,12 +260,20 @@ export function PublicProfileScreen() {
             <Avatar name={displayName} uri={avatar} size="xl" />
           </Pressable>
           {!isOwnProfile && (
-            <Button
-              variant={isFollowing ? "secondary" : "primary"}
-              icon={isFollowing ? "user-check" : "user-plus"}
-              label={isFollowing ? "Following" : "Follow"}
-              onPress={toggleFollow}
-            />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Button
+                variant={isFollowing ? "secondary" : "primary"}
+                icon={isFollowing ? "user-check" : "user-plus"}
+                label={isFollowing ? "Following" : "Follow"}
+                onPress={toggleFollow}
+              />
+              <Button
+                variant="icon"
+                icon="prohibit"
+                color={isBlocking ? theme.error : undefined}
+                onPress={toggleBlock}
+              />
+            </View>
           )}
         </View>
         {/* numberOfLines — same fix as ProfileScreen.tsx's own hero: an
@@ -261,6 +306,15 @@ export function PublicProfileScreen() {
       </View>
     </ScrollView>
     <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
+    <ConfirmDialog
+      visible={confirmingBlock}
+      title={`Block @${profile.username}`}
+      message="They won't be able to follow you or see your content, and you won't see theirs. They won't be notified."
+      confirmLabel="Block"
+      destructive
+      onConfirm={confirmBlock}
+      onCancel={() => setConfirmingBlock(false)}
+    />
     </>
   );
 }

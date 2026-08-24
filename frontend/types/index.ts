@@ -25,8 +25,22 @@ export interface PublicProfile {
   avatar_path?: string;
   banner_path?: string;
   profile_links: ProfileLink[];
-  is_blocked: boolean;
+  // Caller-directional (true only when *the caller* placed the block) —
+  // safe to read and branch UI on. Always false for the blocked party,
+  // who never placed it, so this can never be used to detect being
+  // blocked — that's deliberate, see PublicProfileScreen.tsx.
+  is_blocking: boolean;
   can_view_content: boolean;
+}
+
+// GET /public/blocks — the caller's own blocked accounts. Only the
+// blocker can ever see this list; there's no "who blocked me" endpoint.
+export interface BlockedUser {
+  user_id: string;
+  username?: string;
+  display_name?: string;
+  avatar_path?: string;
+  blocked_at: string;
 }
 
 export interface PublicProfileResponse {

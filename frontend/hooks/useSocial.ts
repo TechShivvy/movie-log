@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { patchLogInEveryCache } from "./useMovieLogs";
-import type { Comment, FollowerEntry, MovieLog, PublicProfileResponse, UserSearchResult } from "../types";
+import type { BlockedUser, Comment, FollowerEntry, MovieLog, PublicProfileResponse, UserSearchResult } from "../types";
 
 // ─── Public profile ─────────────────────────────────────────────────────────
 
@@ -424,6 +424,26 @@ export function useBlockUser() {
         await api.post(`/public/blocks/${username}`);
       }
     },
-    onSuccess: (_data, { username }) => qc.invalidateQueries({ queryKey: ["public-profile", username] }),
+    // Also invalidates ["blocks"] — the Blocked-accounts settings list —
+    // so blocking/unblocking from a profile keeps that screen in sync
+    // without a manual refetch.
+    onSuccess: (_data, { username }) => {
+      qc.invalidateQueries({ queryKey: ["public-profile", username] });
+      qc.invalidateQueries({ queryKey: ["blocks"] });
+    },
+  });
+}
+
+// GET /public/blocks — the caller's own blocked accounts. Only the
+// blocker can ever see this (blocks RLS) — nothing to gate client-side,
+// the backend already scopes it to the signed-in caller.
+export function useMyBlocks() {
+  return useQuery({
+    queryKey: ["blocks"],
+    queryFn: async () => {
+      const { data } = await api.get<BlockedUser[]>("/public/blocks");
+      return data;
+    },
+    enabled: !DEMO_MODE,
   });
 }

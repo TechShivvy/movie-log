@@ -15,7 +15,7 @@ export const MOCK_USER: PublicProfile = {
   bio: "Watching films since the VHS era 🎬",
   account_visibility: "public",
   profile_links: [],
-  is_blocked: false,
+  is_blocking: false,
   can_view_content: true,
 };
 

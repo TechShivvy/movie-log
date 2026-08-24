@@ -16,6 +16,7 @@
  */
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -24,9 +25,13 @@ import {
 } from "react-native";
 import { CheckCircle, Palette, User, Lock, Robot, Database, Trash, SignOut } from "phosphor-react-native";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { Avatar } from "../components/ui/Avatar";
+import { Button } from "../components/ui/Button";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
+import { useMyBlocks, useBlockUser } from "../hooks/useSocial";
+import { avatarUrl } from "../lib/storage";
 import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
 import { type as fontSizes } from "../constants/fonts";
@@ -122,11 +127,7 @@ export function SettingsScreen() {
             {section === "ai" && <WebAiSection theme={theme} />}
             {section === "data" && <WebDataSection theme={theme} />}
             {section === "account" && <WebAccountSection theme={theme} />}
-            {section === "privacy" && (
-              <div className="card" style={{ color: `${theme.text}66`, fontSize: fontSizes.base } as React.CSSProperties}>
-                Privacy settings — coming soon.
-              </div>
-            )}
+            {section === "privacy" && <WebPrivacySection theme={theme} />}
           </div>
         </div>
       </div>
@@ -171,11 +172,7 @@ export function SettingsScreen() {
       {section === "ai" && <NativeAiSection theme={theme} />}
       {section === "data" && <NativeDataSection theme={theme} />}
       {section === "account" && <NativeAccountSection theme={theme} />}
-      {section === "privacy" && (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-          <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.base }}>Privacy settings — coming soon.</Text>
-        </View>
-      )}
+      {section === "privacy" && <NativePrivacySection theme={theme} />}
     </ScrollView>
   );
 }
@@ -292,6 +289,58 @@ function WebAccountSection({ theme }: any) {
         onConfirm={() => { setConfirming(false); signOut(); }}
         onCancel={() => setConfirming(false)}
       />
+    </div>
+  );
+}
+
+// ─── Privacy / Blocked accounts — Web ──────────────────────────────────────────
+//
+// The only privacy control that lives here — account visibility itself
+// (public/followers_only/private) is set from ProfileScreen's own edit
+// flow, not duplicated here. Blocking has no other management surface in
+// the app (the Block button on a profile only ever blocks or unblocks the
+// one account you're looking at) — this is the one place to see the
+// whole list and undo one.
+
+function WebPrivacySection({ theme }: any) {
+  const { data: blocked, isLoading } = useMyBlocks();
+  const unblock = useBlockUser();
+  const rows = blocked ?? [];
+  return (
+    <div>
+      <h3 style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, margin: "0 0 16px" } as React.CSSProperties}>Blocked accounts</h3>
+      {isLoading ? (
+        <div className="card" style={{ textAlign: "center", padding: 24 } as React.CSSProperties}>
+          <span className="spin" style={{ fontSize: 22, color: theme.accent } as React.CSSProperties}>◌</span>
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="card" style={{ color: `${theme.text}66`, fontSize: fontSizes.base } as React.CSSProperties}>
+          You haven't blocked anyone. Block someone from their profile page.
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0 } as React.CSSProperties}>
+          {rows.map((r, i) => (
+            <div
+              key={r.user_id}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "12px 16px",
+                borderTop: i === 0 ? undefined : `1px solid ${theme.divider}`,
+              } as React.CSSProperties}
+            >
+              <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
+              <span style={{ flex: 1, fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>
+                {r.display_name ?? (r.username ? `@${r.username}` : "Someone")}
+              </span>
+              <Button
+                variant="secondary"
+                label="Unblock"
+                loading={unblock.isPending && unblock.variables?.username === r.username}
+                onPress={() => r.username && unblock.mutate({ username: r.username, blocked: true })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,6 +504,51 @@ function NativeAccountSection({ theme }: any) {
         onConfirm={() => { setConfirming(false); signOut(); }}
         onCancel={() => setConfirming(false)}
       />
+    </View>
+  );
+}
+
+// ─── Privacy / Blocked accounts — Native ───────────────────────────────────────
+
+function NativePrivacySection({ theme }: any) {
+  const { data: blocked, isLoading } = useMyBlocks();
+  const unblock = useBlockUser();
+  const rows = blocked ?? [];
+  return (
+    <View>
+      <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: `${theme.text}88`, letterSpacing: 0.5, marginBottom: 12 }}>BLOCKED ACCOUNTS</Text>
+      {isLoading ? (
+        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 24, alignItems: "center" }}>
+          <ActivityIndicator color={theme.accent} />
+        </View>
+      ) : rows.length === 0 ? (
+        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
+          <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.base }}>You haven't blocked anyone. Block someone from their profile page.</Text>
+        </View>
+      ) : (
+        <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: "hidden" }}>
+          {rows.map((r, i) => (
+            <View
+              key={r.user_id}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
+                borderTopWidth: i === 0 ? 0 : 1, borderTopColor: theme.divider,
+              }}
+            >
+              <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
+              <Text style={{ flex: 1, fontSize: fontSizes.base, fontWeight: "700", color: theme.text }}>
+                {r.display_name ?? (r.username ? `@${r.username}` : "Someone")}
+              </Text>
+              <Button
+                variant="secondary"
+                label="Unblock"
+                loading={unblock.isPending && unblock.variables?.username === r.username}
+                onPress={() => r.username && unblock.mutate({ username: r.username, blocked: true })}
+              />
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
