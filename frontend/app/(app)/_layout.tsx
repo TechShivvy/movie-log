@@ -1,5 +1,5 @@
 import React from "react";
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
@@ -46,7 +46,25 @@ function SidebarShellLayout({ children }: { children: React.ReactNode }) {
           zIndex: 1,
         } as React.CSSProperties}
       >
-        {children}
+        {/* absolute + inset:0 against .mainscroll's own position:relative —
+            not display:flex/grid tuning (both tried, both left <Tabs>'s
+            content in a 0px box; the flex-grow chain through
+            react-navigation's own nested flex:1 views never resolved
+            reliably here). This is the same trick <Tabs> uses internally
+            for its own screens (StyleSheet.absoluteFill against a
+            positioned ancestor) — sidesteps the whole flex-chain
+            question by sizing directly off the nearest positioned
+            ancestor's padding box, which .mainscroll's own confirmed
+            1204x838 computed size already guarantees. <Tabs> renders
+            every screen as position:absolute internally, with nothing
+            in that chain contributing to a plain block/flex ancestor's
+            auto-size — that's what collapsed to 0px under the old flat
+            <Stack>-free setup; every tab's content was always fully
+            correct in the DOM the whole time (confirmed via computed
+            styles + outerHTML), just rendering into a collapsed box. */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column" } as React.CSSProperties}>
+          {children}
+        </div>
       </div>
     ) : (
       <View style={{ flex: 1 }}>{children}</View>
@@ -66,9 +84,17 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   // Real device insets (notch/status bar height, gesture-nav/home-indicator
   // height) — see app/_layout.tsx's SafeAreaProvider comment. `insets.top`
   // pads every screen below the status bar/notch instead of them starting
-  // right under it; `insets.bottom` sits under TabBar's own fixed 22px
-  // bottom padding so the tab bar (and the FAB poking up out of it) clears
-  // the gesture bar/home indicator rather than sitting behind it.
+  // right under it. `insets.bottom` used to be applied here too, wrapping
+  // a hand-placed <TabBar/> — now that TabBar is rendered internally by
+  // <Tabs> itself (via its `tabBar` render prop, passed BottomTabBarProps
+  // including `insets`), TabBar applies its own bottom inset directly; see
+  // its own file for why. The old zIndex-stacking fix for the FAB dome
+  // poking up out of the bar (documented at length in TabBar.tsx's own
+  // header comment) doesn't apply here any more either — the bar is no
+  // longer a hand-placed sibling of this screen-content View fighting it
+  // for paint order, it's laid out internally by Tabs' own BottomTabView,
+  // which already paints the tab bar after (i.e. above) the active
+  // screen. Re-verify the dome's overlap if this ever regresses.
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.mobileRoot, { backgroundColor: theme.bg }]}>
@@ -78,23 +104,6 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
       <FilmGrain />
 
       <View style={[styles.mobileContent, { paddingTop: insets.top }]}>{children}</View>
-
-      {/* zIndex above mobileContent's — without it, mobileContent's own
-          zIndex:1 (see styles below) outranked this wrapper's implicit
-          0/auto, so the scrollable content behind the bar painted OVER
-          it despite being earlier in the JSX: CSS stacking order is
-          decided by zIndex first, DOM order only as a tiebreak among
-          equal zIndex. TabBar's FAB pokes up out of the bar into the
-          content area's own space via a negative offset — with the
-          content on top, that entire popped-up portion of the FAB was
-          invisible, painted over by whatever was behind it (confirmed:
-          the circle rendered as a flat-topped half-circle, cut exactly
-          at the bar's own boundary). This wrapper now outranks it, so
-          the bar (and the FAB) correctly sits above the content it
-          overlaps, not under it. */}
-      <View style={{ backgroundColor: theme.surface, paddingBottom: insets.bottom, zIndex: 2 }}>
-        <TabBar />
-      </View>
     </View>
   );
 }
@@ -126,12 +135,30 @@ export default function AppLayout() {
     return <Redirect href="/onboarding" />;
   }
 
-  // contentStyle is required — see the comment on ThemedStack in app/_layout.tsx.
-  // Every screen under (app) (Settings, Feed, Profile, …) is a separate
-  // Stack.Screen; without this each one painted its own opaque white
-  // background over MobileLayout's dark theme.bg.
-  const stack = (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }} />
+  // A real <Tabs> navigator, not a flat <Stack> with TabBar hand-simulating
+  // tab switches by pushing new stack entries — that meant no real per-tab
+  // back-stack (switching Library -> Feed -> Library pushed a THIRD Library
+  // screen rather than resuming the first one) and TabBar had to hand-
+  // compute "which tab owns this path" via path-prefix arrays. Each group
+  // below ((library), (feed), (search), (profile)) is its own nested Stack
+  // (see each group's own _layout.tsx) with a real, independent back-stack;
+  // switching tabs suspends/resumes state instead of pushing.
+  //
+  // TabBar is only rendered as the actual visual tab bar at mobile width —
+  // desktop/tablet keeps using Sidebar for navigation, same as before — but
+  // BOTH layouts now sit on top of this same real per-tab-stack machinery
+  // rather than Sidebar's router.push calls and TabBar's router.push calls
+  // both fighting over one flat Stack.
+  const tabs = (
+    <Tabs
+      tabBar={(props) => (isMobile ? <TabBar {...props} /> : null)}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tabs.Screen name="(library)" />
+      <Tabs.Screen name="(feed)" />
+      <Tabs.Screen name="(search)" />
+      <Tabs.Screen name="(profile)" />
+    </Tabs>
   );
 
   // Width-driven on every platform now, not gated to web — a real iPad
@@ -142,10 +169,10 @@ export default function AppLayout() {
   // shell — collapsed by default at tablet width via Sidebar's own
   // breakpoint check, same as web.
   if (!isMobile) {
-    return <SidebarShellLayout>{stack}</SidebarShellLayout>;
+    return <SidebarShellLayout>{tabs}</SidebarShellLayout>;
   }
 
-  return <MobileLayout>{stack}</MobileLayout>;
+  return <MobileLayout>{tabs}</MobileLayout>;
 }
 
 const styles = StyleSheet.create({

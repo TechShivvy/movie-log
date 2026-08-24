@@ -172,7 +172,23 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               <div
                 key={n.href}
                 className={active ? "navitem active" : "navitem"}
-                onClick={() => router.push(n.href as any)}
+                // navigate(), not push() — these targets live inside the
+                // real tab groups <Tabs> now provides (see (app)/_layout.tsx).
+                // push() always adds a new stack entry (repeated clicks grew
+                // the flat history unboundedly); navigate() at least resumes
+                // an already-focused route instead of stacking a duplicate.
+                // It does NOT fully match TabBar's own onPress (mobile) —
+                // each entry here is a specific leaf path ("/(app)/stats"),
+                // not "switch to the Library tab, whatever it's showing", so
+                // clicking "Library" while sitting on Stats still lands on
+                // Library's own index rather than resuming Stats. Sidebar
+                // sits outside <Tabs>'s own component tree entirely and has
+                // no access to that navigator's state/navigation the way
+                // TabBar's tabBar-prop render does — closing that gap needs
+                // lifting a nav ref up, not a one-line change; left as a
+                // known, minor divergence (confirmed live) rather than
+                // silently claimed as fixed.
+                onClick={() => router.navigate(n.href as any)}
               >
                 <Icon name={n.icon} size={19} />
                 <span className="lbl" style={{ flex: 1 } as React.CSSProperties}>{n.label}</span>
@@ -302,7 +318,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             return (
               <Pressable
                 key={n.href}
-                onPress={() => router.push(n.href as any)}
+                onPress={() => router.navigate(n.href as any)}
                 style={[
                   styles.navItem,
                   collapsed && styles.navItemCollapsed,

@@ -47,16 +47,37 @@
  */
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter, usePathname } from "expo-router";
+import { useRouter } from "expo-router";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
 import { type as fontSizes } from "../../constants/fonts";
 
-const TABS: { icon: IconName; label: string; href: string; owns?: string[] }[] = [
-  { icon: "film-strip",       label: "Library", href: "/(app)",         owns: ["/log/", "/movie", "/venue", "/stats"] },
-  { icon: "rss",              label: "Feed",    href: "/(app)/feed" },
-  { icon: "magnifying-glass", label: "Search",  href: "/(app)/search" },
-  { icon: "user",             label: "Profile", href: "/(app)/profile", owns: ["/settings", "/notifications"] },
+// routeName matches the (app)/_layout.tsx <Tabs.Screen name="..."> value,
+// which in turn is the route-group folder name (parens included — that's
+// how expo-router/React Navigation identify a group route, even though
+// the parens themselves never appear in the actual URL). Real tab-scoped
+// route groups now encode "which tab owns this path" — log/movie/venue/
+// stats live inside (library)/, settings/notifications inside (profile)/
+// — so there's no hand-maintained path-prefix list to keep in sync here
+// any more (the old `owns` arrays this file used to carry).
+//
+// defaultScreen names the file, within that group, this tab should land
+// on when pressed with no prior state. (library)/(feed)/(search) each
+// have an unambiguous single/index screen, so this is really only load-
+// bearing for (profile) — confirmed live that leaving it implicit (a
+// bare navigate("(profile)") with no screen) rendered the right screen
+// ("profile") but left window.location on "/notifications" (the group's
+// alphabetically-first file) regardless of a Stack-level
+// initialRouteName or the group's own unstable_settings.initialRouteName
+// — neither one drives the URL expo-router derives from a bare group
+// navigate. Passing the target screen explicitly here sidesteps that
+// default-resolution path entirely instead of fighting it.
+const TABS: { icon: IconName; label: string; routeName: string; defaultScreen: string }[] = [
+  { icon: "film-strip",       label: "Library", routeName: "(library)", defaultScreen: "index" },
+  { icon: "rss",              label: "Feed",    routeName: "(feed)",    defaultScreen: "feed" },
+  { icon: "magnifying-glass", label: "Search",  routeName: "(search)",  defaultScreen: "search" },
+  { icon: "user",             label: "Profile", routeName: "(profile)", defaultScreen: "profile" },
 ];
 
 // Wide relative to its height on purpose — 76px read as a tall,
@@ -72,10 +93,9 @@ const DOME_WIDTH = 74;
 const DOME_HEIGHT = 74;
 const FAB_ICON = 26;
 
-export function TabBar() {
+export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { theme } = useTheme();
   const router = useRouter();
-  const pathname = usePathname();
 
   // No Platform.OS guard: the parent layout (app/(app)/_layout.tsx) now
   // decides whether to mount TabBar at all, based on viewport width, not
@@ -83,23 +103,44 @@ export function TabBar() {
   // react-native-web.
   const inactive = `${theme.text}73`; // text 45%
 
-  function isActive(t: (typeof TABS)[number]) {
-    const seg = t.href.replace("/(app)", "");
-    if (seg === "") {
-      return ["/", "", "/(app)", "/index"].includes(pathname)
-        || (t.owns ?? []).some((o) => pathname.startsWith(o));
-    }
-    return pathname.startsWith(seg) || (t.owns ?? []).some((o) => pathname.startsWith(o));
-  }
-
   // Split so the centre action sits between Feed and Search, as in the design
   const left = TABS.slice(0, 2);
   const right = TABS.slice(2);
 
   const renderTab = (t: (typeof TABS)[number]) => {
-    const active = isActive(t);
+    const routeIndex = state.routes.findIndex((r) => r.name === t.routeName);
+    const active = state.index === routeIndex;
+    const onPress = () => {
+      const route = state.routes[routeIndex];
+      if (!route) return;
+      // Standard React Navigation custom-tab-bar dance: emit tabPress
+      // first so screens can intercept it (none do today, but this is
+      // the contract every tab bar is expected to follow), only
+      // navigate if nothing called preventDefault. navigate() on an
+      // already-mounted tab resumes its existing stack rather than
+      // resetting it — the whole point of this being a real Tabs
+      // navigator instead of the old flat Stack + router.push.
+      const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+      if (active || event.defaultPrevented) return;
+      // route.state only exists once this tab's own nested stack has
+      // been entered at least once — before that, a bare
+      // navigate(route.name) renders the right default screen but
+      // (confirmed live) leaves the URL pointing at whichever file in
+      // that group sorts first, not the one actually shown. Passing the
+      // target screen explicitly only on this FIRST entry sidesteps
+      // that; every later press finds real state already there and
+      // resumes it untouched; explicitly re-specifying the default
+      // screen on a re-press would reset the tab's stack instead of
+      // resuming it, which is the one thing this whole migration was
+      // for.
+      if (route.state) {
+        navigation.navigate(route.name);
+      } else {
+        navigation.navigate(route.name, { screen: t.defaultScreen } as never);
+      }
+    };
     return (
-      <Pressable key={t.href} onPress={() => router.push(t.href as any)} style={styles.tab}>
+      <Pressable key={t.routeName} onPress={onPress} style={styles.tab}>
         {/* Same accent@13% active-pill Sidebar uses for its nav items —
             the one piece of shared visual language the old flat-icon
             tabs had none of. */}
@@ -112,7 +153,7 @@ export function TabBar() {
   };
 
   return (
-    <View style={[styles.bar, { backgroundColor: theme.surfaceHigh, shadowColor: "#000" }]}>
+    <View style={[styles.bar, { backgroundColor: theme.surfaceHigh, shadowColor: "#000", paddingBottom: 8 + insets.bottom }]}>
       {left.map(renderTab)}
       {/* Reserves the dome's own width in the row's flex flow so the 4
           tabs still space themselves apart the same as before — the
@@ -175,16 +216,13 @@ const styles = StyleSheet.create({
     position: "relative",
     paddingTop: 8,
     paddingHorizontal: 6,
-    // Was 22 vs paddingTop's 8 — a lopsided 14px gap that read as
-    // "more space at the bottom" even before accounting for anything
-    // else, and the wrapping View in app/(app)/_layout.tsx ALSO adds
-    // insets.bottom (the real safe-area/home-indicator clearance) on
-    // top of this, so that extra space was being paid twice: once here
-    // unconditionally, once again for the actual device inset. Matched
-    // to paddingTop instead — insets.bottom alone is what device
-    // clearance needs; this is just the bar's own internal breathing
-    // room, which should be the same on both sides.
-    paddingBottom: 8,
+    // paddingBottom is set inline at render (8 + insets.bottom) — the
+    // bar's own internal breathing room (matched to paddingTop's 8, same
+    // reasoning as before: a lopsided 22-vs-8 gap read as "more space at
+    // the bottom" even before device inset) plus real safe-area/home-
+    // indicator clearance, now computed here directly from the `insets`
+    // BottomTabBarProps already hands this component, rather than by a
+    // wrapping View one level up guessing the bar's own padding.
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     // Elevated panel, floating over content, instead of a hairline top

@@ -1,6 +1,6 @@
 import { View, StyleSheet } from "react-native";
-import { useTheme } from "../../hooks/useTheme";
-import { LibraryScreen } from "../../screens/LibraryScreen";
+import { useTheme } from "../../../hooks/useTheme";
+import { LibraryScreen } from "../../../screens/LibraryScreen";
 
 // No SafeAreaView here: this used to import it from plain "react-native",
 // which is iOS-only and a no-op on Android to begin with. The real fix —
