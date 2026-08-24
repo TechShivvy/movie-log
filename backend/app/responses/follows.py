@@ -40,6 +40,14 @@ _FOLLOW_USER_EXAMPLE = {
     'followed_at': '2026-08-11T03:30:16.719405+00:00',
 }
 
+_BLOCKED_USER_EXAMPLE = {
+    'user_id': '44444444-4444-4444-4444-444444444444',
+    'username': 'someone_blocked',
+    'display_name': None,
+    'avatar_path': None,
+    'blocked_at': '2026-08-11T03:30:16.719405+00:00',
+}
+
 _UNAUTHORIZED = {
     401: {
         'description': 'Missing or invalid Supabase access token.',
@@ -193,6 +201,14 @@ responses = {
         200: {
             'description': "The caller's pending incoming follow requests, newest first.",
             'content': {'application/json': {'example': [_PENDING_FOLLOW_EXAMPLE]}},
+        },
+        **_UNAUTHORIZED,
+        **_UPSTREAM,
+    },
+    'list_blocks': {
+        200: {
+            'description': "The caller's own blocked accounts, most recently blocked first.",
+            'content': {'application/json': {'example': [_BLOCKED_USER_EXAMPLE]}},
         },
         **_UNAUTHORIZED,
         **_UPSTREAM,

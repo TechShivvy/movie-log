@@ -42,6 +42,16 @@ class FollowUser(BaseModel):
     followed_at: str
 
 
+class BlockedUser(BaseModel):
+    """One row of GET /public/blocks — the caller's own blocked accounts."""
+
+    user_id: str
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_path: Optional[str] = None
+    blocked_at: str
+
+
 class FeedLogEntry(BaseModel):
     """One row of GET /public/feed — same narrow projection as the public
     profile's own log list (no booking_ref/seats/ticket_image_path/price/

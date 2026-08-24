@@ -12,10 +12,12 @@ _PROFILE_EXAMPLE = {
 }
 
 # GET /users/{username} returns two extra fields beyond the PublicProfile/
-# search shape above — is_blocked (always false in a real response; true
-# would have already 404'd, see routers/public_profile.py) and
-# can_view_content (whether `logs` is actually populated for this caller).
-_PROFILE_ROUTE_EXAMPLE = {**_PROFILE_EXAMPLE, 'is_blocked': False, 'can_view_content': True}
+# search shape above — is_blocking (caller-directional: true only when the
+# caller themselves blocked this user, so it's always false for the blocked
+# party — see routers/public_profile.py) and can_view_content (whether
+# `logs` is actually populated for this caller; always false for a blocked
+# pair regardless of the account's real visibility tier).
+_PROFILE_ROUTE_EXAMPLE = {**_PROFILE_EXAMPLE, 'is_blocking': False, 'can_view_content': True}
 
 # What GET /users/{username} returns for a private account — the route
 # still resolves, just with no logs.
@@ -137,10 +139,15 @@ responses = {
             "whether `logs` is actually populated for the caller — true for "
             "public accounts always, for followers_only accounts only if the "
             "caller is an accepted follower (send a bearer token), never for "
-            "private accounts (except the owner). When true, `logs` has every "
-            "movie log set to `visibility: public` (never `anonymous` ones — by "
-            "definition, those don't show up attributed to anyone). `is_blocked` "
-            "is always false here — true would have 404'd instead (see below). "
+            "private accounts (except the owner), and always false for a "
+            "blocked pair regardless of the account's real visibility tier — "
+            "a block deliberately looks the same as a real private account "
+            "here, never a 404, never anything the blocked party can tell "
+            "apart. When true, `logs` has every movie log set to "
+            "`visibility: public` (never `anonymous` ones — by definition, "
+            "those don't show up attributed to anyone). `is_blocking` is "
+            "caller-directional (true only when the caller placed the "
+            "block) and always false for the blocked party. "
             'Public — no auth required. `logs` deliberately excludes '
             'booking_ref, seats, and ticket_image_path — see the '
             'public_movie_log_entries view (supabase/migrations).',

@@ -1052,21 +1052,17 @@ async def list_following(
 
 # ── Blocks ───────────────────────────────────────────────────────────────
 
-async def is_blocking(user_token: str, blocker_id: str, blocked_id: str) -> bool:
-    # Only ever answers "have I blocked them" — blocks RLS only lets the
-    # blocker read their own rows, so "have they blocked me" is
-    # structurally unreadable this way (by design, see migration
-    # 20260811000012's header comment). That direction is enforced by the
-    # DB trigger on the follows insert instead (see create_follow's
-    # caller in routers/follows.py).
-    params = {
-        'select': 'blocker_id',
-        'blocker_id': f'eq.{blocker_id}',
-        'blocked_id': f'eq.{blocked_id}',
-        'limit': '1',
-    }
-    response = await _request('GET', '/blocks', user_token, 'is_blocking', params=params)
-    return bool(response.json())
+async def list_my_blocks(user_token: str, *, limit: int = 50, offset: int = 0) -> list[dict]:
+    # list_my_blocks (migration 20260823000001) reads auth.uid() itself for
+    # "who am I" — no explicit blocker_id param needed, same reasoning as
+    # get_public_profile_by_username. Powers a "Blocked accounts" settings
+    # screen; there's no equivalent "who blocked me" query — blocks RLS
+    # only lets the blocker read their own rows (migration 20260811000012).
+    response = await _request(
+        'POST', '/rpc/list_my_blocks', user_token, 'list_my_blocks',
+        json={'p_limit': limit, 'p_offset': offset},
+    )
+    return response.json()
 
 
 async def create_block(user_token: str, blocker_id: str, blocked_id: str) -> dict:

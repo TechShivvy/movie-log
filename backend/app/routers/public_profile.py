@@ -62,21 +62,26 @@ async def search_users(
     tags=['Public'],
     description='A user\'s public profile. Resolves by username alone, so a link '
     "someone was already given keeps working forever (as long as the username "
-    "itself does) — unless the caller and this user have blocked each other "
-    'in either direction, in which case this 404s exactly like the user does '
-    "not exist, rather than confirming a block. Content depends on whether "
-    'the caller can view it: `public` accounts show every entry set to '
-    "`visibility: public` (never `anonymous` ones — those intentionally never "
-    'appear here) to anyone; `followers_only` accounts show it only to '
-    "accepted followers (send a bearer token to be recognized as one); "
-    "`private` accounts show it to nobody but the owner. Otherwise `logs`/"
-    '`favorites` are both empty — same "private account" behavior most '
-    'social apps use, rather than 404ing. `favorites` is the owner\'s up-to-4 '
-    'Letterboxd-style "Top 4" (see PUT /movie-logs/{id}/favorite), ordered '
-    'by slot, gated by the same visibility rule as `logs` — never includes '
-    'a `private` favorite regardless of who\'s asking, same as `logs`. '
-    'Public — no sign-in required, but sending a token lets the response '
-    "reflect the caller's own follow access.",
+    "itself does). Content depends on whether the caller can view it: `public` "
+    'accounts show every entry set to `visibility: public` (never `anonymous` '
+    "ones — those intentionally never appear here) to anyone; `followers_only` "
+    "accounts show it only to accepted followers (send a bearer token to be "
+    "recognized as one); `private` accounts show it to nobody but the owner. "
+    "Otherwise `logs`/`favorites` are both empty — same \"private account\" "
+    'behavior most social apps use, rather than 404ing. If the caller and this '
+    "user have blocked each other in either direction, the profile shell still "
+    "resolves normally but `can_view_content` is always false and `logs`/"
+    "`favorites` are always empty — deliberately indistinguishable from a real "
+    "private account with nothing to show, never a 404 and never anything that "
+    "confirms a block to the blocked party. `is_blocking` is the one "
+    "block-related field actually returned, and it's caller-directional (true "
+    "only when the caller themselves placed the block) so it's safe to expose: "
+    "always false for the blocked party, who never placed it. `favorites` is "
+    'the owner\'s up-to-4 Letterboxd-style "Top 4" (see PUT '
+    '/movie-logs/{id}/favorite), ordered by slot, gated by the same visibility '
+    'rule as `logs` — never includes a `private` favorite regardless of who\'s '
+    'asking, same as `logs`. Public — no sign-in required, but sending a token '
+    "lets the response reflect the caller's own follow/block relationship.",
     response_description='The profile shell, plus public logs/favorites if the caller can view them.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',
@@ -89,9 +94,7 @@ async def public_profile(
 ) -> Any:
     viewer_token = current_user.access_token if current_user else None
     profile = await supabase_rest.get_public_profile(username, viewer_token=viewer_token)
-    if not profile or profile['is_blocked']:
-        # Same 404 either way — a block should never be distinguishable
-        # from "this user doesn't exist" to the blocked/blocking party.
+    if not profile:
         raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
     logs = (
         await supabase_rest.list_public_logs_for_user(profile['user_id'], viewer_token=viewer_token)

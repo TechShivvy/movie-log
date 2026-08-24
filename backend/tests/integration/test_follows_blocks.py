@@ -144,23 +144,77 @@ async def test_block_severs_existing_follow_and_rejects_new_ones_both_directions
     block = await client.post(f'/api/v1/public/blocks/{follower_username}', headers=target_headers)
     assert block.status_code == 200
 
-    # GET /users/{username} 404s for either party now.
+    # GET /users/{username} still resolves for either party — a block must
+    # never be distinguishable from a real "nothing to see here" account —
+    # but content is masked exactly like a private account: can_view_content
+    # false, logs/favorites empty, even though both accounts are `public`.
     as_follower = await client.get(f'/api/v1/public/users/{target_username}', headers=follower_headers)
-    assert as_follower.status_code == 404
+    assert as_follower.status_code == 200
+    assert as_follower.json()['profile']['can_view_content'] is False
+    assert as_follower.json()['logs'] == []
     as_target = await client.get(f'/api/v1/public/users/{follower_username}', headers=target_headers)
-    assert as_target.status_code == 404
+    assert as_target.status_code == 200
+    assert as_target.json()['profile']['can_view_content'] is False
 
-    # A fresh follow attempt in either direction is rejected.
+    # A fresh follow attempt in either direction fails with the same
+    # generic conflict a real race condition would also produce — never a
+    # response that confirms a block exists.
     re_follow = await client.post(f'/api/v1/public/follows/{target_username}', headers=follower_headers)
-    assert re_follow.status_code == 403
+    assert re_follow.status_code == 409
+    assert re_follow.json()['code'] == 'FOLLOW_CONFLICT'
     reverse_follow = await client.post(f'/api/v1/public/follows/{follower_username}', headers=target_headers)
-    assert reverse_follow.status_code == 403
+    assert reverse_follow.status_code == 409
+    assert reverse_follow.json()['code'] == 'FOLLOW_CONFLICT'
 
     # Excluded from each other's authenticated search.
     search_as_target = await client.get(
         '/api/v1/public/users/search', params={'q': follower_username[:6]}, headers=target_headers,
     )
     assert follower_username not in [u['username'] for u in search_as_target.json()]
+
+
+@pytest.mark.asyncio
+async def test_list_blocks_and_unblock(client, make_user):
+    blocker_id, blocker_token = await make_user()
+    blocked_id, blocked_token = await make_user()
+    blocker_headers = {'Authorization': f'Bearer {blocker_token}'}
+    blocked_headers = {'Authorization': f'Bearer {blocked_token}'}
+
+    blocker_username = await _set_username_and_privacy(client, blocker_headers, 'public')
+    blocked_username = await _set_username_and_privacy(client, blocked_headers, 'public')
+
+    empty = await client.get('/api/v1/public/blocks', headers=blocker_headers)
+    assert empty.status_code == 200
+    assert empty.json() == []
+
+    block = await client.post(f'/api/v1/public/blocks/{blocked_username}', headers=blocker_headers)
+    assert block.status_code == 200
+
+    listed = await client.get('/api/v1/public/blocks', headers=blocker_headers)
+    assert listed.status_code == 200
+    assert [u['username'] for u in listed.json()] == [blocked_username]
+
+    # The blocked party has no way to see this list at all — it's not
+    # their own blocks, and blocks RLS only lets the blocker read theirs.
+    as_blocked = await client.get('/api/v1/public/blocks', headers=blocked_headers)
+    assert as_blocked.status_code == 200
+    assert as_blocked.json() == []
+
+    # `is_blocking` on the blocked party's own view of the blocker's
+    # profile stays false — it's caller-directional, they never placed it.
+    as_blocked_profile = await client.get(f'/api/v1/public/users/{blocker_username}', headers=blocked_headers)
+    assert as_blocked_profile.json()['profile']['is_blocking'] is False
+    as_blocker_profile = await client.get(f'/api/v1/public/users/{blocked_username}', headers=blocker_headers)
+    assert as_blocker_profile.json()['profile']['is_blocking'] is True
+
+    unblock = await client.delete(f'/api/v1/public/blocks/{blocked_username}', headers=blocker_headers)
+    assert unblock.status_code == 200
+
+    after_unblock = await client.get('/api/v1/public/blocks', headers=blocker_headers)
+    assert after_unblock.json() == []
+    # Content is visible again now that the block is gone.
+    restored = await client.get(f'/api/v1/public/users/{blocked_username}', headers=blocker_headers)
+    assert restored.json()['profile']['can_view_content'] is True
 
 
 @pytest.mark.asyncio

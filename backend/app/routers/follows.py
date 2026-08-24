@@ -21,7 +21,7 @@ _DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
 
 async def _resolve_user(username: str, viewer_token: Optional[str]) -> dict:
     # Always resolved with the caller's own token now (Phase 4) so
-    # is_blocked/can_view_content reflect the caller's actual relationship
+    # is_blocking/can_view_content reflect the caller's actual relationship
     # to this user, not an anonymous view of them.
     profile = await supabase_rest.get_public_profile(username, viewer_token=viewer_token)
     if not profile:
@@ -36,7 +36,10 @@ async def _resolve_user(username: str, viewer_token: Optional[str]) -> dict:
     '`public`; otherwise creates a `pending` request they must accept (see '
     'POST .../accept). A `private` account still accepts a follow request — it '
     "just doesn't unlock any content on its own; see AccountPrivacyUpdate for "
-    'why. 403 BLOCKED if either side has blocked the other.',
+    "why. If either side has blocked the other, this fails with the same "
+    '`FOLLOW_CONFLICT` 409 a genuine race condition would produce — '
+    'deliberately indistinguishable, a block should never be confirmable '
+    'from this response.',
     response_description='The created (or existing) follow relationship.',
     responses=responses['create_follow'],
     operation_id='FollowUser',
@@ -51,17 +54,15 @@ async def follow_user(
     if target['user_id'] == current_user.user_id:
         raise APIError(status.HTTP_400_BAD_REQUEST, 'SELF_FOLLOW', 'Cannot follow yourself.')
 
-    if target['is_blocked']:
-        # target['is_blocked'] (Phase 4's get_public_profile_by_username)
-        # covers either direction but doesn't say which — is_blocking
-        # (checkable directly, since blocks are readable by their own
-        # blocker) disambiguates for a clearer message. Superseded the
-        # Phase 2 version of this check, which had to infer "they blocked
-        # me" from a failed insert since that information didn't exist yet.
-        if await supabase_rest.is_blocking(current_user.access_token, current_user.user_id, target['user_id']):
-            raise APIError(status.HTTP_403_FORBIDDEN, 'BLOCKED', 'You have blocked this user.')
-        raise APIError(status.HTTP_403_FORBIDDEN, 'BLOCKED', 'You have been blocked by this user.')
-
+    # No pre-check for a block here on purpose (there used to be one, with
+    # an explicit 403 BLOCKED — removed because it let a blocked party
+    # confirm the block just by tapping Follow). check_no_block_before_follow
+    # (migration 20260811000012) still rejects the insert at the DB level
+    # either way; _raise_for_upstream already collapses that rejection to a
+    # bare 400 with no detail, and the except block below already remaps
+    # any 400 here to the same generic FOLLOW_CONFLICT a real race
+    # condition would also produce — so a blocked caller sees exactly the
+    # same "try again" response as any other transient failure.
     existing = await supabase_rest.get_follow(
         current_user.access_token, current_user.user_id, target['user_id']
     )
@@ -75,10 +76,9 @@ async def follow_user(
         )
     except APIError as e:
         if e.status_code == 400:
-            # Every real cause is ruled out above by now — this is just a
-            # defensive net for a race condition between the checks above
-            # and this insert (e.g. two concurrent follow requests), not a
-            # code path expected to trigger in normal use.
+            # Covers both a genuine race condition (two concurrent follow
+            # requests) and a blocked pair hitting the DB trigger above —
+            # deliberately not distinguished from each other.
             raise APIError(status.HTTP_409_CONFLICT, 'FOLLOW_CONFLICT', 'Could not complete follow — try again.')
         raise
 
@@ -182,10 +182,11 @@ async def list_follow_requests(
     tags=['Follows'],
     description="A user's accepted followers — gated the same way their profile "
     "content is: visible to anyone if the account is public, only to accepted "
-    "followers (+ owner) if followers_only, to nobody but the owner if private. "
-    "404s if the caller and this user have blocked each other, same as the "
-    'profile route. Public — no sign-in required, but sending a token lets the '
-    "response reflect the caller's own follow access.",
+    "followers (+ owner) if followers_only, to nobody but the owner if "
+    "private — and always empty for a blocked pair regardless of tier, same "
+    "as the profile route's `can_view_content`, never a 404 (see GET "
+    "/users/{username}). Public — no sign-in required, but sending a token "
+    "lets the response reflect the caller's own follow access.",
     response_description="The user's followers, most recently followed first.",
     responses=responses['list_followers'],
     operation_id='ListFollowers',
@@ -199,17 +200,20 @@ async def list_followers(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Any:
     viewer_token = current_user.access_token if current_user else None
-    target = await _resolve_user(username, viewer_token)
-    if target['is_blocked']:
-        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
+    # Still resolves the target (404s if the username plain doesn't exist)
+    # but no longer branches on a block — list_followers' own
+    # can_view_user_content gate (migration 20260823000001) already
+    # returns nothing for a blocked pair, same as it would for a real
+    # private account, with no separate reveal here.
+    await _resolve_user(username, viewer_token)
     return await supabase_rest.list_followers(username, limit=limit, offset=offset, viewer_token=viewer_token)
 
 
 @router.get(
     '/users/{username}/following',
     tags=['Follows'],
-    description="Who a user follows (accepted only) — same visibility gating and "
-    'block-404 behavior as GET .../followers.',
+    description="Who a user follows (accepted only) — same visibility gating "
+    'as GET .../followers, including the same never-a-404 block behavior.',
     response_description="Who the user follows, most recently followed first.",
     responses=responses['list_following'],
     operation_id='ListFollowing',
@@ -223,10 +227,30 @@ async def list_following(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Any:
     viewer_token = current_user.access_token if current_user else None
-    target = await _resolve_user(username, viewer_token)
-    if target['is_blocked']:
-        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'User not found.')
+    await _resolve_user(username, viewer_token)
     return await supabase_rest.list_following(username, limit=limit, offset=offset, viewer_token=viewer_token)
+
+
+@router.get(
+    '/blocks',
+    tags=['Follows'],
+    description="The caller's own blocked accounts — powers a \"Blocked "
+    "accounts\" settings screen. Only the blocker can ever see this (blocks "
+    "RLS, migration 20260811000012) — there's no way to list who has "
+    'blocked *you*, matching how blocking works on every mainstream social '
+    'app. Requires sign-in.',
+    response_description="The caller's blocked accounts, most recently blocked first.",
+    responses=responses['list_blocks'],
+    operation_id='ListBlocks',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_blocks(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Any:
+    return await supabase_rest.list_my_blocks(current_user.access_token, limit=limit, offset=offset)
 
 
 @router.post(
