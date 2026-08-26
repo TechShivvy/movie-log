@@ -23,7 +23,7 @@ import {
   GoogleLogo, Heart, Lock, LockKeyOpen, LockSimple, MagicWand, MagnifyingGlass,
   MapPin, MapTrifold, Monitor, Note, Palette, PaperPlaneTilt, PencilSimple,
   Plus, PlusCircle, Popcorn, Prohibit, ProjectorScreen, Robot, Rows, Rss, ShareNetwork,
-  SidebarSimple, SignIn, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
+  SidebarSimple, SignIn, SignOut, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
   Ticket, Timer, Trash, Upload, UploadSimple, User, UserCheck, UserPlus, Users, Warning,
   WarningCircle, WifiHigh, WifiSlash, X,
 } from "phosphor-react-native";
@@ -84,6 +84,7 @@ const NATIVE = {
   "share-network": ShareNetwork,
   "sidebar-simple": SidebarSimple,
   "sign-in": SignIn,
+  "sign-out": SignOut,
   "sparkle": Sparkle,
   "squares-four": SquaresFour,
   "stack-plus": StackPlus,
