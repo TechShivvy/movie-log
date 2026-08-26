@@ -441,6 +441,36 @@ textarea.input { min-height: 90px; resize: vertical; }
     radial-gradient(circle at 28% 30%, color-mix(in srgb, var(--color-accent) 26%, transparent), transparent 48%),
     radial-gradient(circle at 78% 62%, color-mix(in srgb, var(--color-accent) 16%, transparent), transparent 54%);
 }
+/* LoginScreen only — a fully self-contained alternative to .cine-bg
+   (CinematicBg.tsx renders one class or the other, never both: this
+   rule redeclares every visual property .cine-bg sets, so combining
+   them would just have this one win the cascade for all of them and
+   leave nothing of the other actually visible). The login page was
+   compared against a reference background: a fixed 4-hue diagonal
+   gradient, background-size 400% 400%, its position animated over 15s
+   — vivid and never theme-aware (four literal hex hues, chosen once,
+   same on every visit). This is the same technique (an oversized
+   diagonal gradient, animated via background-position) tuned subtler —
+   much lower opacity, a slower 34s cycle — and, unlike the reference,
+   genuinely theme-adaptive: every stop is this theme's own live accent
+   shades (CSS custom properties ThemeContext.tsx already updates on
+   every theme change, not hand-picked hex values), plus a slow
+   hue-rotate drift derived from that same single accent rather than
+   more unrelated hard-coded hues, so it can never clash with whichever
+   theme is active. */
+@keyframes clgAurora {
+  0%   { background-position: 0% 50%;   filter: blur(70px) hue-rotate(0deg); }
+  50%  { background-position: 100% 50%; filter: blur(70px) hue-rotate(26deg); }
+  100% { background-position: 0% 50%;   filter: blur(70px) hue-rotate(0deg); }
+}
+.cine-bg-aurora {
+  position: absolute; inset: -20%; z-index: 0;
+  background: linear-gradient(-45deg,
+    var(--color-accent-800), var(--color-accent), var(--color-accent-700), var(--color-surface-high));
+  background-size: 300% 300%;
+  opacity: .34;
+  animation: clgAurora 34s ease-in-out infinite;
+}
 @keyframes clgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .screen-anim { animation: clgIn .3s ease both; }
 @keyframes clgSpin { to { transform: rotate(360deg); } }

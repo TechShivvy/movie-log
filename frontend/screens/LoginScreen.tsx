@@ -402,7 +402,7 @@ export function LoginScreen() {
           overflow: "hidden",
         } as React.CSSProperties}
       >
-        <CinematicBg />
+        <CinematicBg variant="aurora" />
         <div
           className="screen-anim"
           style={{
