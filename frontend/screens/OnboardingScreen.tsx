@@ -197,8 +197,27 @@ export function OnboardingScreen() {
         placeholder="Your name"
         maxLength={100}
       />
+
+      {/* Continue/Sign-out both used to be hand-rolled a second time here
+          for native (a Pressable pair duplicating what Button already does
+          internally) — now every platform goes through the one shared
+          Button, which already has its own correct web/native rendering. */}
+      <Button
+        label={saving ? "Saving…" : "Continue"}
+        loading={saving}
+        onPress={handleContinue}
+        disabled={!canContinue || saving}
+        block
+        style={{ marginTop: 20 }}
+      />
+      <Button variant="ghost" label="Sign out" onPress={() => signOut()} block style={{ marginTop: 10 }} />
     </View>
   );
+
+  // The outer wrapper is the one genuine platform difference left: web
+  // centers a short, non-scrolling form in the viewport; native needs a
+  // real ScrollView (small screens, on-screen keyboard). Both wrap the
+  // exact same `content` — no duplicated logic left inside either branch.
 
   // ── Web (desktop/tablet only — narrower falls through to native) ──────────
   if (Platform.OS === "web" && !isMobile) {
@@ -206,15 +225,6 @@ export function OnboardingScreen() {
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom, background: theme.bg } as React.CSSProperties}>
         <div style={{ width: "100%", maxWidth: 400 } as React.CSSProperties}>
           {content}
-          <Button
-            label={saving ? "Saving…" : "Continue"}
-            loading={saving}
-            onPress={handleContinue}
-            disabled={!canContinue || saving}
-            block
-            style={{ marginTop: 20 } as React.CSSProperties}
-          />
-          <Button variant="ghost" label="Sign out" onPress={() => signOut()} block style={{ marginTop: 10 } as React.CSSProperties} />
         </div>
       </div>
     );
@@ -231,21 +241,6 @@ export function OnboardingScreen() {
       contentInsetAdjustmentBehavior="automatic"
     >
       {content}
-      <Pressable
-        onPress={handleContinue}
-        disabled={!canContinue || saving}
-        style={{
-          backgroundColor: theme.accent, borderRadius: 10, paddingVertical: 12,
-          alignItems: "center", marginTop: 20, opacity: (!canContinue || saving) ? 0.5 : 1,
-          flexDirection: "row", justifyContent: "center", gap: 8,
-        }}
-      >
-        {saving && <Spinner size="sm" color={theme.onAccent} />}
-        <Text style={{ color: theme.onAccent, fontSize: fontSizes.md, fontWeight: "700" }}>{saving ? "Saving…" : "Continue"}</Text>
-      </Pressable>
-      <Pressable onPress={() => signOut()} style={{ alignItems: "center", marginTop: 14, padding: 8 }}>
-        <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.sm }}>Sign out</Text>
-      </Pressable>
     </ScrollView>
   );
 }

@@ -1,16 +1,22 @@
 /**
- * ProfileScreen — pixel-accurate match to design spec.
+ * ProfileScreen — one JSX tree, breakpoint-driven (see Part C of the
+ * architecture-unification plan). Was a near-complete web/native fork;
+ * StatCard/TheatreRow were duplicated per platform for visually identical
+ * output, and the hero banner hand-built a CSS background+gradient on
+ * web instead of the Image+LinearGradient technique the native branch
+ * already used (expo-linear-gradient is genuinely cross-platform — see
+ * Poster.tsx, which already renders it inside its own web branch — so
+ * there was never a technical reason for the two implementations).
  *
- * Web layout (max-width:1000px):
- *   Hero: height:160px; background:linear-gradient(135deg, accent-900, surface)
- *   Avatar row: 96px/26px border-radius/4px border-bg, name/username, Edit Profile btn
- *   Stats row: 4 cards (Films, Following, Followers, ★ avg)
- *   Tabs: Logs/Favorites/Theatres (border-bottom:2px accent on active)
- *   Logs grid: 6-col (web), 3-col (mobile)
- *
- * Mobile:
- *   Hero 140px + avatar overlapping + stats row
- *   2-col logs grid
+ * The one deliberate remaining Platform.OS branch is the poster grid
+ * itself: PosterCard's own web rendering relies on being inside a real
+ * CSS Grid track for its width (see that file's own header comment —
+ * it has its own legitimate hover-vs-touch overlay split, out of scope
+ * here), so this screen still hands it a CSS grid on web vs a
+ * percentage-width flexWrap on native. Everything else — hero, avatar/
+ * name row, action buttons (now the same icon-only pair on both
+ * platforms, per the plan's call), bio, stats row, tabs, empty states —
+ * is one shared render path with breakpoint-driven sizing.
  *
  * Tabs redesigned from the original Logs/Reviews/Theatres: "Reviews" was
  * just "logs with notes in them" - a filtered subset of Logs, not a
@@ -95,14 +101,6 @@ function groupTheatres(logs: MovieLog[]): VisitedTheatre[] {
 // each query resolves looked like the page silently reloaded itself).
 function StatCard({ value, label, theme, isLoading }: { value: string | number; label: string; theme: any; isLoading?: boolean }) {
   const display = isLoading ? "…" : value;
-  if (Platform.OS === "web") {
-    return (
-      <div className="card" style={{ textAlign: "center", flex: 1 } as React.CSSProperties}>
-        <div style={{ fontSize: fontSizes.display, fontWeight: 700, color: "var(--color-accent)", marginBottom: 2, opacity: isLoading ? 0.5 : 1 } as React.CSSProperties}>{display}</div>
-        <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66` } as React.CSSProperties}>{label}</div>
-      </div>
-    );
-  }
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
       <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.accent, opacity: isLoading ? 0.5 : 1 }}>{display}</Text>
@@ -114,22 +112,6 @@ function StatCard({ value, label, theme, isLoading }: { value: string | number; 
 // ─── Theatre row ────────────────────────────────────────────────────────────
 
 function TheatreRow({ t, theme, onPress }: { t: VisitedTheatre; theme: any; onPress: () => void }) {
-  if (Platform.OS === "web") {
-    return (
-      <div className="tapc" onClick={onPress} style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "12px 0", borderBottom: `1px solid ${theme.divider}`, cursor: "pointer",
-      } as React.CSSProperties}>
-        <div>
-          <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{t.name}</div>
-          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 } as React.CSSProperties}>
-            {t.visitCount} {t.visitCount === 1 ? "visit" : "visits"}
-          </div>
-        </div>
-        <CaretRight size={16} color={`${theme.text}44`} />
-      </div>
-    );
-  }
   return (
     <Pressable onPress={onPress} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
       <View>
@@ -203,315 +185,179 @@ export function ProfileScreen() {
 
   const logsForTab = activeTab === "favorites" ? favorites : logs ?? [];
 
-  // ── Web layout (tablet & desktop only) ──────────────────────────────────────
-  // Was a bare Platform.OS === "web" check — on a real phone's mobile
-  // browser/PWA, Platform.OS is "web" at ANY width, so this desktop
-  // layout (maxWidth:1000 container, 6-col poster grid, side-by-side
-  // stat cards) rendered unconditionally there too, with no scroll
-  // wrapper around it either (that only exists in the desktop Sidebar
-  // shell, not MobileLayout) — confirmed as the root cause of "not
-  // scrollable" + "everything too big" on the deployed mobile site.
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      // width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
-      // same shrink-wrap-instead-of-filling bug as every other screen
-      // below this maxWidth+margin:auto shape. "You"/"@you" name block and
-      // the Settings/Edit profile buttons, meant to sit at opposite ends
-      // of a wide space-between row, ended up crushed together on the
-      // left with barely a gap without it.
-      <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        {/* Hero banner — the flat rectangle (image or gradient) used to
-            just stop dead against the page background below it, a hard
-            horizontal seam. A bottom fade into theme.bg blends it into
-            the content instead, same treatment on the real-image and
-            no-banner-gradient cases alike since both are equally a flat
-            block of color hitting a flat edge. A plain 2-stop
-            transparent→bg fade still read as an abrupt cut against a
-            busy/high-contrast banner image — a 2-stop linear ramp looks
-            smooth against a flat color but against real image detail
-            the eye still catches where it starts. More stops easing in
-            gradually (mimicking a cubic curve instead of a straight
-            line) reads as a genuine soft fade instead. */}
-        <div
-          onClick={banner ? () => setLightbox(banner) : undefined}
-          style={{
-            height: 160,
-            background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
-            position: "relative",
-            cursor: banner ? "pointer" : undefined,
-          } as React.CSSProperties}>
-          <div style={{
-            position: "absolute", left: 0, right: 0, bottom: 0, height: 110, pointerEvents: "none",
-            background: `linear-gradient(to bottom, ${theme.bg}00 0%, ${theme.bg}00 15%, ${theme.bg}40 45%, ${theme.bg}cc 75%, ${theme.bg} 100%)`,
-          } as React.CSSProperties} />
-        </div>
+  const heroHeight = isMobile ? 140 : 160;
+  const heroFade = isMobile ? 100 : 110;
+  const gridCols = isMobile ? 3 : 6;
 
-        {/* position:relative — without it, this whole block (including
-            the avatar, which overlaps up into the hero via marginTop:-40)
-            painted BEHIND the hero's own position:relative + its
-            absolute-positioned fade overlay, despite coming later in the
-            markup: CSS stacks all `position`ed elements above `static`
-            ones regardless of DOM order, so the fade was rendering on
-            top of the avatar's upper half — the flat "cut" look. */}
-        <div style={{ padding: "0 32px 40px", position: "relative" } as React.CSSProperties}>
-          {/* Avatar + name row — flexWrap so the button group drops to its
-              own line rather than colliding with a long name at narrow
-              widths; minWidth:0 + ellipsis on the name block so an
-              oversized fallback name (the raw email-local-part, which can
-              easily run 20-30+ characters) truncates instead of
-              overflowing past the buttons or off the screen entirely. */}
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 12 } as React.CSSProperties}>
-            <div className={isProfileLoading ? "pulse-loading" : undefined} style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
-              <div onClick={avatar ? () => setLightbox(avatar) : undefined} style={{ cursor: avatar ? "pointer" : undefined } as React.CSSProperties}>
-                <Avatar name={displayName} uri={avatar} size="xl" />
-              </div>
-              <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
-                {/* While the profile fetch is still in flight, show a
-                    plain "Loading…" instead of the un-annotated
-                    email-handle fallback — that fallback is only a
-                    correct final answer once we actually know there's
-                    no real display_name/username to show, not before. */}
-                <h2 style={{ fontSize: fontSizes.xxl, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
-                  {isProfileLoading ? "Loading…" : displayName}
-                </h2>
-                <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>
-                  {isProfileLoading ? "" : `@${username}`}
-                </span>
-                {/* Deliberate "View as" escape hatch (same idea as Slack's) —
-                    landing on your own /profile/{username} any other way
-                    (a typed URL, an old link, finding yourself in People
-                    search) redirects straight back here instead, so this
-                    link is the one intentional door into seeing your own
-                    profile the way a stranger/follower would. */}
-                {!isProfileLoading && profile?.username && (
-                  <a
-                    onClick={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)}
-                    className="tapc"
-                    style={{ fontSize: fontSizes.xs, color: theme.accent, marginTop: 2, display: "inline-block", cursor: "pointer" } as React.CSSProperties}
-                  >
-                    Preview as others see it
-                  </a>
-                )}
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
-              <button className="btn btn-secondary" onClick={() => router.push("/(app)/settings" as any)}>
-                <GearSix size={14} />
-                Settings
-              </button>
-              <button className="btn btn-secondary" onClick={() => setEditing(true)}>
-                <PencilSimple size={14} />
-                Edit profile
-              </button>
-            </div>
-          </div>
-
-          {bio && <p style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 1.5, margin: "0 0 20px" } as React.CSSProperties}>{bio}</p>}
-
-          {/* Stats row */}
-          <div style={{ display: "flex", gap: 10, marginBottom: 28 } as React.CSSProperties}>
-            <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
-            <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
-            <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
-            <StatCard value={avgRating} label="★ avg rating" theme={theme} isLoading={isLoading} />
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${theme.divider}`, marginBottom: 24 } as React.CSSProperties}>
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                style={{
-                  padding: "10px 16px",
-                  fontSize: fontSizes.base,
-                  fontWeight: 600,
-                  color: activeTab === t.id ? theme.accent : `${theme.text}66`,
-                  background: "none",
-                  border: "none",
-                  borderBottom: activeTab === t.id ? `2px solid ${theme.accent}` : "2px solid transparent",
-                  cursor: "pointer",
-                  marginBottom: -1,
-                } as React.CSSProperties}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Content */}
-          {isLoading ? (
-            <SectionLoader />
-          ) : activeTab === "theatres" ? (
-            theatres.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
-                <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎦</div>
-                <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>No theatres linked to your logs yet.</p>
-              </div>
-            ) : (
-              <div>
-                {theatres.map((t) => (
-                  <TheatreRow key={t.theatreId} t={t} theme={theme} onPress={() => openVenue(t.theatreId)} />
-                ))}
-              </div>
-            )
-          ) : logsForTab.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
-              <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>
-                {activeTab === "favorites" ? "No favorites yet — star up to 4 logs from their detail page." : "No logs yet. Start by logging a film!"}
-              </p>
-            </div>
-          ) : (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(6, 1fr)",
-              gap: 14,
-            } as React.CSSProperties}>
-              {logsForTab.map((log) => (
-                <PosterCard key={log.id} log={log} onPress={() => openLog(log.id)} />
-              ))}
-            </div>
-          )}
-        </div>
-        <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
-        <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
-      </div>
-    );
-  }
-
-  // ── Mobile layout ──────────────────────────────────────────────────────────
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: "transparent" }}
-      contentContainerStyle={{ paddingBottom: 100 }}
-      contentInsetAdjustmentBehavior="automatic"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
-    >
-      {/* Hero — bottom fade into theme.bg so the flat banner rectangle
-          (image or the plain accent900 fallback) doesn't just stop dead
-          against the page background below it. Multiple color/location
-          stops instead of a plain 2-stop fade — a straight-line ramp
-          against real image detail (as opposed to a flat color) still
-          reads as an abrupt cut; easing in gradually across more stops
-          looks like a genuine soft fade instead. */}
-      <Pressable onPress={banner ? () => setLightbox(banner) : undefined} disabled={!banner} style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
-        {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
-        <LinearGradient
-          colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
-          locations={[0, 0.15, 0.45, 0.75, 1]}
-          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 100 }}
-        />
-      </Pressable>
-
-      {/* Avatar overlapping hero */}
-      <View style={{ paddingHorizontal: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
+  const content = (
+    <View style={{ paddingHorizontal: isMobile ? 16 : 32, paddingBottom: isMobile ? 100 : 40 }}>
+      {/* Avatar + name row — flexWrap so the button group drops to its own
+          line rather than colliding with a long name at narrow widths;
+          minWidth:0 + numberOfLines on the name so an oversized fallback
+          name (the raw email-local-part, easily 20-30+ chars) truncates
+          instead of overflowing past the buttons or off the screen. */}
+      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 12, opacity: isProfileLoading ? 0.6 : 1 }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, minWidth: 0, flex: 1 }}>
           <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
             <Avatar name={displayName} uri={avatar} size="xl" />
           </Pressable>
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 4 }}>
-            <Pressable
-              onPress={() => setEditing(true)}
-              style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
-            >
-              <PencilSimple size={16} color={theme.text} />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/(app)/settings" as any)}
-              style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
-            >
-              <GearSix size={16} color={theme.text} />
-            </Pressable>
+          <View style={{ marginBottom: 4, minWidth: 0, flexShrink: 1 }}>
+            {/* While the profile fetch is still in flight, show a plain
+                "Loading…" instead of the un-annotated email-handle
+                fallback — that fallback is only a correct final answer
+                once we actually know there's no real display_name/
+                username to show, not before. */}
+            <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
+              {isProfileLoading ? "Loading…" : displayName}
+            </Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
+              {isProfileLoading ? "" : `@${username}`}
+            </Text>
+            {/* Deliberate "View as" escape hatch (same idea as Slack's) —
+                landing on your own /profile/{username} any other way (a
+                typed URL, an old link, finding yourself in People
+                search) redirects straight back here instead, so this
+                link is the one intentional door into seeing your own
+                profile the way a stranger/follower would. */}
+            {!isProfileLoading && profile?.username && (
+              <Pressable onPress={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)} style={{ marginTop: 2, alignSelf: "flex-start" }}>
+                <Text style={{ fontSize: fontSizes.xs, color: theme.accent }}>Preview as others see it</Text>
+              </Pressable>
+            )}
           </View>
         </View>
-
-        {/* numberOfLines — an oversized fallback name (raw email-local-part,
-            easily 20-30+ chars) had no truncation at all here and just
-            ran past the screen edge at phone width. */}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text, opacity: isProfileLoading ? 0.5 : 1 }}>
-          {isProfileLoading ? "Loading…" : displayName}
-        </Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
-          {isProfileLoading ? "" : `@${username}`}
-        </Text>
-        {/* Deliberate "View as" escape hatch — see the web branch's
-            identical comment above for why this is the one intentional
-            door into seeing your own profile the way a stranger would. */}
-        {!isProfileLoading && profile?.username && (
-          <Pressable onPress={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)} style={{ marginTop: 2, marginBottom: bio ? 8 : 16, alignSelf: "flex-start" }}>
-            <Text style={{ fontSize: fontSizes.xs, color: theme.accent }}>Preview as others see it</Text>
+        {/* Icon-only action pair on both platforms — was a text-labeled
+            .btn-secondary duo on web and this same icon-only square pair
+            on native; adopted native's version everywhere (a wide desktop
+            tooltip could label them later, but two matching icons is
+            already unambiguous next to a profile header). */}
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
+          <Pressable
+            onPress={() => setEditing(true)}
+            style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
+          >
+            <PencilSimple size={16} color={theme.text} />
           </Pressable>
-        )}
-        {bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{bio}</Text>}
-
-        {/* Stats row */}
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 24 }}>
-          <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
-          <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
-          <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
-          <StatCard value={avgRating} label="★ avg" theme={theme} isLoading={isLoading} />
+          <Pressable
+            onPress={() => router.push("/(app)/settings" as any)}
+            style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
+          >
+            <GearSix size={16} color={theme.text} />
+          </Pressable>
         </View>
+      </View>
 
-        {/* Tabs */}
-        <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.divider, marginBottom: 16 }}>
-          {TABS.map((t) => (
-            <Pressable
-              key={t.id}
-              onPress={() => setActiveTab(t.id)}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                alignItems: "center",
-                borderBottomWidth: 2,
-                borderBottomColor: activeTab === t.id ? theme.accent : "transparent",
-                marginBottom: -1,
-              }}
-            >
-              <Text style={{
-                fontSize: fontSizes.sm,
-                fontWeight: "600",
-                color: activeTab === t.id ? theme.accent : `${theme.text}66`,
-              }}>
-                {t.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+      {bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: isMobile ? 16 : 20 }}>{bio}</Text>}
 
-        {/* Content */}
-        {isLoading ? (
-          <SectionLoader />
-        ) : activeTab === "theatres" ? (
-          theatres.length === 0 ? (
-            <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-              <Text style={{ fontSize: 36 }}>🎦</Text>
-              <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No theatres linked to your logs yet.</Text>
-            </View>
-          ) : (
-            <View>
-              {theatres.map((t) => (
-                <TheatreRow key={t.theatreId} t={t} theme={theme} onPress={() => openVenue(t.theatreId)} />
-              ))}
-            </View>
-          )
-        ) : logsForTab.length === 0 ? (
-          <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-            <Text style={{ fontSize: 36 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>
-              {activeTab === "favorites" ? "No favorites yet" : "No logs yet"}
+      {/* Stats row */}
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: isMobile ? 24 : 28 }}>
+        <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
+        <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
+        <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
+        <StatCard value={avgRating} label={isMobile ? "★ avg" : "★ avg rating"} theme={theme} isLoading={isLoading} />
+      </View>
+
+      {/* Tabs */}
+      <View style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.divider, marginBottom: isMobile ? 16 : 24 }}>
+        {TABS.map((t) => (
+          <Pressable
+            key={t.id}
+            onPress={() => setActiveTab(t.id)}
+            style={{
+              flex: isMobile ? 1 : undefined,
+              paddingHorizontal: isMobile ? undefined : 16,
+              paddingVertical: 10,
+              alignItems: "center",
+              borderBottomWidth: 2,
+              borderBottomColor: activeTab === t.id ? theme.accent : "transparent",
+              marginBottom: -1,
+            }}
+          >
+            <Text style={{ fontSize: isMobile ? fontSizes.sm : fontSizes.base, fontWeight: "600", color: activeTab === t.id ? theme.accent : `${theme.text}66` }}>
+              {t.label}
             </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Content */}
+      {isLoading ? (
+        <SectionLoader />
+      ) : activeTab === "theatres" ? (
+        theatres.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
+            <Text style={{ fontSize: 40 }}>🎦</Text>
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No theatres linked to your logs yet.</Text>
           </View>
         ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {logsForTab.map((log) => (
-              <View key={log.id} style={{ width: "30%" }}>
-                <PosterCard log={log} width={100} onPress={() => openLog(log.id)} />
-              </View>
+          <View>
+            {theatres.map((t) => (
+              <TheatreRow key={t.theatreId} t={t} theme={theme} onPress={() => openVenue(t.theatreId)} />
             ))}
           </View>
-        )}
+        )
+      ) : logsForTab.length === 0 ? (
+        <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
+          <Text style={{ fontSize: 40 }}>🎬</Text>
+          <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base, textAlign: "center" }}>
+            {activeTab === "favorites" ? "No favorites yet — star up to 4 logs from their detail page." : "No logs yet. Start by logging a film!"}
+          </Text>
+        </View>
+      ) : Platform.OS === "web" && !isMobile ? (
+        // PosterCard's own web branch sizes itself off a real CSS Grid
+        // track (see its header comment) — the one deliberate technique
+        // split left in this screen, everything around it is shared.
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gap: 14 } as React.CSSProperties}>
+          {logsForTab.map((log) => (
+            <PosterCard key={log.id} log={log} onPress={() => openLog(log.id)} />
+          ))}
+        </div>
+      ) : (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          {logsForTab.map((log) => (
+            <View key={log.id} style={{ width: "30%" }}>
+              <PosterCard log={log} width={100} onPress={() => openLog(log.id)} />
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={isMobile ? undefined : { alignItems: "center" }}
+      contentInsetAdjustmentBehavior="automatic"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
+    >
+      <View style={{ maxWidth: isMobile ? undefined : 1000, width: "100%" }}>
+        {/* Hero — bottom fade into theme.bg so the flat banner rectangle
+            (real image, or the accent900→surface gradient fallback) doesn't
+            just stop dead against the page background below it. Multiple
+            color/location stops instead of a plain 2-stop fade — a
+            straight-line ramp against real image detail (as opposed to a
+            flat color) still reads as an abrupt cut; easing in gradually
+            across more stops looks like a genuine soft fade instead. */}
+        <View style={{ height: heroHeight, position: "relative", overflow: "hidden" }}>
+          {banner ? (
+            <Pressable onPress={() => setLightbox(banner)} style={{ width: "100%", height: "100%" }}>
+              <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            </Pressable>
+          ) : (
+            <LinearGradient colors={[theme.accent900, theme.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: "100%", height: "100%" }} />
+          )}
+          <LinearGradient
+            colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
+            locations={[0, 0.15, 0.45, 0.75, 1]}
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: heroFade }}
+            pointerEvents="none"
+          />
+        </View>
+
+        {content}
       </View>
+
       <EditProfileModal visible={editing} profile={profile ?? null} onClose={() => setEditing(false)} />
       <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
     </ScrollView>

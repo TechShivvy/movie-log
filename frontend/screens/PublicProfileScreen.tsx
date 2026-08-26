@@ -4,10 +4,21 @@
  * this one deliberately doesn't have). Header (banner/avatar/bio), a
  * Follow button, and their visible logs — scoped to view + follow for
  * this pass, not full parity with the own-profile screen.
+ *
+ * One JSX tree, breakpoint-driven (see Part C of the architecture-
+ * unification plan). The old web branch's `header` constant looked
+ * shared but wasn't — it was only ever rendered by the web return, and
+ * native quietly reimplemented the same ~60 lines a second time
+ * (including the same bugs-already-fixed-once-here: the ellipsis/
+ * flexWrap name handling, the multi-stop banner fade). Follows
+ * ProfileScreen.tsx's own unification: Image+LinearGradient hero on both
+ * platforms (already proven cross-platform — see Poster.tsx), one poster
+ * grid technique split kept (PosterCard's web branch needs a real CSS
+ * Grid ancestor for its width — see that file), everything else shared.
  */
 import React, { useState } from "react";
 import { Image, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { useLocalSearchParams, useRouter, Redirect, Link } from "expo-router";
+import { useLocalSearchParams, useRouter, Redirect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -75,6 +86,15 @@ export function PublicProfileScreen() {
     blockUser.mutate({ username, blocked: false });
   };
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   if (isLoading) return <ScreenLoader />;
   if (!profile) {
     return (
@@ -91,211 +111,121 @@ export function PublicProfileScreen() {
   const avatar = avatarUrl(profile.avatar_path);
   const displayName = profile.display_name || profile.username;
 
-  const header = (
-    <>
-      {/* Bottom fade into theme.bg — same fix as ProfileScreen.tsx's own
-          hero, same reasoning: a flat banner rectangle otherwise just
-          stops dead against the page background below it. More stops
-          than a plain 2-stop fade, same reasoning as ProfileScreen.tsx:
-          a straight-line ramp against real image detail still reads as
-          an abrupt cut; easing in gradually looks like a genuine soft
-          fade instead. */}
-      <div
-        onClick={banner ? () => setLightbox(banner) : undefined}
-        style={{
-          height: 160,
-          background: banner ? `url(${banner}) center/cover no-repeat` : `linear-gradient(135deg, ${theme.accent900}, ${theme.surface})`,
-          position: "relative",
-          cursor: banner ? "pointer" : undefined,
-        } as React.CSSProperties}>
-        <div style={{
-          position: "absolute", left: 0, right: 0, bottom: 0, height: 110, pointerEvents: "none",
-          background: `linear-gradient(to bottom, ${theme.bg}00 0%, ${theme.bg}00 15%, ${theme.bg}40 45%, ${theme.bg}cc 75%, ${theme.bg} 100%)`,
-        } as React.CSSProperties} />
-      </div>
-      {/* position:relative — same fix as ProfileScreen.tsx's hero: without
-          it, this row (including the avatar overlapping up via
-          marginTop:-40) painted BEHIND the hero's absolute-positioned
-          fade overlay despite coming later in the markup, since CSS
-          stacks positioned elements above static ones regardless of DOM
-          order. */}
-      {/* flexWrap + ellipsis — same fix as ProfileScreen.tsx's own hero:
-          an unbounded long name ran into (or past) the Follow button at
-          narrow widths, with no way to shrink or wrap. */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 16, padding: "0 32px", position: "relative" } as React.CSSProperties}>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16, minWidth: 0, flex: "1 1 240px" } as React.CSSProperties}>
-          <div onClick={avatar ? () => setLightbox(avatar) : undefined} style={{ cursor: avatar ? "pointer" : undefined } as React.CSSProperties}>
-            <Avatar name={displayName} uri={avatar} size="xl" />
-          </div>
-          <div style={{ marginBottom: 4, minWidth: 0, overflow: "hidden" } as React.CSSProperties}>
-            <h2 style={{ fontSize: fontSizes.xxl, fontWeight: 700, color: theme.text, margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>{displayName}</h2>
-            <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as React.CSSProperties}>@{profile.username}</span>
-          </div>
-        </div>
-        {!isOwnProfile && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 4, flexShrink: 0 } as React.CSSProperties}>
-            <Button
-              variant={isFollowing ? "secondary" : "primary"}
-              icon={isFollowing ? "user-check" : "user-plus"}
-              label={isFollowing ? "Following" : "Follow"}
-              onPress={toggleFollow}
-            />
-            <Button
-              variant="icon"
-              icon="prohibit"
-              color={isBlocking ? theme.error : undefined}
-              onPress={toggleBlock}
-            />
-          </div>
-        )}
-      </div>
-      {profile.bio && (
-        <p style={{ padding: "0 32px", margin: "0 0 20px", fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 1.5 } as React.CSSProperties}>{profile.bio}</p>
-      )}
-    </>
-  );
-
-  // ── Web ────────────────────────────────────────────────────────────────────
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      <div style={{ maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        {isPreviewingSelf && (
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            padding: "10px 16px", background: theme.accent900, color: theme.text,
-            fontSize: fontSizes.sm, textAlign: "center",
-          } as React.CSSProperties}>
-            <span>You're viewing your own profile as others see it.</span>
-            <Link href="/(app)/profile" style={{ color: theme.accent, fontWeight: "700" }}>
-              Exit preview
-            </Link>
-          </div>
-        )}
-        {header}
-        <div style={{ padding: "0 32px 40px" } as React.CSSProperties}>
-          {!profile.can_view_content ? (
-            <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
-              <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🔒</div>
-              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>This account is private.</p>
-            </div>
-          ) : logs.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 60 } as React.CSSProperties}>
-              <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-              <p style={{ color: `${theme.text}44`, fontSize: fontSizes.base } as React.CSSProperties}>No public logs yet.</p>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14 } as React.CSSProperties}>
-              {logs.map((log) => (
-                <PosterCard key={log.id} log={log} onPress={() => openLog(log)} />
-              ))}
-            </div>
-          )}
-        </div>
-        <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
-        <ConfirmDialog
-          visible={confirmingBlock}
-          title={`Block @${profile.username}`}
-          message="They won't be able to follow you or see your content, and you won't see theirs. They won't be notified."
-          confirmLabel="Block"
-          destructive
-          onConfirm={confirmBlock}
-          onCancel={() => setConfirmingBlock(false)}
-        />
-      </div>
-    );
-  }
-
-  // ── Native ─────────────────────────────────────────────────────────────────
-  async function handleRefresh() {
-    setRefreshing(true);
-    try {
-      await refetch();
-    } finally {
-      setRefreshing(false);
-    }
-  }
+  const heroHeight = isMobile ? 140 : 160;
+  const heroFade = isMobile ? 100 : 110;
+  const gridCols = isMobile ? 3 : 6;
+  const pad = isMobile ? 16 : 32;
 
   return (
     <>
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      contentContainerStyle={isMobile ? { paddingBottom: 100 } : { alignItems: "center", paddingBottom: 40 }}
       contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
-      {isPreviewingSelf && (
-        <View style={{
-          flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
-          paddingVertical: 10, paddingHorizontal: 16, backgroundColor: theme.accent900,
-        }}>
-          <Text style={{ color: theme.text, fontSize: fontSizes.sm, textAlign: "center" }}>
-            You're viewing your own profile as others see it.
-          </Text>
-          <Pressable onPress={() => router.replace("/(app)/profile")}>
-            <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "700" }}>Exit preview</Text>
-          </Pressable>
+      <View style={{ maxWidth: isMobile ? undefined : 1000, width: "100%" }}>
+        {isPreviewingSelf && (
+          <View style={{
+            flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap",
+            paddingVertical: 10, paddingHorizontal: 16, backgroundColor: theme.accent900,
+          }}>
+            <Text style={{ color: theme.text, fontSize: fontSizes.sm, textAlign: "center" }}>
+              You're viewing your own profile as others see it.
+            </Text>
+            <Pressable onPress={() => router.replace("/(app)/profile")}>
+              <Text style={{ color: theme.accent, fontSize: fontSizes.sm, fontWeight: "700" }}>Exit preview</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Hero — same technique as ProfileScreen.tsx's own hero: a real
+            banner image (or an accent900→surface gradient fallback) with a
+            multi-stop fade into theme.bg so it doesn't stop dead against
+            the page background below it. */}
+        <View style={{ height: heroHeight, position: "relative", overflow: "hidden" }}>
+          {banner ? (
+            <Pressable onPress={() => setLightbox(banner)} style={{ width: "100%", height: "100%" }}>
+              <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+            </Pressable>
+          ) : (
+            <LinearGradient colors={[theme.accent900, theme.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: "100%", height: "100%" }} />
+          )}
+          <LinearGradient
+            colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
+            locations={[0, 0.15, 0.45, 0.75, 1]}
+            style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: heroFade }}
+            pointerEvents="none"
+          />
         </View>
-      )}
-      {/* Same multi-stop fade as ProfileScreen.tsx's own hero — a plain
-          2-stop fade still reads as an abrupt cut against real banner
-          image detail. */}
-      <Pressable onPress={banner ? () => setLightbox(banner) : undefined} disabled={!banner} style={{ height: 140, backgroundColor: theme.accent900, position: "relative" }}>
-        {banner && <Image source={{ uri: banner }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />}
-        <LinearGradient
-          colors={[`${theme.bg}00`, `${theme.bg}00`, `${theme.bg}40`, `${theme.bg}cc`, theme.bg]}
-          locations={[0, 0.15, 0.45, 0.75, 1]}
-          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 100 }}
-        />
-      </Pressable>
-      <View style={{ paddingHorizontal: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: -40, marginBottom: 16 }}>
-          <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
-            <Avatar name={displayName} uri={avatar} size="xl" />
-          </Pressable>
-          {!isOwnProfile && (
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Button
-                variant={isFollowing ? "secondary" : "primary"}
-                icon={isFollowing ? "user-check" : "user-plus"}
-                label={isFollowing ? "Following" : "Follow"}
-                onPress={toggleFollow}
-              />
-              <Button
-                variant="icon"
-                icon="prohibit"
-                color={isBlocking ? theme.error : undefined}
-                onPress={toggleBlock}
-              />
+
+        <View style={{ paddingHorizontal: pad }}>
+          {/* Avatar + name row — flexWrap so the button group drops to its
+              own line rather than colliding with a long name at narrow
+              widths; numberOfLines so an oversized display name truncates
+              instead of overflowing past the Follow/Block buttons. */}
+          <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, minWidth: 0, flex: 1 }}>
+              <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
+                <Avatar name={displayName} uri={avatar} size="xl" />
+              </Pressable>
+              <View style={{ marginBottom: 4, minWidth: 0, flexShrink: 1 }}>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
+                  {displayName}
+                </Text>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
+                  @{profile.username}
+                </Text>
+              </View>
+            </View>
+            {!isOwnProfile && (
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
+                <Button
+                  variant={isFollowing ? "secondary" : "primary"}
+                  icon={isFollowing ? "user-check" : "user-plus"}
+                  label={isFollowing ? "Following" : "Follow"}
+                  onPress={toggleFollow}
+                />
+                <Button
+                  variant="icon"
+                  icon="prohibit"
+                  color={isBlocking ? theme.error : undefined}
+                  onPress={toggleBlock}
+                />
+              </View>
+            )}
+          </View>
+
+          {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: isMobile ? 16 : 20 }}>{profile.bio}</Text>}
+
+          {!profile.can_view_content ? (
+            <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
+              <Text style={{ fontSize: 40 }}>🔒</Text>
+              <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>This account is private.</Text>
+            </View>
+          ) : logs.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
+              <Text style={{ fontSize: 40 }}>🎬</Text>
+              <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No public logs yet.</Text>
+            </View>
+          ) : Platform.OS === "web" && !isMobile ? (
+            // PosterCard's own web branch sizes itself off a real CSS Grid
+            // track — see ProfileScreen.tsx's identical note.
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gap: 14 } as React.CSSProperties}>
+              {logs.map((log) => (
+                <PosterCard key={log.id} log={log} onPress={() => openLog(log)} />
+              ))}
+            </div>
+          ) : (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              {logs.map((log) => (
+                <View key={log.id} style={{ width: "30%" }}>
+                  <PosterCard log={log} width={100} onPress={() => openLog(log)} />
+                </View>
+              ))}
             </View>
           )}
         </View>
-        {/* numberOfLines — same fix as ProfileScreen.tsx's own hero: an
-            unbounded name wrapped to multiple lines and grew tall enough
-            to visually collide with the Follow button sitting right
-            above it. */}
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text }}>{displayName}</Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2, marginBottom: 12 }}>@{profile.username}</Text>
-        {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 16 }}>{profile.bio}</Text>}
-
-        {!profile.can_view_content ? (
-          <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-            <Text style={{ fontSize: 36 }}>🔒</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>This account is private.</Text>
-          </View>
-        ) : logs.length === 0 ? (
-          <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-            <Text style={{ fontSize: 36 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No public logs yet.</Text>
-          </View>
-        ) : (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {logs.map((log) => (
-              <View key={log.id} style={{ width: "30%" }}>
-                <PosterCard log={log} width={100} onPress={() => openLog(log)} />
-              </View>
-            ))}
-          </View>
-        )}
       </View>
     </ScrollView>
     <ImageLightbox uri={lightbox} onClose={() => setLightbox(undefined)} />
