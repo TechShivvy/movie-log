@@ -35,6 +35,8 @@ class Comment(BaseModel):
     movie_log_id: str
     user_id: Optional[str] = None
     username: Optional[str] = None
+    display_name: Optional[str] = None
+    avatar_path: Optional[str] = None
     parent_comment_id: Optional[str] = None
     text: Optional[str] = Field(
         default=None,

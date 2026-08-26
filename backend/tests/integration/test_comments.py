@@ -6,6 +6,8 @@ own rows + accounts they follow — a genuine stranger on a real public
 log was wrongly rejected before the fix).
 """
 
+import uuid
+
 import pytest
 from conftest import theatre_place_payload
 
@@ -40,6 +42,45 @@ async def test_comment_and_reply_round_trip_with_username(client, make_user):
     assert listed.status_code == 200
     assert len(listed.json()) == 1  # one top-level
     assert len(listed.json()[0]['replies']) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_comments_surfaces_display_name_and_avatar_path(client, make_user):
+    """movie_log_comments_view only ever joined username from
+    user_settings — display_name/avatar_path were never selected there
+    at all, unlike every other author-facing view in this app. Regression
+    guard for both the view and the Comment schema (which would otherwise
+    strip them even once the view returns them)."""
+
+    owner_id, owner_token = await make_user()
+    commenter_id, commenter_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    commenter_headers = {'Authorization': f'Bearer {commenter_token}'}
+    commenter_username = f'commentauthor{uuid.uuid4().hex[:10]}'
+    await client.patch(
+        '/api/v1/public/me/username', headers=commenter_headers, json={'username': commenter_username},
+    )
+    await client.patch(
+        '/api/v1/public/me/profile', headers=commenter_headers,
+        json={'display_name': 'Commenter Display Name', 'avatar_path': f'{commenter_id}/avatar.jpg'},
+    )
+
+    log = await client.post(
+        '/api/v1/movie-logs', headers=owner_headers,
+        json={'movie': 'Comment Author Fields Test', 'visibility': 'public', 'theatre_place': theatre_place_payload()},
+    )
+    log_id = log.json()['id']
+    await client.post(
+        '/api/v1/comments', headers=commenter_headers, json={'movie_log_id': log_id, 'text': 'Nice pick!'},
+    )
+
+    listed = await client.get('/api/v1/comments', params={'movie_log_id': log_id})
+    assert listed.status_code == 200
+    comment = listed.json()[0]
+    assert comment['user_id'] == commenter_id
+    assert comment['username'] == commenter_username
+    assert comment['display_name'] == 'Commenter Display Name'
+    assert comment['avatar_path'] == f'{commenter_id}/avatar.jpg'
 
 
 @pytest.mark.asyncio
