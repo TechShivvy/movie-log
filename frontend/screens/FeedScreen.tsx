@@ -1,24 +1,27 @@
 /**
- * FeedScreen — pixel-accurate match to design spec.
- *
- * Web layout (padding:28px 32px 40px; max-width:1080px):
- *   Two-column: main (flex:1, max-width:600px) + sidebar (width:260px)
- *   Feed cards: .card with avatar + user + rating + poster (78×117px) + film info + actions
- *   Sidebar: "Who to follow" card + "Trending this week" card
- *
- * Mobile: single-column feed cards
+ * FeedScreen — one JSX tree, breakpoint-driven (see Part C of the
+ * architecture-unification plan). The old web branch's two-column
+ * main+sidebar layout is gone — "Who to follow"/"Trending this week" were
+ * 100% hardcoded mock content with zero backend wiring, not a real
+ * feature to carry forward (per the plan's own decision on this screen).
+ * FeedCard's web/native forks had drifted apart in real content, not just
+ * markup: web showed the "logged" suffix and a date, native didn't;
+ * kept the richer (web's) version for both. Both platforms now render
+ * through one FlatList (virtualization is genuinely useful here and
+ * already proven to render correctly on web via react-native-web
+ * elsewhere in this app — e.g. SearchScreen's people-results list — so
+ * there was no reason to also keep a separate `.map()` render path for
+ * web on top of it).
  */
 import React from "react";
 import {
   FlatList,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Heart, ChatCircle, UserPlus } from "phosphor-react-native";
+import { Heart, ChatCircle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useFeed } from "../hooks/useFeed";
@@ -27,6 +30,7 @@ import { useMovie } from "../hooks/useSearch";
 import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { Poster } from "../components/ui/Poster";
+import { Tag } from "../components/ui/Tag";
 import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import type { MovieLog } from "../types";
@@ -45,138 +49,44 @@ function FeedCard({ log }: { log: MovieLog }) {
   // PosterCard, so PosterCard's own fix didn't cover this screen too.
   const { data: movie, isLoading: posterLoading } = useMovie(log.movie_id);
   const posterUrl = tmdbPosterUrl(movie?.poster_path, "w342");
+  const open = () => router.push(`/(app)/log/${log.id}` as any);
 
-  if (Platform.OS === "web") {
-    return (
-      <div className="card" style={{ display: "flex", gap: 14, marginBottom: 12 } as React.CSSProperties}>
-        {/* Poster — 78×117px */}
-        <Poster
-          title={log.movie ?? "Untitled"}
-          imageUrl={posterUrl}
-          loading={posterLoading}
-          onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-          style={{ width: 78, height: 117, flexShrink: 0, cursor: "pointer" } as React.CSSProperties}
-        />
-
-        {/* Content */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 } as React.CSSProperties}>
-          {/* User row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 } as React.CSSProperties}>
-            <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
-            <div>
-              <span style={{ fontSize: fontSizes.sm, fontWeight: 700, color: theme.text } as React.CSSProperties}>
-                {log.display_name ?? log.username ?? "User"}
-              </span>
-              <span style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginLeft: 6 } as React.CSSProperties}>logged</span>
-            </div>
-            {log.created_at && (
-              <span style={{ fontSize: fontSizes.xs, color: `${theme.text}44`, marginLeft: "auto" } as React.CSSProperties}>
-                {new Date(log.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-              </span>
-            )}
-          </div>
-
-          {/* Title */}
-          <div
-            onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-            style={{ fontSize: fontSizes.md, fontWeight: 700, color: theme.text, cursor: "pointer", lineHeight: 1.3 } as React.CSSProperties}
-            className="tapc"
-          >
-            {log.movie}
-          </div>
-
-          {/* Rating + format */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties}>
-            {log.rating != null && <StarRating value={log.rating} onChange={() => {}} readonly size="small" />}
-            {log.format && <span className="tag tag-neutral">{log.format}</span>}
-          </div>
-
-          {/* Notes preview */}
-          {log.notes && (
-            <p style={{
-              fontSize: fontSizes.sm,
-              color: `${theme.text}88`,
-              lineHeight: 1.5,
-              margin: 0,
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-            } as React.CSSProperties}>
-              {log.notes}
-            </p>
-          )}
-
-          {/* Actions */}
-          <div style={{ display: "flex", gap: 12, marginTop: "auto" } as React.CSSProperties}>
-            <button
-              className={`btn btn-ghost`}
-              onClick={() => likeLog.mutate({ logId: log.id, liked: !!log.liked_by_caller })}
-              style={{ fontSize: fontSizes.sm, padding: "4px 0", color: log.liked_by_caller ? theme.accent : `${theme.text}66` } as React.CSSProperties}
-            >
-              <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
-              {log.like_count}
-            </button>
-            {/* No per-log comment count exists on the backend (only like_count
-                is denormalized onto movie_logs) — this is just a "view
-                comments" affordance, not a real counter. */}
-            <button
-              className="btn btn-ghost"
-              onClick={() => router.push(`/(app)/log/${log.id}` as any)}
-              style={{ fontSize: fontSizes.sm, padding: "4px 0", color: `${theme.text}66` } as React.CSSProperties}
-            >
-              <ChatCircle size={13} color={`${theme.text}66`} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Native feed card
   return (
     <Pressable
-      onPress={() => router.push(`/(app)/log/${log.id}` as any)}
-      style={{
-        backgroundColor: theme.surface,
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-        flexDirection: "row",
-        gap: 12,
-      }}
+      onPress={open}
+      style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: "row", gap: 12 }}
     >
-      {/* Poster */}
-      <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={posterLoading} style={{ width: 64, height: 96, flexShrink: 0 }} />
+      <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={posterLoading} style={{ width: 78, height: 117, flexShrink: 0 }} />
 
-      {/* Content */}
-      <View style={{ flex: 1, gap: 4 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         {/* User row */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
           <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }} numberOfLines={1}>
             {log.display_name ?? log.username ?? "User"}
           </Text>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55` }}>logged</Text>
+          {log.created_at && (
+            <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}44`, marginLeft: "auto" }}>
+              {new Date(log.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </Text>
+          )}
         </View>
 
         {/* Title */}
-        <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text }} numberOfLines={2}>
+        <Text style={{ fontSize: fontSizes.md, fontWeight: "700", color: theme.text, lineHeight: 18 }} numberOfLines={2}>
           {log.movie}
         </Text>
 
         {/* Rating + format */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {log.rating != null && <StarRating value={log.rating} onChange={() => {}} readonly size="small" />}
-          {log.format && (
-            <View style={{ backgroundColor: theme.neutral800, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: fontSizes.xs, color: theme.neutral100, fontWeight: "700" }}>{log.format}</Text>
-            </View>
-          )}
+          {log.format && <Tag variant="neutral" label={log.format} />}
         </View>
 
-        {/* Notes */}
+        {/* Notes preview */}
         {log.notes && (
-          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, lineHeight: 16 }} numberOfLines={2}>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, lineHeight: 18 }} numberOfLines={2}>
             {log.notes}
           </Text>
         )}
@@ -190,72 +100,15 @@ function FeedCard({ log }: { log: MovieLog }) {
             <Heart size={13} weight={log.liked_by_caller ? "fill" : "regular"} color={log.liked_by_caller ? theme.accent : `${theme.text}66`} />
             <Text style={{ fontSize: fontSizes.sm, color: log.liked_by_caller ? theme.accent : `${theme.text}66` }}>{log.like_count}</Text>
           </Pressable>
-          {/* No per-log comment count on the backend — icon-only affordance. */}
+          {/* No per-log comment count on the backend — icon-only affordance;
+              the whole card already opens the log (comments live there), so
+              this is decorative, not a second tap target. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <ChatCircle size={13} color={`${theme.text}66`} />
           </View>
         </View>
       </View>
     </Pressable>
-  );
-}
-
-// ─── Sidebar cards (web only) ─────────────────────────────────────────────────
-
-function WebSidebar({ theme }: { theme: any }) {
-  return (
-    <div style={{ width: 260, flexShrink: 0 } as React.CSSProperties}>
-      {/* Who to follow */}
-      <div className="card" style={{ marginBottom: 14 } as React.CSSProperties}>
-        <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
-          Who to follow
-        </h3>
-        {[
-          { name: "Keanu Reeves", handle: "@keanu", hue: 40 },
-          { name: "Sofia Coppola", handle: "@sofia", hue: 200 },
-          { name: "Denis Villeneuve", handle: "@denis", hue: 280 },
-        ].map((u) => (
-          <div key={u.handle} style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            paddingBottom: 10,
-            marginBottom: 10,
-            borderBottom: `1px solid ${theme.divider}`,
-          } as React.CSSProperties}>
-            <Avatar name={u.name} hue={u.hue} size="sm" />
-            <div style={{ flex: 1 } as React.CSSProperties}>
-              <div style={{ fontSize: fontSizes.sm, fontWeight: 700, color: theme.text } as React.CSSProperties}>{u.name}</div>
-              <div style={{ fontSize: fontSizes.xs, color: `${theme.text}55` } as React.CSSProperties}>{u.handle}</div>
-            </div>
-            <button className="btn btn-secondary" style={{ fontSize: fontSizes.sm, padding: "4px 10px" } as React.CSSProperties}>
-              <UserPlus size={12} />
-              Follow
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Trending */}
-      <div className="card">
-        <h3 style={{ fontSize: fontSizes.base, fontWeight: 700, color: theme.text, margin: "0 0 12px" } as React.CSSProperties}>
-          Trending this week
-        </h3>
-        {["Dune: Part Two", "Oppenheimer", "Poor Things", "Anatomy of a Fall", "The Zone of Interest"].map((title, i) => (
-          <div key={title} style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            paddingBottom: 8,
-            marginBottom: 8,
-            borderBottom: `1px solid ${theme.divider}`,
-          } as React.CSSProperties}>
-            <span style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, fontWeight: 700, width: 16 } as React.CSSProperties}>{i + 1}</span>
-            <span style={{ fontSize: fontSizes.sm, color: theme.text, flex: 1 } as React.CSSProperties}>{title}</span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -270,69 +123,43 @@ export function FeedScreen() {
   // was never called anywhere in the app. useFeed with no filters is the
   // real, unscoped global feed.
   const { data: logs, isLoading } = useFeed({ limit: 20 });
-
   const feedLogs = logs ?? [];
 
-  // ── Web (tablet & desktop only — see ProfileScreen.tsx's identical
-  //     fix; the two-column main+sidebar layout below was overlapping
-  //     itself on a real phone's width instead of collapsing) ────────────────
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div
-         for the reference pattern. Without it this shrink-wrapped to
-         content width instead of filling out to the cap; same fix applied
-         across every other screen below this maxWidth+margin:auto shape. */
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1080, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        {/* Header */}
-        <h1 style={{
-          fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 24px",
-          letterSpacing: -0.5,
-        } as React.CSSProperties}>
-          Feed
-        </h1>
-
-        <div style={{ display: "flex", gap: 24, alignItems: "flex-start" } as React.CSSProperties}>
-          {/* Main feed — flex:1, max-width:600px */}
-          <div style={{ flex: 1, maxWidth: 600, minWidth: 0 } as React.CSSProperties}>
-            {isLoading ? (
-              <SectionLoader padding={60} />
-            ) : feedLogs.length === 0 ? (
-              <div className="card" style={{ textAlign: "center", padding: 40 } as React.CSSProperties}>
-                <div style={{ fontSize: 40, marginBottom: 12 } as React.CSSProperties}>🎬</div>
-                <p style={{ color: `${theme.text}55`, fontSize: fontSizes.md } as React.CSSProperties}>
-                  No activity yet — log a film to get started!
-                </p>
-              </div>
-            ) : (
-              feedLogs.map((log) => <FeedCard key={log.id} log={log} />)
-            )}
-          </div>
-
-          {/* Sidebar — 260px */}
-          <WebSidebar theme={theme} />
-        </div>
-      </div>
-    );
-  }
-
-  // ── Native ───────────────────────────────────────────────────────────────────
   return (
     <FlatList
       data={feedLogs}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+      style={{ flex: 1 }}
+      contentContainerStyle={{
+        paddingTop: isMobile ? 16 : 28,
+        paddingHorizontal: isMobile ? 16 : 32,
+        paddingBottom: isMobile ? 100 : 40,
+        maxWidth: isMobile ? undefined : 600,
+        width: "100%",
+        alignSelf: isMobile ? "stretch" : "center",
+      }}
       contentInsetAdjustmentBehavior="automatic"
       ListHeaderComponent={
-        <Text style={{ fontSize: fontSizes.xxl, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Feed</Text>
+        <Text style={{
+          fontSize: isMobile ? fontSizes.xxl : fontSizes.h1,
+          fontWeight: isMobile ? "800" : "700",
+          color: theme.text,
+          marginBottom: isMobile ? 16 : 24,
+          letterSpacing: isMobile ? undefined : -0.5,
+        }}>
+          Feed
+        </Text>
       }
       ListEmptyComponent={
         isLoading ? (
           <SectionLoader size="lg" padding={60} />
         ) : (
-          <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
+          <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
             <Text style={{ fontSize: 40 }}>🎬</Text>
-            <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.md }}>No activity yet</Text>
+            <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.md, textAlign: "center" }}>
+              No activity yet — log a film to get started!
+            </Text>
           </View>
         )
       }
