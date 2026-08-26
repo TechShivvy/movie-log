@@ -34,6 +34,8 @@ import { Tag } from "../components/ui/Tag";
 import { Icon } from "../components/ui/Icon";
 import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl } from "../lib/tmdb";
+import { avatarUrl } from "../lib/storage";
+import { anonName } from "../lib/anonName";
 import type { MovieLog } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
@@ -51,6 +53,19 @@ function FeedCard({ log }: { log: MovieLog }) {
   const { data: movie, isLoading: posterLoading } = useMovie(log.movie_id);
   const posterUrl = tmdbPosterUrl(movie?.poster_path, "w342");
   const open = () => router.push(`/(app)/log/${log.id}` as any);
+  // Anonymous logs have a server-null username (types/index.ts's own
+  // comment on MovieLog — deliberate, "the real author is unreadable
+  // there") — was falling through to the literal string "User" for
+  // every one of them, indistinguishable from each other and with no
+  // way to refer back to "the one who...". Same generated pseudonym
+  // PosterCard's own OwnerRow uses (deterministic per log id).
+  const isAnonymous = !log.username;
+  const authorName = isAnonymous ? anonName(log.id) : (log.display_name ?? log.username ?? "User");
+  const openAuthor = (e: any) => {
+    if (isAnonymous) return;
+    e?.stopPropagation?.();
+    router.push(`/(app)/profile/${log.username}` as any);
+  };
 
   return (
     <Pressable
@@ -60,11 +75,22 @@ function FeedCard({ log }: { log: MovieLog }) {
       <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={posterLoading} style={{ width: 78, height: 117, flexShrink: 0 }} />
 
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        {/* User row */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Avatar name={log.display_name ?? log.username ?? "?"} uri={log.avatar_path} size="sm" />
-          <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }} numberOfLines={1}>
-            {log.display_name ?? log.username ?? "User"}
+        {/* User row — wasn't a link anywhere, and passed log.avatar_path
+            (a bare storage path, not a real URL) straight into Avatar's
+            uri prop, the same bug avatarUrl() exists specifically to fix
+            everywhere else it's used; this card had its own separate
+            copy of the "raw path, never resolved" mistake. */}
+        <Pressable
+          onPress={openAuthor}
+          disabled={isAnonymous}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        >
+          <Avatar name={authorName} uri={isAnonymous ? undefined : avatarUrl(log.avatar_path)} size="sm" />
+          <Text
+            style={{ fontSize: fontSizes.sm, fontWeight: "700", color: isAnonymous ? `${theme.text}88` : theme.text }}
+            numberOfLines={1}
+          >
+            {authorName}
           </Text>
           <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55` }}>logged</Text>
           {log.created_at && (
@@ -72,7 +98,7 @@ function FeedCard({ log }: { log: MovieLog }) {
               {new Date(log.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </Text>
           )}
-        </View>
+        </Pressable>
 
         {/* Title */}
         <Text style={{ fontSize: fontSizes.md, fontWeight: "700", color: theme.text, lineHeight: 18 }} numberOfLines={2}>

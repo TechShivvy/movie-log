@@ -93,15 +93,18 @@ export function ScopedLogGrid({ tabs, onLogPress, isSignedIn }: {
       : <Text style={{ textAlign: "center", padding: 40, color: `${theme.text}44`, fontSize: fontSizes.base }}>{current.emptyText}</Text>
   ) : Platform.OS === "web" ? (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 14 } as React.CSSProperties}>
+      {/* showOwner only off "mine" — these logs mix multiple authors
+          (Following/Public), unlike a caller's own-logs grid where every
+          card would trivially say the viewer's own name. */}
       {current.logs!.map((log) => (
-        <PosterCard key={log.id} log={log} onPress={() => onLogPress(log)} />
+        <PosterCard key={log.id} log={log} onPress={() => onLogPress(log)} showOwner={current.id !== "mine"} />
       ))}
     </div>
   ) : (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
       {current.logs!.map((log) => (
         <View key={log.id} style={{ width: "30%" }}>
-          <PosterCard log={log} width={100} onPress={() => onLogPress(log)} />
+          <PosterCard log={log} width={100} onPress={() => onLogPress(log)} showOwner={current.id !== "mine"} />
         </View>
       ))}
     </View>
