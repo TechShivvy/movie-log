@@ -109,15 +109,20 @@ function fmtWatched(log: MovieLog): string {
   const timeStr = t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return `${dateStr} · ${timeStr}${log.timezone_abbrv ? " " + log.timezone_abbrv : ""}`;
 }
-// Was color-coded via a leading emoji dot (🟢/🟡/🔴) — MetaRowData.value
-// is a plain string (every other row in buildMetaRows is one too), so an
-// actual colored View can't be embedded inline the way visColor()'s own
-// badge can further down this file. Plain text instead, matching the
-// adjacent "Screening" row's own screeningStartLabel() (early/on_time/
-// delayed/cancelled), which never had a color signal either — the two
-// status-shaped rows now read consistently with each other.
 function punctualityLabel(s?: string) {
   return s === "early" ? "Arrived Early" : s === "on_time" ? "On Time" : s === "late" ? "Late" : null;
+}
+// Was color-coded via a leading emoji dot (🟢/🟡/🔴) — dropping that
+// signal outright (plain text, matching the adjacent Screening row)
+// lost a genuinely nice touch, not just an emoji. Restored properly:
+// MetaRowData's own leading icon (already there, Timer for this row)
+// tints red/amber/green instead of adding a second dot element — same
+// semantic-status-color pattern error/success/visColor() already use
+// elsewhere in this file (fixed literals, not theme-derived — a status
+// meaning should read the same regardless of which theme is active).
+const AMBER = "#F5B700";
+function punctualityIconColor(s: string | undefined): string | undefined {
+  return s === "early" ? "#22C55E" : s === "late" ? "#EF4444" : s === "on_time" ? AMBER : undefined;
 }
 function screeningStartLabel(s?: string) {
   return s === "early" ? "Started Early" : s === "on_time" ? "Started On Time"
@@ -283,6 +288,9 @@ interface MetaRowData {
   // can have a `theater` string with no `theatre_id` behind it, and a
   // plain-text venue name has nowhere real to link to.
   onPress?: () => void;
+  /** Overrides the row's own icon color — every row is the same muted
+   * gray by default; only Punctuality sets this (red/amber/green). */
+  iconColor?: string;
 }
 
 function buildMetaRows(log: MovieLog, onNavigate: (path: string) => void): MetaRowData[] {
@@ -295,7 +303,7 @@ function buildMetaRows(log: MovieLog, onNavigate: (path: string) => void): MetaR
     { Icon: CurrencyDollar, label: "Price", value: fmtPrice(log.price, log.currency) },
     { Icon: Receipt, label: "Booking ref", value: log.booking_ref },
     { Icon: Flag, label: "Screening", value: screeningStartLabel(log.screening_start_status) ?? undefined },
-    { Icon: Timer, label: "Punctuality", value: punctualityLabel(log.arrival_status) ?? undefined },
+    { Icon: Timer, label: "Punctuality", value: punctualityLabel(log.arrival_status) ?? undefined, iconColor: punctualityIconColor(log.arrival_status) },
     // Always present (created_at is required on MovieLog) — the one row
     // here that isn't subject to the hide-if-empty rule.
     { Icon: Clock, label: "Logged", value: fmtShort(log.created_at) },
@@ -317,7 +325,7 @@ function MetaList({ rows, theme }: { rows: MetaRowData[]; theme: any }) {
               borderBottomColor: theme.divider,
             }}
           >
-            <r.Icon size={16} color={`${theme.text}88`} />
+            <r.Icon size={16} color={r.iconColor ?? `${theme.text}88`} />
             <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88`, width: 92 }}>{r.label}</Text>
             <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: r.onPress ? theme.accent : theme.text, flex: 1 }}>{r.value}</Text>
           </View>
