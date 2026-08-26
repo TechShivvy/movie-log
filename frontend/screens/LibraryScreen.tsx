@@ -29,6 +29,31 @@
  *             16px heading #fff, text-shadow 0 1px 8px rgba(0,0,0,.6)
  *             below: dateShort 11px muted + tag-neutral 10px padding 2px 7px
  *   list      .card row gap:12 padding:10; poster 56px
+ *
+ * One JSX tree, breakpoint-driven for header/filters/sort-toggle/list-mode/
+ * empty/error states (see Part C of the architecture-unification plan) —
+ * those were raw <div>/CSS-class markup on web and RN View/Pressable on
+ * native for the exact same controls, now one Pressable-based tree
+ * throughout (the technique every other unified screen this pass settled
+ * on, since it renders correctly on web via react-native-web). Filter
+ * chips reuse the shared Tag component (accent/neutral variants already
+ * match .tag-accent/.tag-neutral exactly) instead of hand-rolling either
+ * a styled <button> or a styled Pressable+View a second time.
+ *
+ * Grid-mode's card rendering keeps its Platform.OS split, deliberately —
+ * a real capability difference, not accidental drift: web's hover-reveal
+ * title overlay (`.ov`, opacity 0→1 on `:hover`) has no touch equivalent,
+ * so native's card shows the same overlay always-visible via
+ * LinearGradient, which is already the "works on touch" treatment the
+ * plan calls for — CSS's own `@media (hover: none), (max-width: 767px)`
+ * rule (designCss.ts) already does the equivalent switch on the web side
+ * at narrow/touch widths. What WAS a real bug, fixed here: the grid's
+ * column count came from CSS media queries on web (5 / 3 / 2, at the
+ * 1120px/768px breakpoints — see `.libgrid`) but was a flat, unconditional
+ * 2 on native, at any width — a landscape tablet on native got the same
+ * cramped 2-up grid as a narrow phone. `cols` is now computed from
+ * useBreakpoint on both platforms, so native/mobile-web tablet widths get
+ * the same 3-column tier web already gave a browser at that width.
  */
 import React, { useMemo, useState } from "react";
 import {
@@ -94,31 +119,6 @@ const FILTER_PHRASE: Record<Filter, string> = {
   "Archived":   "archived",
 };
 
-// These chips/toggles were <span>/<label onClick> — unreachable by keyboard,
-// invisible to a screen reader as controls. `<button>` fixes both for free
-// (native focus, Enter/Space activation, the app's own global
-// :focus-visible ring from designCss.ts), but a bare <button> also carries
-// browser chrome (background, border, font, margin) neither .tag nor
-// .seg-opt account for since they were written for non-button elements.
-// Only reset what those classes don't already set themselves — anything set
-// here as an inline style wins over the class's rule, so setting e.g.
-// `background` would blank out .tag-accent/.tag-neutral's own color.
-const TAG_BTN_RESET: React.CSSProperties = { border: "none", font: "inherit", margin: 0, cursor: "pointer" };
-const SEG_BTN_RESET: React.CSSProperties = { ...TAG_BTN_RESET, background: "transparent" };
-
-/** Enter/Space activation for the div-wrapped poster/list cards below —
- *  they carry `role="button"` + `tabIndex` rather than becoming real
- *  <button> elements, since each wraps a <Poster> plus nested tag/icon
- *  markup that would fight a real button's default padding/text-align. */
-function onCardKey(activate: () => void) {
-  return (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      activate();
-    }
-  };
-}
-
 function fmtShort(iso?: string) {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -145,11 +145,11 @@ function applyFilter(logs: MovieLog[], f: Filter): MovieLog[] {
   }
 }
 
-// "Sorted by recent" (the sort-row label, both platforms) described an order
-// applyFilter never actually produced — the list rendered in whatever order
-// the API returned. watched_date is when the film was actually seen; it's
-// optional (older/incomplete rows), so logs missing it fall back to
-// created_at (when the row was logged) rather than sorting to the top/bottom
+// "Sorted by recent" (the sort-row label) described an order applyFilter
+// never actually produced — the list rendered in whatever order the API
+// returned. watched_date is when the film was actually seen; it's optional
+// (older/incomplete rows), so logs missing it fall back to created_at
+// (when the row was logged) rather than sorting to the top/bottom
 // arbitrarily.
 function sortRecent(logs: MovieLog[]): MovieLog[] {
   const at = (l: MovieLog) => new Date(l.watched_date ?? l.created_at).getTime();
@@ -159,7 +159,7 @@ function sortRecent(logs: MovieLog[]): MovieLog[] {
 export function LibraryScreen() {
   const { theme, fontConfig } = useTheme();
   const router = useRouter();
-  const { isMobile } = useBreakpoint();
+  const { isMobile, isTablet } = useBreakpoint();
   const [filter, setFilter] = useState<Filter>("All");
   const [mode, setMode] = useState<"grid" | "list">("grid");
   const [refreshing, setRefreshing] = useState(false);
@@ -172,6 +172,13 @@ export function LibraryScreen() {
   const muted = `${theme.text}8c`;
   const shown = useMemo(() => sortRecent(applyFilter(logs, filter)), [logs, filter]);
   const open = (id: string) => router.push(`/(app)/log/${id}` as any);
+  // Was a flat, unconditional 2 on native at any width and CSS-media-query-
+  // driven (5/3/2) on web — see this file's own header comment. One
+  // formula, both platforms, matching the CSS breakpoints exactly
+  // (useBreakpoint's own BP.mobile/BP.tablet are the same 768/1120 values
+  // designCss.ts's .libgrid media queries use).
+  const cols = isMobile ? 2 : isTablet ? 3 : 5;
+  const colWidthPct = `${100 / cols - (cols === 2 ? 2.5 : 1.3)}%`;
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -182,409 +189,272 @@ export function LibraryScreen() {
     }
   }
 
-  // isMobile, not just Platform.OS: below 768px the "web" branch's HTML/CSS
-  // layout (fixed 32px padding, a grid that only ever partially adapted)
-  // used to render anyway, inside the phone-width TabBar shell the app
-  // shell itself already correctly switches to — mobile web got a
-  // desktop-authored layout with a couple of patches, not the layout
-  // actually built for a phone screen. Below isMobile, every platform now
-  // gets the same native branch (View/Pressable, already phone-tuned,
-  // renders fine on web via react-native-web) instead of two separate
-  // "mobile" designs drifting apart.
-  // ── Web (tablet & desktop only) ─────────────────────────────────────────────
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      <div
-        className="screen-anim"
-        style={{
-          padding: "28px 32px 40px",
-          maxWidth: 1160,
-          width: "100%",
-          // .mainscroll > div { margin-inline:auto } in the design only reaches
-          // a direct child; expo-router nests screens deeper, so centre here.
-          margin: "0 auto",
-          position: "relative",
-        } as React.CSSProperties}
-      >
-        {/* Header gradient band — the ONLY place .cine-bg appears on web.
-            Styles go straight on the element (no wrapper): its blur(60px) is
-            what feathers the edges, so clipping it would draw a hard box. */}
-        <CinematicBg
-          style={{ zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" }}
-        />
+  const header = (
+    <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: isMobile ? 4 : 18, flexWrap: isMobile ? undefined : "wrap", gap: isMobile ? undefined : 12 }}>
+      <View>
+        <Text style={{ fontSize: fontSizes.xs, letterSpacing: isMobile ? 1.1 : 2.2, textTransform: "uppercase", color: theme.accent }}>
+          Your library
+        </Text>
+        <Text style={{
+          fontSize: isMobile ? fontSizes.h2 : fontSizes.h1,
+          marginTop: isMobile ? 2 : 4,
+          fontFamily: heading,
+          color: theme.text,
+          letterSpacing: isMobile ? -0.4 : undefined,
+          opacity: isLoading ? 0.5 : 1,
+        }}>
+          {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
+        </Text>
+      </View>
 
-        {/* .lib-header wraps to a stacked layout under 768px (designCss.ts) —
-            at that width this row used to cram "Analytics" and the grid/list
-            toggle onto the same line as a 34px heading, all fighting for a
-            392px-wide column. */}
-        <div className="lib-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 } as React.CSSProperties}>
-          <div>
-            <div style={{ fontSize: fontSizes.xs, letterSpacing: ".1em", textTransform: "uppercase", color: theme.accent } as React.CSSProperties}>
-              Your library
-            </div>
-            <h1 className={`lib-title${isLoading ? " pulse-loading" : ""}`} style={{ fontSize: fontSizes.h1, margin: "4px 0 0" } as React.CSSProperties}>
-              {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
-            </h1>
-          </div>
+      {isMobile ? (
+        <Pressable
+          onPress={() => router.push("/(app)/stats" as any)}
+          style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.divider, borderRadius: 8 }}
+        >
+          <Icon name="chart-bar" size={18} color={theme.text} />
+        </Pressable>
+      ) : (
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+          <Pressable
+            onPress={() => router.push("/(app)/stats" as any)}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: theme.divider, borderRadius: 8 }}
+          >
+            <Icon name="chart-bar" size={16} color={theme.text} />
+            <Text style={{ fontSize: fontSizes.sm, color: theme.text }}>Analytics</Text>
+          </Pressable>
+          <ViewToggle mode={mode} setMode={setMode} theme={theme} />
+        </View>
+      )}
+    </View>
+  );
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" } as React.CSSProperties}>
-            <button className="btn btn-secondary" onClick={() => router.push("/(app)/stats" as any)}>
-              <Icon name="chart-bar" size={16} />
-              Analytics
-            </button>
-            <div className="seg">
-              <button
-                type="button"
-                aria-pressed={mode === "grid"}
-                aria-label="Grid view"
-                className={mode === "grid" ? "seg-opt active" : "seg-opt"}
-                style={SEG_BTN_RESET}
-                onClick={() => setMode("grid")}
-              >
-                <Icon name="squares-four" size={16} />
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === "list"}
-                aria-label="List view"
-                className={mode === "list" ? "seg-opt active" : "seg-opt"}
-                style={SEG_BTN_RESET}
-                onClick={() => setMode("list")}
-              >
-                <Icon name="rows" size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
+  const filterChips = FILTERS.map((f) => (
+    <Pressable key={f} onPress={() => setFilter(f)}>
+      <Tag variant={f === filter ? "accent" : "neutral"} label={f} />
+    </Pressable>
+  ));
+  // Desktop has room to wrap the chips onto a second line; mobile scrolls
+  // them horizontally instead (a wrapping row inside a horizontal
+  // ScrollView doesn't actually wrap — the scroll container gives it
+  // unbounded width — so these need genuinely different containers, not
+  // just a style tweak on one shared one).
+  const filterRow = isMobile ? (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }} contentContainerStyle={{ gap: 8 }}>
+      {filterChips}
+    </ScrollView>
+  ) : (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+      {filterChips}
+    </View>
+  );
 
-        {/* Filter chips */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" } as React.CSSProperties}>
-          {FILTERS.map((f) => (
-            <button
-              type="button"
-              key={f}
-              aria-pressed={f === filter}
-              className={`tag ${f === filter ? "tag-accent" : "tag-neutral"}`}
-              style={TAG_BTN_RESET}
-              onClick={() => setFilter(f)}
-            >
-              {f}
-            </button>
+  const sortRow = isMobile ? (
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 }}>
+      <Text style={{ fontSize: fontSizes.sm, color: muted }}>Sorted by recent</Text>
+      <ViewToggle mode={mode} setMode={setMode} theme={theme} />
+    </View>
+  ) : null;
+
+  const body =
+    isLoading ? <SectionLoader /> :
+    isError ? <ErrorState theme={theme} muted={muted} onRetry={refetch} /> :
+    shown.length === 0 ? <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} /> :
+    mode === "grid" ? (
+      // Grid-mode card rendering keeps its Platform.OS split — see this
+      // file's header comment on why (hover-reveal overlay has no touch
+      // equivalent; native's always-visible LinearGradient IS the touch
+      // treatment). cols/colWidthPct above are shared by both branches.
+      // !isMobile too, not just Platform.OS — a narrow mobile-web browser
+      // needs the touch-tuned card (always-visible overlay, no CSS-grid/
+      // hover assumptions), the same reason every other screen in this
+      // app branches on isMobile and not bare Platform.OS. See this
+      // file's own header comment.
+      Platform.OS === "web" && !isMobile ? (
+        <div className="libgrid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: cols === 5 ? 18 : 14 } as React.CSSProperties}>
+          {shown.map((log) => (
+            <WebGridCard key={log.id} log={log} theme={theme} heading={heading} onPress={() => open(log.id)} />
           ))}
         </div>
-
-        {isLoading ? (
-          <SectionLoader />
-        ) : isError ? (
-          <ErrorState theme={theme} muted={muted} onRetry={refetch} />
-        ) : shown.length === 0 ? (
-          <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} />
-        ) : mode === "grid" ? (
-          <div className="libgrid">
-            {shown.map((log) => (
-              <div
-                key={log.id}
-                className="tapc gridcard lift"
-                role="button"
-                tabIndex={0}
-                onClick={() => open(log.id)}
-                onKeyDown={onCardKey(() => open(log.id))}
-              >
-                <LogPoster log={log} style={{ aspectRatio: "2/3" }}>
-                  <div
-                    style={{
-                      position: "absolute", top: 8, right: 8,
-                      background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
-                      borderRadius: 6, padding: "2px 7px", fontSize: fontSizes.xs, color: "#fff",
-                      display: "flex", alignItems: "center", gap: 3,
-                    } as React.CSSProperties}
-                  >
-                    <Icon name="star" weight="fill" size={11} color={theme.accent} />
-                    {(log.rating ?? 0).toFixed(1)}
-                  </div>
-
-                  <div className="ov" style={{ padding: 12 } as React.CSSProperties}>
-                    <div style={{ fontFamily: heading, fontSize: fontSizes.md, color: "#fff" } as React.CSSProperties}>
-                      {log.movie}
-                    </div>
-                    <div style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
-                      {log.theater ?? "—"} · {fmtLogDate(log)}
-                    </div>
-                  </div>
-                </LogPoster>
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
-                  {/* .ov (above) is always visible below tablet width now —
-                      see designCss.ts's `(hover: none), (max-width: 767px)`
-                      rule — and already carries the title, so repeating it
-                      here would show it twice. Swap to the date instead,
-                      matching the native/mobile design's own below-poster
-                      row (dateShort + format), which never repeated the
-                      title either. Both spans always render; the CSS below
-                      shows exactly one depending on viewport/pointer. */}
-                  <span className="lib-card-title" style={{ fontSize: fontSizes.sm, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
-                  <span className="lib-card-date text-muted" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>{fmtLogDate(log)}</span>
-                  {log.format ? (
-                    <span className="tag tag-neutral" style={{ fontSize: fontSizes.xs, padding: "1px 6px" } as React.CSSProperties}>
-                      {log.format}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 } as React.CSSProperties}>
-            {shown.map((log) => (
-              <div
-                key={log.id}
-                className="card tapc lift"
-                role="button"
-                tabIndex={0}
-                style={{ flexDirection: "row", gap: 12, alignItems: "stretch", padding: 10 } as React.CSSProperties}
-                onClick={() => open(log.id)}
-                onKeyDown={onCardKey(() => open(log.id))}
-              >
-                <LogPoster log={log} style={{ width: 56, flex: "none", aspectRatio: "2/3" }} />
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } as React.CSSProperties}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 } as React.CSSProperties}>
-                    <div style={{ fontFamily: heading, fontSize: fontSizes.lg } as React.CSSProperties}>{log.movie}</div>
-                    <span style={{ fontSize: fontSizes.sm, color: theme.accent, whiteSpace: "nowrap" } as React.CSSProperties}>
-                      <Icon name="star" weight="fill" size={11} /> {(log.rating ?? 0).toFixed(1)}
-                    </span>
-                  </div>
-                  <div className="text-muted" style={{ fontSize: fontSizes.sm, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
-                    <Icon name="map-pin" size={12} />
-                    {log.theater ?? "—"}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: fontSizes.sm, display: "flex", alignItems: "center", gap: 5 } as React.CSSProperties}>
-                    <Icon name="calendar-blank" size={12} />
-                    {fmtLogDate(log)}
-                  </div>
-                  {log.format ? (
-                    <div style={{ display: "flex", gap: 5, marginTop: 3, flexWrap: "wrap" } as React.CSSProperties}>
-                      <span className="tag tag-outline" style={{ fontSize: fontSizes.xs, padding: "1px 7px" } as React.CSSProperties}>
-                        {log.format}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: cols === 2 ? 14 : 10 }}>
+          {shown.map((log) => (
+            <NativeGridCard key={log.id} log={log} theme={theme} heading={heading} width={colWidthPct} onPress={() => open(log.id)} />
+          ))}
+        </View>
+      )
+    ) : (
+      <View style={{ gap: 10 }}>
+        {shown.map((log) => (
+          <Pressable
+            key={log.id}
+            onPress={() => open(log.id)}
+            style={{ flexDirection: "row", gap: 12, padding: 10, borderRadius: 8, backgroundColor: theme.surface }}
+          >
+            <LogPoster log={log} style={{ width: 56, aspectRatio: 2 / 3 }} />
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: fontSizes.lg, color: theme.text }}>
+                  {log.movie}
+                </Text>
+                <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Icon name="map-pin" size={12} color={muted} />
+                <Text style={{ fontSize: fontSizes.sm, color: muted }}>{log.theater ?? "—"}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Icon name="calendar-blank" size={12} color={muted} />
+                <Text style={{ fontSize: fontSizes.sm, color: muted }}>{fmtLogDate(log)}</Text>
+              </View>
+              {log.format ? (
+                <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
+                  <Tag variant="outline" size="sm" label={log.format} />
+                </View>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
+      </View>
     );
-  }
 
-  // ── Native (also mobile web — see the isMobile comment above) ───────────────
-  // No PWA install banner here: on real native this branch only renders when
-  // Platform.OS !== "web" — i.e. the actual compiled/Expo Go app, which is by
-  // definition already "installed". The design's mobile mockup shows this
-  // banner because it depicts the mobile-WEB experience (a phone-width
-  // browser tab prompting "add to home screen"); that belongs behind a
-  // `Platform.OS === "web"` + beforeinstallprompt check, the same guard
-  // TopBar's "Install app" button already uses, never in this branch.
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ paddingTop: 14, paddingHorizontal: 18, paddingBottom: 24 }}
+      contentContainerStyle={{
+        paddingTop: isMobile ? 14 : 28,
+        paddingHorizontal: isMobile ? 18 : 32,
+        paddingBottom: isMobile ? 24 : 40,
+      }}
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="automatic"
       // Pull-to-refresh — react-native-web renders RefreshControl as a
       // no-op wrapper (there's no native touch/overscroll to hook), so
-      // this is free on real native and harmless on mobile web.
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />
-      }
+      // this is free on real native and harmless on web.
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
-
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
-        <View>
-          <Text style={{ fontSize: fontSizes.xs, letterSpacing: 1.1, textTransform: "uppercase", color: theme.accent }}>
-            Your library
-          </Text>
-          <Text style={{ fontSize: fontSizes.h2, marginTop: 2, fontFamily: heading, color: theme.text, letterSpacing: -0.4, opacity: isLoading ? 0.5 : 1 }}>
-            {isLoading ? "— films" : `${shown.length} ${shown.length === 1 ? "film" : "films"} ${FILTER_PHRASE[filter]}`}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => router.push("/(app)/stats" as any)}
-          style={{
-            width: 36, height: 36, alignItems: "center", justifyContent: "center",
-            borderWidth: 1, borderColor: theme.divider, borderRadius: 8,
-          }}
-        >
-          <Icon name="chart-bar" size={18} color={theme.text} />
-        </Pressable>
+      <View style={{ maxWidth: isMobile ? undefined : 1160, width: "100%", alignSelf: isMobile ? "stretch" : "center", position: "relative" }}>
+        {!isMobile && (
+          // Header gradient band — the ONLY place .cine-bg appears here.
+          // Styles go straight on the element (no wrapper): its blur(60px)
+          // is what feathers the edges, so clipping it would draw a hard box.
+          <CinematicBg style={{ zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" } as any} />
+        )}
+        {header}
+        {filterRow}
+        {sortRow}
+        {body}
       </View>
-
-      {/* Filters — horizontal scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginTop: 14, marginBottom: 4 }}
-        contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
-      >
-        {FILTERS.map((f) => {
-          const on = f === filter;
-          return (
-            <Pressable
-              key={f}
-              onPress={() => setFilter(f)}
-              style={{
-                paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6,
-                backgroundColor: on ? theme.accent800 : theme.neutral800,
-              }}
-            >
-              <Text style={{ fontSize: fontSizes.xs, color: on ? theme.accent100 : theme.neutral100 }}>{f}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Sort + view toggle */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, marginBottom: 12 }}>
-        <Text style={{ fontSize: fontSizes.sm, color: muted }}>Sorted by recent</Text>
-        <View style={{ flexDirection: "row", borderWidth: 1, borderColor: theme.divider, borderRadius: 8, overflow: "hidden" }}>
-          {(["grid", "list"] as const).map((m, i) => (
-            <Pressable
-              key={m}
-              onPress={() => setMode(m)}
-              style={{
-                paddingHorizontal: 12, paddingVertical: 7,
-                borderLeftWidth: i === 1 ? 1 : 0, borderLeftColor: theme.divider,
-                backgroundColor: mode === m ? `${theme.accent}1f` : "transparent",
-              }}
-            >
-              <Icon
-                name={m === "grid" ? "squares-four" : "rows"}
-                size={16}
-                color={mode === m ? theme.accent : theme.text}
-              />
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      {isLoading ? (
-        <SectionLoader />
-      ) : isError ? (
-        <ErrorState theme={theme} muted={muted} onRetry={refetch} />
-      ) : shown.length === 0 ? (
-        <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} />
-      ) : mode === "grid" ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
-          {shown.map((log) => (
-            <Pressable key={log.id} onPress={() => open(log.id)} style={{ width: "47.5%" }}>
-              <LogPoster log={log} style={{ width: "100%", aspectRatio: 2 / 3 }}>
-                <View
-                  style={{
-                    position: "absolute", top: 8, right: 8,
-                    backgroundColor: "rgba(0,0,0,.45)", borderRadius: 6,
-                    paddingHorizontal: 7, paddingVertical: 2,
-                    flexDirection: "row", alignItems: "center", gap: 3,
-                  }}
-                >
-                  <Icon name="star" weight="fill" size={11} color={theme.accent} />
-                  <Text style={{ fontSize: fontSizes.xs, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
-                </View>
-
-                {/* .pt — title plate pinned to the poster's bottom. Used
-                    to be bare text with only a textShadow behind it — no
-                    darkening scrim at all, unlike the web .ov overlay
-                    (and PosterCard's own native branch, which already did
-                    this correctly) — legible against a dark placeholder
-                    gradient, unreadable against a bright real TMDB poster.
-                    Ported PosterCard's gradient + adds the venue/date line
-                    it also had that this card was missing entirely. */}
-                <LinearGradient
-                  colors={["transparent", "rgba(0,0,0,0.85)"]}
-                  start={{ x: 0, y: 0.35 }}
-                  end={{ x: 0, y: 1 }}
-                  pointerEvents="none"
-                  style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, justifyContent: "flex-end", padding: 10 }}
-                >
-                  <Text numberOfLines={2} style={{ fontFamily: heading, fontSize: fontSizes.lg, lineHeight: 17.6, color: "#fff" }}>
-                    {log.movie}
-                  </Text>
-                  <Text style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
-                    {log.theater ?? "—"} · {fmtLogDate(log)}
-                  </Text>
-                </LinearGradient>
-              </LogPoster>
-
-              {/* Date used to repeat here — the overlay above now carries
-                  venue + date itself (it didn't before), so showing the
-                  same date a second time right underneath it was pure
-                  duplication. Format tag alone, same as PosterCard's own
-                  footer (which never repeated date either). */}
-              {log.format ? (
-                <View style={{ flexDirection: "row", marginTop: 7 }}>
-                  <Tag variant="neutral" size="sm" label={log.format} />
-                </View>
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
-      ) : (
-        <View style={{ gap: 10 }}>
-          {shown.map((log) => (
-            <Pressable
-              key={log.id}
-              onPress={() => open(log.id)}
-              style={{
-                flexDirection: "row", gap: 12, padding: 10,
-                borderRadius: 8, backgroundColor: theme.surface,
-              }}
-            >
-              <LogPoster log={log} style={{ width: 56, aspectRatio: 2 / 3 }} />
-              <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: fontSizes.lg, color: theme.text }}>
-                    {log.movie}
-                  </Text>
-                  <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                  <Icon name="map-pin" size={12} color={muted} />
-                  <Text style={{ fontSize: fontSizes.sm, color: muted }}>{log.theater ?? "—"}</Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                  <Icon name="calendar-blank" size={12} color={muted} />
-                  <Text style={{ fontSize: fontSizes.sm, color: muted }}>{fmtLogDate(log)}</Text>
-                </View>
-                {log.format ? (
-                  <View style={{ flexDirection: "row", gap: 5, marginTop: 3 }}>
-                    <Tag variant="outline" size="sm" label={log.format} />
-                  </View>
-                ) : null}
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 }
 
-function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog: () => void }) {
-  if (Platform.OS === "web") {
-    return (
-      <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
-        <Icon name="film-slate" size={44} color={theme.accent} />
-        <div style={{ fontSize: fontSizes.lg, marginTop: 12 } as React.CSSProperties}>No films yet</div>
-        <div style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 } as React.CSSProperties}>
-          Log your first screening to start your library.
-        </div>
-        <button className="btn btn-primary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onLog}>
-          <Icon name="plus-circle" size={16} />
-          Log a screening
-        </button>
-      </div>
-    );
+// ─── View toggle (grid/list) — shared by the desktop header row and the
+// mobile sort row, which is why it takes its own small component instead
+// of being inlined into either. ─────────────────────────────────────────
+
+function ViewToggle({ mode, setMode, theme }: { mode: "grid" | "list"; setMode: (m: "grid" | "list") => void; theme: any }) {
+  return (
+    <View style={{ flexDirection: "row", borderWidth: 1, borderColor: theme.divider, borderRadius: 8, overflow: "hidden" }}>
+      {(["grid", "list"] as const).map((m, i) => (
+        <Pressable
+          key={m}
+          onPress={() => setMode(m)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: mode === m }}
+          style={{
+            paddingHorizontal: 12, paddingVertical: 7,
+            borderLeftWidth: i === 1 ? 1 : 0, borderLeftColor: theme.divider,
+            backgroundColor: mode === m ? `${theme.accent}1f` : "transparent",
+          }}
+        >
+          <Icon name={m === "grid" ? "squares-four" : "rows"} size={16} color={mode === m ? theme.accent : theme.text} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+// ─── Grid card — web (hover-reveal overlay) ────────────────────────────────
+
+function WebGridCard({ log, theme, heading, onPress }: { log: MovieLog; theme: any; heading?: string; onPress: () => void }) {
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPress(); }
   }
+  return (
+    <div className="tapc gridcard lift" role="button" tabIndex={0} onClick={onPress} onKeyDown={onKey}>
+      <LogPoster log={log} style={{ aspectRatio: "2/3" }}>
+        <div style={{
+          position: "absolute", top: 8, right: 8,
+          background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
+          borderRadius: 6, padding: "2px 7px", fontSize: fontSizes.xs, color: "#fff",
+          display: "flex", alignItems: "center", gap: 3,
+        } as React.CSSProperties}>
+          <Icon name="star" weight="fill" size={11} color={theme.accent} />
+          {(log.rating ?? 0).toFixed(1)}
+        </div>
+        <div className="ov" style={{ padding: 12 } as React.CSSProperties}>
+          <div style={{ fontFamily: heading, fontSize: fontSizes.md, color: "#fff" } as React.CSSProperties}>{log.movie}</div>
+          <div style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,.7)" } as React.CSSProperties}>
+            {log.theater ?? "—"} · {fmtLogDate(log)}
+          </div>
+        </div>
+      </LogPoster>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } as React.CSSProperties}>
+        {/* .ov (above) is always visible below tablet width / without hover
+            — see designCss.ts's `(hover: none), (max-width: 767px)` rule —
+            and already carries the title, so repeating it here would show
+            it twice. Both spans always render; the CSS shows exactly one
+            depending on viewport/pointer, matching the native card's own
+            below-poster row (format tag only, no repeated title/date). */}
+        <span className="lib-card-title" style={{ fontSize: fontSizes.sm, fontFamily: heading } as React.CSSProperties}>{log.movie}</span>
+        <span className="lib-card-date text-muted" style={{ fontSize: fontSizes.xs } as React.CSSProperties}>{fmtLogDate(log)}</span>
+        {log.format ? (
+          <span className="tag tag-neutral" style={{ fontSize: fontSizes.xs, padding: "1px 6px" } as React.CSSProperties}>{log.format}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Grid card — native (always-visible overlay, the touch treatment) ─────
+
+function NativeGridCard({ log, theme, heading, width, onPress }: { log: MovieLog; theme: any; heading?: string; width: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ width: width as any }}>
+      <LogPoster log={log} style={{ width: "100%", aspectRatio: 2 / 3 }}>
+        <View style={{
+          position: "absolute", top: 8, right: 8,
+          backgroundColor: "rgba(0,0,0,.45)", borderRadius: 6,
+          paddingHorizontal: 7, paddingVertical: 2,
+          flexDirection: "row", alignItems: "center", gap: 3,
+        }}>
+          <Icon name="star" weight="fill" size={11} color={theme.accent} />
+          <Text style={{ fontSize: fontSizes.xs, color: "#fff" }}>{(log.rating ?? 0).toFixed(1)}</Text>
+        </View>
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.85)"]}
+          start={{ x: 0, y: 0.35 }}
+          end={{ x: 0, y: 1 }}
+          pointerEvents="none"
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: 0, justifyContent: "flex-end", padding: 10 }}
+        >
+          <Text numberOfLines={2} style={{ fontFamily: heading, fontSize: fontSizes.lg, lineHeight: 17.6, color: "#fff" }}>{log.movie}</Text>
+          <Text style={{ fontSize: fontSizes.xs, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+            {log.theater ?? "—"} · {fmtLogDate(log)}
+          </Text>
+        </LinearGradient>
+      </LogPoster>
+      {log.format ? (
+        <View style={{ flexDirection: "row", marginTop: 7 }}>
+          <Tag variant="neutral" size="sm" label={log.format} />
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog: () => void }) {
   return (
     <View style={{ alignItems: "center", paddingVertical: 60 }}>
       <Icon name="film-slate" size={44} color={theme.accent} />
@@ -611,21 +481,6 @@ function EmptyState({ theme, muted, onLog }: { theme: any; muted: string; onLog:
 // default) and rendered EmptyState — "No films yet" is a confident wrong
 // answer when the real story is "couldn't reach the server."
 function ErrorState({ theme, muted, onRetry }: { theme: any; muted: string; onRetry: () => void }) {
-  if (Platform.OS === "web") {
-    return (
-      <div style={{ textAlign: "center", padding: "60px 0" } as React.CSSProperties}>
-        <Icon name="warning-circle" size={44} color={theme.error} />
-        <div style={{ fontSize: fontSizes.lg, marginTop: 12 } as React.CSSProperties}>Couldn't load your library</div>
-        <div style={{ fontSize: fontSizes.sm, color: muted, marginTop: 4 } as React.CSSProperties}>
-          Check your connection and try again.
-        </div>
-        <button className="btn btn-secondary" style={{ marginTop: 18 } as React.CSSProperties} onClick={onRetry}>
-          <Icon name="arrow-clockwise" size={16} />
-          Retry
-        </button>
-      </div>
-    );
-  }
   return (
     <View style={{ alignItems: "center", paddingVertical: 60 }}>
       <Icon name="warning-circle" size={44} color={theme.error} />
