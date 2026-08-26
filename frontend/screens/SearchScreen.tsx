@@ -32,7 +32,7 @@ import { useSearchUsers } from "../hooks/useSocial";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { PosterCard } from "../components/ui/PosterCard";
 import { Avatar } from "../components/ui/Avatar";
-import { SectionLoader } from "../components/ui/Spinner";
+import { SectionLoader, Spinner } from "../components/ui/Spinner";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
 import { avatarUrl } from "../lib/storage";
@@ -96,9 +96,22 @@ export function SearchScreen() {
   // catalog first, same call LogFormScreen's pickMovie already makes when
   // picking a search result there (returns the existing row if this
   // tmdb_id was already linked by anyone, never creates a duplicate).
+  // Dedupe-into-catalog (createMovie, above) is a real network round-trip
+  // (~1s when this tmdb_id isn't already in the local catalog) — with no
+  // per-row feedback, clicking a result did nothing visible until the
+  // navigation landed, which reads as the app freezing. openingTmdbId
+  // tracks which row is mid-flight so it can swap in a Spinner in place
+  // of its poster and ignore further taps until it resolves.
+  const [openingTmdbId, setOpeningTmdbId] = useState<number | null>(null);
   const openMovie = async (m: { tmdb_id: number }) => {
-    const movie = await createMovie(m.tmdb_id);
-    if (movie) router.push(`/(app)/movie/${movie.id}` as any);
+    if (openingTmdbId !== null) return;
+    setOpeningTmdbId(m.tmdb_id);
+    try {
+      const movie = await createMovie(m.tmdb_id);
+      if (movie) router.push(`/(app)/movie/${movie.id}` as any);
+    } finally {
+      setOpeningTmdbId(null);
+    }
   };
   const openTheatre = (t: TheatreMatchCandidate) => router.push(`/(app)/venue/${t.id}` as any);
   // Username-only route (PublicProfileScreen resolves by username, not
@@ -240,24 +253,34 @@ export function SearchScreen() {
                   Movies
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 } as React.CSSProperties}>
-                  {movieResults?.slice(0, 8).map((m) => (
+                  {movieResults?.slice(0, 8).map((m) => {
+                    const opening = openingTmdbId === m.tmdb_id;
+                    return (
                     <div key={m.tmdb_id} className="tapc" onClick={() => openMovie(m)} style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 14,
                       padding: "10px 0",
                       borderBottom: `1px solid ${theme.divider}`,
-                      cursor: "pointer",
+                      cursor: openingTmdbId !== null ? "default" : "pointer",
+                      opacity: openingTmdbId !== null && !opening ? 0.5 : 1,
                     } as React.CSSProperties}>
                       <div style={{
                         width: 40,
                         height: 60,
                         borderRadius: 5,
                         flexShrink: 0,
-                        background: tmdbPosterUrl(m.poster_path)
-                          ? `url(${tmdbPosterUrl(m.poster_path)}) center/cover`
-                          : theme.neutral800,
-                      } as React.CSSProperties} />
+                        display: opening ? "flex" : undefined,
+                        alignItems: opening ? "center" : undefined,
+                        justifyContent: opening ? "center" : undefined,
+                        background: opening
+                          ? theme.neutral800
+                          : tmdbPosterUrl(m.poster_path)
+                            ? `url(${tmdbPosterUrl(m.poster_path)}) center/cover`
+                            : theme.neutral800,
+                      } as React.CSSProperties}>
+                        {opening && <Spinner size="sm" />}
+                      </div>
                       <div style={{ flex: 1 } as React.CSSProperties}>
                         <div style={{ fontSize: fontSizes.base, fontWeight: 600, color: theme.text } as React.CSSProperties}>{m.title}</div>
                         {releaseYear(m.release_date) && (
@@ -267,7 +290,8 @@ export function SearchScreen() {
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -536,9 +560,11 @@ export function SearchScreen() {
             }
             const movie = item.movie;
             const year = releaseYear(movie.release_date);
+            const opening = openingTmdbId === movie.tmdb_id;
             return (
               <Pressable
                 onPress={() => openMovie(movie)}
+                disabled={openingTmdbId !== null}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
@@ -546,9 +572,12 @@ export function SearchScreen() {
                   paddingVertical: 10,
                   borderBottomWidth: 1,
                   borderBottomColor: theme.divider,
+                  opacity: openingTmdbId !== null && !opening ? 0.5 : 1,
                 }}
               >
-                <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800 }} />
+                <View style={{ width: 40, height: 60, borderRadius: 5, backgroundColor: theme.neutral800, alignItems: "center", justifyContent: "center" }}>
+                  {opening && <Spinner size="sm" />}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: fontSizes.base, fontWeight: "600", color: theme.text }}>{movie.title}</Text>
                   {year && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>{year}</Text>}
