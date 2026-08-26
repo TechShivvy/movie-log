@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { THEMES, DEFAULT_THEME, type Theme } from "../constants/themes";
+import { THEMES, DEFAULT_THEME, buildTheme, type Theme, type RawTheme } from "../constants/themes";
 import { FONT_OPTIONS, DEFAULT_FONT, type FontOption } from "../constants/fonts";
 import { injectDesignSystemCss } from "../lib/designCss";
 
@@ -9,9 +9,17 @@ interface ThemeContextValue {
   theme: Theme;
   fontOption: FontOption;
   fontConfig: FontConfig;
-  setTheme: (key: string) => void;
+  /** A known THEMES key selects that built-in theme; a full RawTheme (the
+   * custom-theme picker's Apply) selects — and persists — that instead.
+   * Distinguished by typeof at the call site: a plain key is always a
+   * string, a custom pick is always an object. */
+  setTheme: (keyOrCustom: string | RawTheme) => void;
   setFontOption: (key: FontOption) => void;
 }
+
+/** What actually gets persisted under "@cinelog/theme" — JSON now, not a
+ * bare key string (see the migration note in the load effect below). */
+type StoredTheme = { key: string } | { custom: true; raw: RawTheme };
 
 type FontConfig = ReturnType<typeof getFontConfig>;
 
@@ -89,6 +97,31 @@ function injectWebCSSVars(theme: Theme, fontCfg: FontConfig) {
   root.setProperty("--font-heading-weight", fontCfg.headingWeight);
 }
 
+/** Parses whatever's under "@cinelog/theme" into a real Theme. Handles
+ * three shapes: the new JSON `{key}` (a built-in pick made after this
+ * feature shipped), the new JSON `{custom:true,raw}` (a custom pick),
+ * and the OLD format — a bare, unquoted key string ("cinematic"), which
+ * isn't valid JSON on its own and so throws in JSON.parse, letting the
+ * catch block fall back to treating it as that legacy shape instead of
+ * silently losing every pre-existing user's saved theme the moment this
+ * shipped. */
+function resolveStoredTheme(saved: string | null): Theme {
+  if (!saved) return DEFAULT_THEME;
+  try {
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed === "object" && parsed.custom && parsed.raw) {
+      return buildTheme(parsed.raw as RawTheme);
+    }
+    if (parsed && typeof parsed === "object" && typeof parsed.key === "string") {
+      return THEMES.find((x) => x.key === parsed.key) ?? DEFAULT_THEME;
+    }
+    return DEFAULT_THEME;
+  } catch {
+    // Legacy bare-key format.
+    return THEMES.find((x) => x.key === saved) ?? DEFAULT_THEME;
+  }
+}
+
 // ── Provider ───────────────────────────────────────────────────────────────────
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
@@ -108,7 +141,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem("@cinelog/theme"),
           AsyncStorage.getItem("@cinelog/font"),
         ]);
-        const t = (savedTheme ? THEMES.find((x) => x.key === savedTheme) : null) ?? DEFAULT_THEME;
+        const t = resolveStoredTheme(savedTheme);
         const f = (savedFont && FONT_OPTIONS.some((x) => x.key === savedFont) ? savedFont : DEFAULT_FONT) as FontOption;
         setThemeState(t);
         setFontState(f);
@@ -122,10 +155,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     injectWebCSSVars(theme, getFontConfig(fontOption));
   }, [theme, fontOption]);
 
-  const setTheme = useCallback((key: string) => {
-    const t = THEMES.find((x) => x.key === key) ?? DEFAULT_THEME;
-    setThemeState(t);
-    AsyncStorage.setItem("@cinelog/theme", key).catch(() => {});
+  const setTheme = useCallback((keyOrCustom: string | RawTheme) => {
+    if (typeof keyOrCustom === "string") {
+      const t = THEMES.find((x) => x.key === keyOrCustom) ?? DEFAULT_THEME;
+      setThemeState(t);
+      const stored: StoredTheme = { key: t.key };
+      AsyncStorage.setItem("@cinelog/theme", JSON.stringify(stored)).catch(() => {});
+    } else {
+      const t = buildTheme(keyOrCustom);
+      setThemeState(t);
+      const stored: StoredTheme = { custom: true, raw: keyOrCustom };
+      AsyncStorage.setItem("@cinelog/theme", JSON.stringify(stored)).catch(() => {});
+    }
   }, []);
 
   const setFontOption = useCallback((key: FontOption) => {

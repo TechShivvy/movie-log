@@ -40,9 +40,11 @@ import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
 import { useMyBlocks, useBlockUser } from "../hooks/useSocial";
 import { avatarUrl } from "../lib/storage";
-import { THEMES } from "../constants/themes";
+import { THEMES, type RawTheme } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
 import { type as fontSizes } from "../constants/fonts";
+import { CustomThemeEditor } from "../components/ui/CustomThemeEditor";
+import { Icon } from "../components/ui/Icon";
 
 type Section = "appearance" | "account" | "privacy" | "ai" | "data";
 
@@ -88,8 +90,54 @@ function ThemeSwatch({ t, active, onSelect, curTheme }: { t: any; active: boolea
 
 // ─── Appearance ─────────────────────────────────────────────────────────────
 
+/** A "Custom…" tile in the theme grid — a real live preview of the
+ * user's own last custom pick once one exists (theme.key === "custom"),
+ * a plain dashed placeholder before that (nothing to preview yet). Opens
+ * the shared CustomThemeEditor either way; Apply there is what actually
+ * calls setTheme. */
+function CustomThemeTile({ theme, onPress }: { theme: any; onPress: () => void }) {
+  const isActive = theme.key === "custom";
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        borderRadius: 8,
+        borderWidth: 1,
+        borderStyle: isActive ? "solid" : "dashed",
+        borderColor: isActive ? theme.accent : theme.divider,
+        backgroundColor: isActive ? theme.accent900 : "transparent",
+        padding: 12,
+        gap: 8,
+      }}
+    >
+      {isActive ? (
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          {[theme.bg, theme.surface, theme.accent].map((c: string, i: number) => (
+            <View key={i} style={{ width: 13, height: 13, borderRadius: 3, backgroundColor: c }} />
+          ))}
+        </View>
+      ) : (
+        <Icon name="palette" size={16} color={`${theme.text}66`} />
+      )}
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ fontSize: fontSizes.base, color: theme.text, flex: 1 }}>{isActive ? "Custom" : "Custom…"}</Text>
+        {isActive && <CheckCircle size={16} color={theme.accent} weight="fill" />}
+      </View>
+    </Pressable>
+  );
+}
+
 function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobile }: any) {
   const swatchWidth = isMobile ? "47%" : "31%";
+  const [showEditor, setShowEditor] = useState(false);
+  // Seed the editor from the user's own last custom pick if one exists
+  // (continuing an edit, not restarting it), otherwise from whichever
+  // built-in theme is active right now — a real starting point instead
+  // of a blank/arbitrary one.
+  const editorSeed: RawTheme = {
+    key: "custom", label: "Custom",
+    bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
+  };
   return (
     <View style={{ gap: isMobile ? 24 : 28 }}>
       <View>
@@ -128,8 +176,18 @@ function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobil
               <ThemeSwatch t={t} active={theme.key === t.key} onSelect={() => setTheme(t.key)} curTheme={theme} />
             </View>
           ))}
+          <View style={{ width: swatchWidth }}>
+            <CustomThemeTile theme={theme} onPress={() => setShowEditor(true)} />
+          </View>
         </View>
       </View>
+
+      <CustomThemeEditor
+        visible={showEditor}
+        initial={editorSeed}
+        onApply={(raw) => { setTheme(raw); setShowEditor(false); }}
+        onCancel={() => setShowEditor(false)}
+      />
     </View>
   );
 }

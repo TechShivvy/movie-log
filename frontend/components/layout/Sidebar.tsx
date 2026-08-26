@@ -31,11 +31,12 @@ import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { useMyProfile } from "../../hooks/useProfile";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
-import { THEMES } from "../../constants/themes";
+import { THEMES, type RawTheme } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
 import { Avatar } from "../ui/Avatar";
 import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
+import { CustomThemeEditor } from "../ui/CustomThemeEditor";
 import { fontFamily } from "../../constants/fonts";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -67,6 +68,14 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(isTablet);
   useEffect(() => { setCollapsed(isTablet); }, [isTablet]);
   const { theme, setTheme, fontConfig } = useTheme();
+  // Shared by both the web and native palette pickers below (only one of
+  // which ever renders per platform, but the state/editor itself is the
+  // same regardless of which branch opened it).
+  const [showCustomEditor, setShowCustomEditor] = useState(false);
+  const customThemeSeed: RawTheme = {
+    key: "custom", label: "Custom",
+    bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
+  };
   const { signOut, session } = useAuth();
   // Own-profile data (this hook is cached app-wide under a single
   // ["my-profile"] key, so this doesn't cost a second request beyond
@@ -226,7 +235,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   opacity: 0.45, marginBottom: 7, paddingLeft: 4,
                 } as React.CSSProperties}
               >
-                Palette · {THEMES.find((t) => t.key === theme.key)?.label ?? ""}
+                Palette · {theme.label}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5 } as React.CSSProperties}>
                 {THEMES.map((t) => (
@@ -240,6 +249,19 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                     title={t.label}
                   />
                 ))}
+                {/* Custom entry — shows the real live colors once a custom
+                    pick exists (theme.key === "custom"), a neutral
+                    placeholder split before that (nothing to preview
+                    yet). Opens the same editor SettingsScreen's theme
+                    grid uses. */}
+                <ThemeSwatch
+                  bg={theme.key === "custom" ? theme.bg : theme.surfaceHigh}
+                  accent={theme.key === "custom" ? theme.accent : theme.divider}
+                  active={theme.key === "custom"}
+                  activeColor={theme.accent}
+                  onPress={() => setShowCustomEditor(true)}
+                  title="Custom theme"
+                />
               </div>
             </div>
 
@@ -287,6 +309,13 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" } as React.CSSProperties}>
           {children}
         </div>
+
+        <CustomThemeEditor
+          visible={showCustomEditor}
+          initial={customThemeSeed}
+          onApply={(raw) => { setTheme(raw); setShowCustomEditor(false); }}
+          onCancel={() => setShowCustomEditor(false)}
+        />
       </div>
     );
   }
@@ -355,7 +384,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <View>
               <Text style={styles.paletteLabel}>
-                PALETTE · {(THEMES.find((t) => t.key === theme.key)?.label ?? "").toUpperCase()}
+                PALETTE · {theme.label.toUpperCase()}
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
                 {THEMES.map((t) => (
@@ -368,6 +397,13 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                     onPress={() => setTheme(t.key)}
                   />
                 ))}
+                <ThemeSwatch
+                  bg={theme.key === "custom" ? theme.bg : theme.surfaceHigh}
+                  accent={theme.key === "custom" ? theme.accent : theme.divider}
+                  active={theme.key === "custom"}
+                  activeColor={theme.accent}
+                  onPress={() => setShowCustomEditor(true)}
+                />
               </View>
             </View>
           )}
@@ -394,6 +430,13 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
+
+      <CustomThemeEditor
+        visible={showCustomEditor}
+        initial={customThemeSeed}
+        onApply={(raw) => { setTheme(raw); setShowCustomEditor(false); }}
+        onCancel={() => setShowCustomEditor(false)}
+      />
     </View>
   );
 }
