@@ -541,6 +541,12 @@ function CommentsSection({
   onSend: () => void; hasMoreComments: boolean; isFetchingComments: boolean; loadMoreComments: () => void;
   logId: string; onReply: (username: string, commentId: string) => void;
 }) {
+  // Border-color-on-focus, not the app's global box-shadow ring — same
+  // fix and same reasoning as SearchScreen's own search field (see that
+  // file's comment): a raw TextInput with no .input-class treatment
+  // otherwise picks up a hard-edged ring that doesn't match this box's
+  // rounded corners.
+  const [focused, setFocused] = useState(false);
   return (
     <View>
       {/* No comment_count field exists on MovieLog — this is the real
@@ -553,12 +559,16 @@ function CommentsSection({
         <TextInput
           value={commentText}
           onChangeText={setCommentText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={replyTo ? `Replying to @${replyTo.username}…` : "Add a comment…"}
           placeholderTextColor={`${theme.text}55`}
           style={{
             flex: 1, backgroundColor: theme.surface, color: theme.text,
+            borderWidth: 1, borderColor: focused ? theme.accent : theme.divider,
             borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: fontSizes.base,
-          }}
+            boxShadow: "none",
+          } as any}
           multiline
           maxLength={500}
         />
@@ -788,7 +798,7 @@ export function LogDetailScreen() {
   // ── Desktop/tablet: two-column, poster beside content ──────────────────────
   if (!isMobile) {
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 32, paddingBottom: 40 }} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 32, paddingBottom: 40 }} contentInsetAdjustmentBehavior="automatic">
         <View style={{ maxWidth: 980, width: "100%", alignSelf: "center" }}>
           <Button variant="ghost" icon="caret-left" label="Back" onPress={() => router.back()} style={{ marginBottom: 20, alignSelf: "flex-start" }} />
 
@@ -870,7 +880,7 @@ export function LogDetailScreen() {
     <>
       {deleteDialog}
       {likesModal}
-      <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ paddingBottom: 80 }} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingBottom: 80 }} contentInsetAdjustmentBehavior="automatic">
         {/* Hero poster — 340px */}
         <View style={{ width: "100%", height: 340, position: "relative" }}>
           {posterUrl ? (

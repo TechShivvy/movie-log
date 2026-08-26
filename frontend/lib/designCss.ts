@@ -365,6 +365,18 @@ textarea.input { min-height: 90px; resize: vertical; }
 .app-shell ::-webkit-scrollbar-thumb:hover, .clg-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-divider); }
 /* Firefox has no ::-webkit-scrollbar — this is its equivalent, same shell scope. */
 .app-shell { scrollbar-width: thin; scrollbar-color: var(--color-neutral-800) transparent; }
+/* SearchScreen's results ScrollView (nativeID -> real DOM id via RNW) is
+   the one scroll region in the app that visually starts mid-page rather
+   than spanning the full viewport (a fixed header sits above it) — a
+   native scrollbar there reads as a stray, abruptly-clipped bar rather
+   than normal chrome. Hidden here rather than given scrollbar-gutter
+   (see SearchScreen.tsx's own note on this ScrollView): scroll still
+   works, there's just nothing to reserve gutter space for. Covers both
+   the id'd element itself and one level of descendant, since RNW can
+   put the overflow on an inner anonymous div depending on ScrollView's
+   internal structure. */
+#search-results-scroll, #search-results-scroll * { scrollbar-width: none; }
+#search-results-scroll::-webkit-scrollbar, #search-results-scroll *::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .tapc { cursor: pointer; }
 .poster { position: relative; border-radius: var(--radius-md); overflow: hidden; }
 /* A poster whose real artwork is still resolving (catalog lookup, then
@@ -399,7 +411,13 @@ textarea.input { min-height: 90px; resize: vertical; }
   display: flex; flex-direction: column; justify-content: flex-end; padding: 10px;
   background: linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,.15) 55%, transparent);
 }
-.tag-neutral, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .01em; }
+/* .tag-accent included here too — it used to fall through to the plain
+   body font (no font-family rule of its own), so selecting a chip
+   (neutral→accent) swapped both font-family AND letter-spacing
+   mid-interaction, changing the pill's intrinsic width and shoving
+   every chip after it sideways. Both states now share the same
+   monospace treatment always; selecting a chip only changes color. */
+.tag-neutral, .tag-accent, .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .01em; }
 .btn-primary { transition: box-shadow .2s ease, background .15s ease; }
 .btn-primary:hover { box-shadow: 0 0 22px color-mix(in srgb, var(--color-accent) 38%, transparent); }
 .glass {

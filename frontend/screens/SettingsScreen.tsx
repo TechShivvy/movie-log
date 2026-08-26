@@ -338,7 +338,7 @@ export function SettingsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any}
       contentContainerStyle={{ paddingTop: isMobile ? 16 : 28, paddingHorizontal: isMobile ? 16 : 32, paddingBottom: isMobile ? 60 : 40 }}
       contentInsetAdjustmentBehavior="automatic"
     >

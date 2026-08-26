@@ -63,7 +63,6 @@ export function Tag({ label, variant = "neutral", size = "md", icon, style }: Ta
     theme.neutral800;
 
   const border = variant === "outline" ? theme.accent : "transparent";
-  const isNeutral = variant === "neutral";
 
   return (
     <View style={[styles.tag, size === "sm" && styles.tagSm, { backgroundColor: bg, borderColor: border }, style]}>
@@ -71,7 +70,14 @@ export function Tag({ label, variant = "neutral", size = "md", icon, style }: Ta
       <Text style={[
         styles.label,
         { color, fontSize },
-        isNeutral && styles.mono,
+        // Was isNeutral-only — selecting a chip (neutral→accent) swapped
+        // font family, changing the pill's intrinsic width and shifting
+        // every chip after it sideways. Mono now applies to both toggled
+        // states so only color changes on selection, matching the web
+        // fix (designCss.ts's `.tag-neutral, .tag-accent, .mono` rule —
+        // outline excluded there too, since it's never the toggle target
+        // of a selectable chip set).
+        variant !== "outline" && styles.mono,
       ]}>
         {label}
       </Text>

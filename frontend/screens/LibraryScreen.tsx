@@ -319,33 +319,51 @@ export function LibraryScreen() {
     );
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{
-        paddingTop: isMobile ? 14 : 28,
-        paddingHorizontal: isMobile ? 18 : 32,
-        paddingBottom: isMobile ? 24 : 40,
-      }}
-      showsVerticalScrollIndicator={false}
-      contentInsetAdjustmentBehavior="automatic"
-      // Pull-to-refresh — react-native-web renders RefreshControl as a
-      // no-op wrapper (there's no native touch/overscroll to hook), so
-      // this is free on real native and harmless on web.
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
-    >
-      <View style={{ maxWidth: isMobile ? undefined : 1160, width: "100%", alignSelf: isMobile ? "stretch" : "center", position: "relative" }}>
-        {!isMobile && (
-          // Header gradient band — the ONLY place .cine-bg appears here.
-          // Styles go straight on the element (no wrapper): its blur(60px)
-          // is what feathers the edges, so clipping it would draw a hard box.
-          <CinematicBg style={{ zIndex: -1, height: 280, top: -60, left: -60, right: -60, bottom: "auto" } as any} />
-        )}
-        {header}
-        {filterRow}
-        {sortRow}
-        {body}
-      </View>
-    </ScrollView>
+    // Was a single ScrollView with CinematicBg rendered as its first
+    // child — i.e. INSIDE the scrolling content. A ScrollView's
+    // overflow-y:auto forces overflow-x into a real clip too (a scroll
+    // container can't leave one axis "visible" while the other scrolls
+    // — CSS Overflow spec), so the glow's blur(60px) bleed got hard-cut
+    // at the ScrollView's own left/right edges: correct-looking on the
+    // left only by accident (the Sidebar happens to paint over that
+    // same seam), visibly abrupt on the right where nothing did. This
+    // predates the Part-C screen-unification pass's ScrollView-based
+    // layout — the original web build scrolled via a plain overflow-y
+    // div with no matching overflow-x, so the same blur bleed was never
+    // clipped there at all. Restoring that: CinematicBg now renders
+    // as a sibling BEHIND the ScrollView (a plain absolutely-positioned
+    // backdrop in this outer, non-scrolling View), not a descendant of
+    // it — nothing here clips it on any edge, on any screen width.
+    // It no longer scrolls away with the header text above it; instead
+    // the grid content scrolls up and over it as the user scrolls,
+    // which reads fine since the glow is meant to feel like ambient
+    // light behind the top of the page, not attached to any one row.
+    <View style={{ flex: 1, backgroundColor: theme.bg, position: "relative" }}>
+      {!isMobile && (
+        <CinematicBg style={{ position: "absolute", zIndex: 0, height: 280, top: -60, left: -60, right: -60 } as any} />
+      )}
+      <ScrollView
+        style={{ flex: 1, scrollbarGutter: "stable" } as any}
+        contentContainerStyle={{
+          paddingTop: isMobile ? 14 : 28,
+          paddingHorizontal: isMobile ? 18 : 32,
+          paddingBottom: isMobile ? 24 : 40,
+        }}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+        // Pull-to-refresh — react-native-web renders RefreshControl as a
+        // no-op wrapper (there's no native touch/overscroll to hook), so
+        // this is free on real native and harmless on web.
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
+      >
+        <View style={{ maxWidth: isMobile ? undefined : 1160, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
+          {header}
+          {filterRow}
+          {sortRow}
+          {body}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 

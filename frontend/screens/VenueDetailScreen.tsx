@@ -125,7 +125,7 @@ export function VenueDetailScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any}
       contentContainerStyle={{ paddingTop: isMobile ? 16 : 28, paddingHorizontal: pad, paddingBottom: isMobile ? 100 : 40 }}
       contentInsetAdjustmentBehavior="automatic"
     >

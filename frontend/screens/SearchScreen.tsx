@@ -90,12 +90,13 @@ export function SearchScreen() {
   const { showToast } = useToast();
   const [query, setQuery]   = useState("");
   const [scope, setScope]   = useState<Scope>("all");
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const debouncedQuery = useDebouncedValue(query, 300);
   const { data: movieResults, isLoading: moviesLoading } = useMovieSearch(debouncedQuery);
   const { data: theatreResults, isLoading: theatresLoading } = useVenueSearch(debouncedQuery);
   const { data: peopleResults, isLoading: peopleLoading } = useSearchUsers(debouncedQuery);
-  const { data: logs }                                    = useMovieLogs({ archived: false });
+  const { data: logs, isLoading: logsLoading }            = useMovieLogs({ archived: false });
   const { mutateAsync: createMovie } = useCreateMovie();
 
   // Google Places fallback, same explicit-tap shape as LogFormScreen's
@@ -181,9 +182,20 @@ export function SearchScreen() {
   const hasAnyResults =
     (showLogs && logMatches.length > 0) ||
     (showMovies && (movieResults?.length ?? 0) > 0) ||
-    (showTheatres && (theatreResults?.length ?? 0) > 0 || placesResults.length > 0) ||
+    // Was `(showTheatres && theatreResults.length>0) || placesResults.length>0`
+    // — && binds tighter than ||, so a stale placesResults from a scope
+    // the user has since switched away from (Places results are only
+    // ever cleared on typing, not on a scope change) kept this whole
+    // expression true with nothing actually on screen: a fully blank
+    // page, no results and no "No results" message either. Both terms
+    // now share the showTheatres gate.
+    (showTheatres && ((theatreResults?.length ?? 0) > 0 || placesResults.length > 0)) ||
     (showPeople && (peopleResults?.length ?? 0) > 0);
-  const stillLoading = (showMovies && moviesLoading) || (showTheatres && theatresLoading) || (showPeople && peopleLoading);
+  const stillLoading =
+    (showLogs && logsLoading) ||
+    (showMovies && moviesLoading) ||
+    (showTheatres && theatresLoading) ||
+    (showPeople && peopleLoading);
 
   function renderMovieRow(m: MovieSearchResult) {
     const opening = openingTmdbId === m.tmdb_id;
@@ -257,32 +269,51 @@ export function SearchScreen() {
     </Pressable>
   );
 
+  const pageMaxWidth = isMobile ? undefined : 820;
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ paddingTop: isMobile ? 8 : 28, paddingHorizontal: isMobile ? 16 : 32, paddingBottom: isMobile ? 100 : 40 }}
-      contentInsetAdjustmentBehavior="automatic"
-    >
-      <View style={{ maxWidth: isMobile ? undefined : 820, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
+    // Was one outer ScrollView wrapping title+input+chips+results — the
+    // whole page scrolled as one, so the search bar scrolled away with
+    // everything else instead of staying put. Header (title/input/chips)
+    // is now a fixed, non-scrolling block; only the results/empty-state
+    // area below it scrolls, in its own ScrollView.
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <View style={{
+        maxWidth: pageMaxWidth, width: "100%", alignSelf: isMobile ? "stretch" : "center",
+        paddingTop: isMobile ? 8 : 28, paddingHorizontal: isMobile ? 16 : 32,
+      }}>
         {!isMobile && (
           <Text style={{ fontSize: fontSizes.h1, fontWeight: "700", color: theme.text, marginBottom: 20, letterSpacing: -0.5 }}>
             Search
           </Text>
         )}
 
-        {/* Search input */}
+        {/* Search input — border-color-on-focus (driven by local state),
+            not the app's global box-shadow focus ring: that ring is
+            meant for elements using the shared Input component/.input
+            CSS class, both of which already suppress it in favor of
+            this same border treatment (see Input.tsx). This field is a
+            raw TextInput in a custom wrapper with neither, so on web it
+            picked up the global ring — a hard-edged rectangle sitting
+            oddly inside this pill's rounded corners, misaligned with
+            the icon. boxShadow:"none" inline on the TextInput itself
+            beats the global rule's specificity (an inline style always
+            wins over an external stylesheet, pseudo-class or not). */}
         <View style={{
           flexDirection: "row", alignItems: "center", gap: 8,
-          backgroundColor: theme.surface, borderRadius: 10, borderWidth: 1, borderColor: theme.divider,
+          backgroundColor: theme.surface, borderRadius: 10, borderWidth: 1,
+          borderColor: searchFocused ? theme.accent : theme.divider,
           paddingHorizontal: 12, marginBottom: isMobile ? 12 : 20,
         }}>
           <MagnifyingGlass size={16} color={`${theme.text}66`} />
           <TextInput
             value={query}
             onChangeText={(t) => { setQuery(t); setPlacesResults([]); setPlacesSearched(false); }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Search movies, logs, or people…"
             placeholderTextColor={`${theme.text}44`}
-            style={{ flex: 1, color: theme.text, fontSize: fontSizes.md, paddingVertical: isMobile ? 10 : 9 }}
+            style={{ flex: 1, color: theme.text, fontSize: fontSizes.md, paddingVertical: isMobile ? 10 : 9, boxShadow: "none" } as any}
             autoFocus
           />
         </View>
@@ -295,7 +326,36 @@ export function SearchScreen() {
             </Pressable>
           ))}
         </View>
+      </View>
 
+      {/* scrollbarGutter:"stable" here (matching every other screen's own
+          scroll box, per 1c) reserved gutter space only on this results
+          box, not on the fixed header above it — the two areas no longer
+          shared the same effective content width, so results sat visibly
+          narrower than the header/chips. This is also the one scroll
+          region in the app that visually starts mid-page rather than
+          spanning the full viewport (the fixed header sits above it), so
+          a native-style scrollbar here reads as broken rather than as
+          normal chrome. Hiding it (nativeID + a matching CSS rule in
+          designCss.ts) sidesteps both problems at once — no gutter to
+          reserve, nothing to visually clip mid-page — without giving up
+          scroll function or the sticky header itself. */}
+      <ScrollView
+        nativeID="search-results-scroll"
+        style={{ flex: 1 } as any}
+        contentContainerStyle={{ paddingBottom: isMobile ? 100 : 40 }}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+      {/* Was paddingHorizontal on the ScrollView's contentContainerStyle
+          (applied to the full-width scroll content, BEFORE this maxWidth
+          box gets centered inside it) while the header block above
+          applies its own identical-looking paddingHorizontal to itself
+          AFTER centering (it's a plain child View, not scroll content).
+          Same numbers, different order of operations — the two blocks'
+          effective left edges ended up ~32px apart. Moving the padding
+          here, onto this maxWidth box itself, matches the header's own
+          structure exactly: center first, then pad. */}
+      <View style={{ maxWidth: pageMaxWidth, width: "100%", alignSelf: isMobile ? "stretch" : "center", paddingHorizontal: isMobile ? 16 : 32 }}>
         {!query ? (
           <View style={{ alignItems: "center", paddingVertical: isMobile ? 80 : 60 }}>
             <Text style={{ fontSize: isMobile ? 36 : 40, marginBottom: 12 }}>🔍</Text>
@@ -335,6 +395,16 @@ export function SearchScreen() {
                 {movieResults!.slice(0, CAPS.movies).map(renderMovieRow)}
               </View>
             )}
+            {/* Was the only section with no loading state of its own —
+                a blank gap for the whole request instead, same "looks
+                broken" issue the movie-click spinner fix (SearchScreen's
+                own openMovie) already fixed for the click itself. */}
+            {showMovies && moviesLoading && (
+              <View style={{ marginBottom: 28 }}>
+                <SectionHeading theme={theme}>Movies</SectionHeading>
+                <SectionLoader size="lg" padding={0} />
+              </View>
+            )}
 
             {showTheatres && (
               <View style={{ marginBottom: 28 }}>
@@ -371,6 +441,7 @@ export function SearchScreen() {
           </>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

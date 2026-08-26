@@ -6,7 +6,7 @@
  * images larger than the small hero thumbnail before this.
  */
 import React, { useEffect, useState } from "react";
-import { Image, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { X, WarningCircle } from "phosphor-react-native";
 import { Spinner } from "./Spinner";
 import { useTheme } from "../../hooks/useTheme";
@@ -35,6 +35,7 @@ const PLACEHOLDER_SIZE = 280;
 
 export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
   const { theme } = useTheme();
+  const { width: winWidth, height: winHeight } = useWindowDimensions();
   // Local "closing" flag so the fade-out transition actually gets a
   // chance to run — the parent clears `uri` (which would unmount this
   // instantly) only after this delay, not the moment the user clicks.
@@ -165,7 +166,29 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
           onPress={() => {}}
           style={[
             styles.imageWrap,
-            !loaded && { width: PLACEHOLDER_SIZE, height: PLACEHOLDER_SIZE },
+            // A real, DEFINITE width+height, always — was only given an
+            // explicit size while !loaded (the PLACEHOLDER_SIZE
+            // fallback); once `loaded` flipped true this dropped to
+            // just `maxWidth:"100%"` with no height at all, and the
+            // child Image's own `height:"70%"` (styles.image) had
+            // nothing but an indeterminate, shrink-to-fit parent to
+            // resolve a percentage against — a max-width/max-height
+            // alone doesn't fix this either (those only cap an
+            // otherwise-computed size, they don't establish one) — so
+            // Yoga couldn't solve the circularity and the image
+            // rendered at 0 height: the exact "opens to nothing, just
+            // the close button" collapse this component's own
+            // PLACEHOLDER_SIZE fix was supposed to have already closed
+            // (that fix only ever covered the *pre-load* case). Sized
+            // the same way the web branch's own bounding box is
+            // (`min(90vw,720px)` × `85vh`), computed from the real
+            // window size since RN has no vw/vh units; styles.image
+            // below fills these exact bounds and resizeMode:"contain"
+            // does the letterboxing for either a square avatar or a
+            // wide banner.
+            loaded
+              ? { width: Math.min(winWidth * 0.9, 720), height: winHeight * 0.85 }
+              : { width: PLACEHOLDER_SIZE, height: PLACEHOLDER_SIZE },
           ]}
         >
           {!errored && (
@@ -208,7 +231,9 @@ const styles = StyleSheet.create({
   // No fixed aspectRatio — this shows both square avatars and wide
   // banners; resizeMode:"contain" against a fixed box correctly
   // letterboxes either shape without needing to know it up front.
-  image: { width: "100%", height: "70%" },
+  // Both 100% — imageWrap now always has a real, definite width+height
+  // (see its own style override above) for these to resolve against.
+  image: { width: "100%", height: "100%" },
   // Kept mounted (not conditionally rendered) while loading so onLoad
   // still fires — just invisible and out of layout, so it can't be the
   // thing collapsing imageWrap to nothing the way an absent Image would.

@@ -185,7 +185,18 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
           subtract, so it can't develop this class of off-by-a-few-
           pixels asymmetry regardless of density/rounding differences
           between environments. */}
-      <View style={styles.domeWrap} pointerEvents="box-none">
+      {/* bottom: insets.bottom, not styles.domeWrap's own bottom:0 — an
+          absolutely-positioned child's `bottom` is relative to this
+          bar's BORDER box, not its padding box, so it doesn't move on
+          its own when paddingBottom below grows to make room for the
+          safe area. Without this override the dome stays anchored to
+          the bar's outer (post-inset) edge instead of its visible
+          (pre-inset) content, sinking further down — mostly behind the
+          safe-area strip — the taller that inset is (a real ~48dp on
+          Android's 3-button nav, confirmed via a device screenshot;
+          always 0 in this app's own web-only test environment, which
+          is why this went unnoticed until a real device). */}
+      <View style={[styles.domeWrap, { bottom: insets.bottom }]} pointerEvents="box-none">
         <Pressable
           onPress={() => router.push("/(app)/log/new" as any)}
           style={[

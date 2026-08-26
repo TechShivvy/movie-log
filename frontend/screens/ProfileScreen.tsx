@@ -326,7 +326,7 @@ export function ProfileScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any}
       contentContainerStyle={isMobile ? undefined : { alignItems: "center" }}
       contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}

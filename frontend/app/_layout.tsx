@@ -22,6 +22,7 @@ import { ThemeProvider } from "../context/ThemeContext";
 import { AuthProvider } from "../context/AuthContext";
 import { ToastProvider } from "../context/ToastContext";
 import { useTheme } from "../hooks/useTheme";
+import { relativeLuminance } from "../constants/themes";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -37,6 +38,16 @@ const queryClient = new QueryClient({
  */
 function ThemedStack() {
   const { theme } = useTheme();
+  // Was a hardcoded <StatusBar style="light"/> — correct for this app's
+  // dark themes, wrong for its light ones (Champagne, and any custom
+  // theme a user picks with a light background — see the theme picker):
+  // "light" means light (white) system-bar icons, which don't contrast
+  // against a light app background near the top of the screen. Picking
+  // from the theme's own background luminance (the same WCAG math
+  // Theme's own onAccent token already uses) instead of a fixed guess
+  // means this stays correct for every current and future theme,
+  // built-in or custom, with no per-theme special case to maintain.
+  const statusBarStyle = relativeLuminance(theme.bg) < 0.5 ? "light" : "dark";
   return (
     // phosphor-react-native's IconBase falls back to a hardcoded '#000'
     // whenever a <Icon> is rendered with no explicit color prop (see
@@ -50,6 +61,7 @@ function ThemedStack() {
     // an icon that DOES pass its own color prop is untouched either way,
     // since IconBase only falls back to this when color is omitted.
     <IconContext.Provider value={{ color: theme.text }}>
+      <StatusBar style={statusBarStyle} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
@@ -100,7 +112,6 @@ export default function RootLayout() {
           <ThemeProvider>
             <AuthProvider>
               <ToastProvider>
-                <StatusBar style="light" />
                 <ThemedStack />
               </ToastProvider>
             </AuthProvider>

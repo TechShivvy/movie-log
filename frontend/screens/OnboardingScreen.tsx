@@ -233,7 +233,7 @@ export function OnboardingScreen() {
   // ── Native (also mobile web — see the isMobile comment above) ───────────────
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any}
       contentContainerStyle={{
         flexGrow: 1, justifyContent: "center", padding: 24,
         paddingTop: 24 + insets.top, paddingBottom: 24 + insets.bottom,

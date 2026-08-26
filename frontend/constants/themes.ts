@@ -79,8 +79,11 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${c.r},${c.g},${c.b},${alpha})`;
 }
 
-/** WCAG relative luminance (sRGB, gamma-corrected) — 0 (black) to 1 (white). */
-function relativeLuminance(hex: string): number {
+/** WCAG relative luminance (sRGB, gamma-corrected) — 0 (black) to 1 (white).
+ * Exported — reused by app/_layout.tsx to pick the system status bar's
+ * icon color from the active theme's own background instead of a
+ * hardcoded literal, and by the custom-theme picker's contrast warning. */
+export function relativeLuminance(hex: string): number {
   const c = hexToRgb(hex);
   if (!c) return 0;
   const [rs, gs, bs] = [c.r, c.g, c.b].map((v) => {
@@ -90,8 +93,9 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
 }
 
-/** WCAG contrast ratio between two colors, 1 (none) to 21 (max). */
-function contrastRatio(hexA: string, hexB: string): number {
+/** WCAG contrast ratio between two colors, 1 (none) to 21 (max). Exported
+ * for the custom-theme picker's contrast warning — see relativeLuminance. */
+export function contrastRatio(hexA: string, hexB: string): number {
   const [l1, l2] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort((a, b) => b - a);
   return (l1 + 0.05) / (l2 + 0.05);
 }
@@ -105,9 +109,15 @@ function contrastingOnColor(bg: string): string {
   return contrastRatio(bg, "#ffffff") >= contrastRatio(bg, "#000000") ? "#ffffff" : "#000000";
 }
 
-type RawTheme = Pick<Theme, "key" | "label" | "bg" | "surface" | "text" | "accent">;
+export type RawTheme = Pick<Theme, "key" | "label" | "bg" | "surface" | "text" | "accent">;
 
-function buildTheme(raw: RawTheme): Theme {
+/** Derives every secondary token (accent shades, neutrals, divider,
+ * onAccent) from just the 4 base colors a theme (or a user's custom
+ * pick) is authored with. Exported for the custom-theme picker — a
+ * user-picked {bg,surface,text,accent} gets the exact same derivation
+ * every built-in theme already goes through, contrast-safe onAccent
+ * included, with no separate logic to maintain. */
+export function buildTheme(raw: RawTheme): Theme {
   return {
     ...raw,
     // Design source (CineLog Web.dc.html) hardcodes this as

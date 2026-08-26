@@ -130,7 +130,7 @@ export function FeedScreen() {
       data={feedLogs}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
-      style={{ flex: 1 }}
+      style={{ flex: 1, scrollbarGutter: "stable" } as any}
       contentContainerStyle={{
         paddingTop: isMobile ? 16 : 28,
         paddingHorizontal: isMobile ? 16 : 32,

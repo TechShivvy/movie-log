@@ -64,12 +64,17 @@ export function StatsScreen() {
   // wide screens, 2-col / stacked on narrow ones, on EITHER platform.
   const cardRadius = 12;
   const cardPad = isMobile ? 16 : 20;
-  const tileWidth = isMobile ? "47%" : "23.5%";
   const chartHeight = isMobile ? 80 : 120;
   const barMaxHeight = chartHeight - (isMobile ? 10 : 20);
 
   const StatCard = ({ label, value }: { label: string; value: string | number }) => (
-    <View style={{ width: tileWidth, backgroundColor: theme.surface, borderRadius: cardRadius, padding: cardPad, alignItems: "center" }}>
+    // Was a fixed 23.5% width on desktop — an approximation (4 tiles at
+    // 23.5% + 3 gaps sums to less than the row's full width), which is
+    // why the last tile's right edge sat visibly short of the charts
+    // row's own right edge below it. flex:1 (no wrap needed — always
+    // exactly 4 tiles in one row on desktop) fills the row exactly,
+    // same technique the charts row already uses for its own two cards.
+    <View style={{ flex: isMobile ? undefined : 1, width: isMobile ? "47%" : undefined, backgroundColor: theme.surface, borderRadius: cardRadius, padding: cardPad, alignItems: "center" }}>
       <Text style={{ fontSize: isMobile ? fontSizes.display : fontSizes.h2, fontWeight: "700", color: theme.accent }}>{value}</Text>
       <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginTop: isMobile ? 2 : 4, textAlign: "center" }}>{label}</Text>
     </View>
@@ -77,7 +82,7 @@ export function StatsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any}
       contentContainerStyle={{
         paddingTop: isMobile ? 16 : 28,
         paddingHorizontal: isMobile ? 16 : 32,
@@ -130,7 +135,12 @@ export function StatsScreen() {
             <Text style={{ fontSize: fontSizes.base, fontWeight: "700", color: theme.text, marginBottom: isMobile ? 14 : 16 }}>Rating distribution</Text>
             {[5, 4, 3, 2, 1].map((star) => (
               <View key={star} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, width: isMobile ? 20 : 16 }}>{star}★</Text>
+                {/* width was 16/20 — narrower than "N★"'s real rendered
+                    width at this font size, so the ★ wrapped onto its
+                    own line under the digit instead of sitting beside
+                    it. numberOfLines is a defensive guard against the
+                    same wrap on any font/platform where metrics differ. */}
+                <Text numberOfLines={1} style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, width: 28 }}>{star}★</Text>
                 <View style={{ flex: 1, height: 8, backgroundColor: theme.neutral800, borderRadius: 4, overflow: "hidden" }}>
                   <View style={{
                     width: `${(stats.ratingDist[star - 1] / maxRating) * 100}%`,

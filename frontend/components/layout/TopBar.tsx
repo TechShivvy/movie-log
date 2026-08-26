@@ -55,22 +55,32 @@ export function TopBar() {
         className="topbar"
         style={{ borderBottom: `1px solid ${theme.divider}`, gap: 16 } as React.CSSProperties}
       >
-        <div style={{ position: "relative", flex: 1, maxWidth: 560 } as React.CSSProperties}>
+        {/* A styled trigger, not a real <input> — it used to be a genuine,
+            uncontrolled text field (no value/onChange, navigating on
+            onFocus) that happily accepted typing which went precisely
+            nowhere: nothing forwarded it, nothing cleared it, and
+            refocusing it while already on /search re-fired the same
+            navigation. Matches what the native branch below already did
+            correctly: a button styled to look like the field, tapping it
+            is the entire interaction. */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push("/(app)/search" as any)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push("/(app)/search" as any); } }}
+          className="input"
+          style={{
+            position: "relative", flex: 1, maxWidth: 560, paddingLeft: 34,
+            display: "flex", alignItems: "center", cursor: "pointer",
+          } as React.CSSProperties}
+        >
           <Icon
             name="magnifying-glass"
             size={16}
             color={theme.accent}
             style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
           />
-          <input
-            className="input"
-            style={{ paddingLeft: 34 } as React.CSSProperties}
-            placeholder="Search films, theatres, people…"
-            // autoComplete off stops the browser's own unstyled suggestion
-            // dropdown from appearing over the app's UI.
-            autoComplete="off"
-            onFocus={() => router.push("/(app)/search" as any)}
-          />
+          <span style={{ color: `${theme.text}88`, fontSize: 14 } as React.CSSProperties}>Search films, theatres, people…</span>
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 } as React.CSSProperties}>

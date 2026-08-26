@@ -170,7 +170,21 @@ export default function AppLayout() {
       // background regardless of any height rounding between it and its
       // content. Kept global (not per-screen) on purpose: it's the one
       // piece <Tabs> itself owns that these screenOptions actually reach.
-      screenOptions={{ headerShown: false, sceneStyle: { overflow: "auto", backgroundColor: theme.bg } as any }}
+      // scrollbarGutter:"stable" (web-only CSS, harmless no-op on native)
+      // — designCss.ts already has this exact rule on .mainscroll, but
+      // .mainscroll stopped being the real scrolling element the moment
+      // sceneStyle's own overflow:auto (above) took over that job; the
+      // existing rule became dead code. Without it, a tab whose content
+      // is taller than the viewport gets a real scrollbar (reserving
+      // ~8px) and one that isn't (an empty-state tab) doesn't — every
+      // screen in this app centers its content column via alignSelf/
+      // margin:auto against that same, now-inconsistent available
+      // width, so the whole column visibly shifts a few px sideways
+      // switching between a tall and a short screen. Reserving the
+      // gutter unconditionally here, the one place these screenOptions
+      // already reach every screen's real scroll box, fixes it globally
+      // instead of per-screen.
+      screenOptions={{ headerShown: false, sceneStyle: { overflow: "auto", scrollbarGutter: "stable", backgroundColor: theme.bg } as any }}
     >
       <Tabs.Screen name="(library)" />
       <Tabs.Screen name="(feed)" />
