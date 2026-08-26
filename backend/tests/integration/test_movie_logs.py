@@ -98,12 +98,27 @@ async def test_a_public_log_is_visible_to_a_stranger_but_with_fewer_fields(clien
     get_visible_movie_log, which falls back to the same
     public_movie_log_entries view GET .../reviews already reads through
     for a non-owner — same reduced field set (no booking_ref/seats/
-    ticket_image_path/ticket_url/price/currency) applies here too."""
+    ticket_image_path/ticket_url/price/currency) applies here too.
+
+    Also covers a follow-up schema gap: username/display_name/avatar_path
+    are joined into that view (same as the view's other consumers, e.g.
+    the theatre/screen reviews lists), but MovieLog itself never declared
+    those three fields, so response_model=MovieLog silently stripped them
+    on the way out — the frontend's author row had nothing to render even
+    though the data was fetched correctly."""
 
     owner_id, owner_token = await make_user()
     _, stranger_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    owner_username = f'authortest{uuid.uuid4().hex[:10]}'
+    await client.patch('/api/v1/public/me/username', headers=owner_headers, json={'username': owner_username})
+    await client.patch(
+        '/api/v1/public/me/profile', headers=owner_headers,
+        json={'display_name': 'Author Display Name', 'avatar_path': f'{owner_id}/avatar.jpg'},
+    )
+
     created = await client.post(
-        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        '/api/v1/movie-logs', headers=owner_headers,
         json={
             'movie': 'Public To Everyone', 'visibility': 'public',
             'theatre_place': theatre_place_payload(), 'booking_ref': 'BMS999',
@@ -112,11 +127,12 @@ async def test_a_public_log_is_visible_to_a_stranger_but_with_fewer_fields(clien
     )
     log_id = created.json()['id']
 
-    as_owner = await client.get(
-        f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {owner_token}'},
-    )
+    as_owner = await client.get(f'/api/v1/movie-logs/{log_id}', headers=owner_headers)
     assert as_owner.status_code == 200
     assert as_owner.json()['booking_ref'] == 'BMS999'
+    # Redundant on the caller's own log — always null here, not their own
+    # username reflected back.
+    assert as_owner.json()['username'] is None
 
     as_stranger = await client.get(
         f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
@@ -132,14 +148,27 @@ async def test_a_public_log_is_visible_to_a_stranger_but_with_fewer_fields(clien
     assert stranger_body['seats'] == []
     assert stranger_body['price'] is None
     assert stranger_body['currency'] is None
+    # The author row now actually has something to render.
+    assert stranger_body['user_id'] == owner_id
+    assert stranger_body['username'] == owner_username
+    assert stranger_body['display_name'] == 'Author Display Name'
+    assert stranger_body['avatar_path'] == f'{owner_id}/avatar.jpg'
 
 
 @pytest.mark.asyncio
 async def test_an_anonymous_visibility_log_is_visible_but_unattributed_to_a_stranger(client, make_user):
     owner_id, owner_token = await make_user()
     _, stranger_token = await make_user()
+    owner_headers = {'Authorization': f'Bearer {owner_token}'}
+    owner_username = f'anonauthor{uuid.uuid4().hex[:10]}'
+    await client.patch('/api/v1/public/me/username', headers=owner_headers, json={'username': owner_username})
+    await client.patch(
+        '/api/v1/public/me/profile', headers=owner_headers,
+        json={'display_name': 'Should Never Show', 'avatar_path': f'{owner_id}/avatar.jpg'},
+    )
+
     created = await client.post(
-        '/api/v1/movie-logs', headers={'Authorization': f'Bearer {owner_token}'},
+        '/api/v1/movie-logs', headers=owner_headers,
         json={'movie': 'Anon To Everyone', 'visibility': 'anonymous', 'theatre_place': theatre_place_payload()},
     )
     log_id = created.json()['id']
@@ -148,7 +177,13 @@ async def test_an_anonymous_visibility_log_is_visible_but_unattributed_to_a_stra
         f'/api/v1/movie-logs/{log_id}', headers={'Authorization': f'Bearer {stranger_token}'},
     )
     assert as_stranger.status_code == 200
-    assert as_stranger.json()['user_id'] is None  # anonymous — never attributed
+    body = as_stranger.json()
+    assert body['user_id'] is None  # anonymous — never attributed
+    # The real author's identity stays fully unreadable, same rule as
+    # user_id — not just id/username, display_name/avatar_path too.
+    assert body['username'] is None
+    assert body['display_name'] is None
+    assert body['avatar_path'] is None
 
 
 @pytest.mark.asyncio

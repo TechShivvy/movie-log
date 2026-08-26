@@ -639,6 +639,31 @@ class MovieLog(MovieLogInput):
         "movie's reviews, a profile, the feed); always null on the caller's own "
         "GET /movie-logs, where every row is already their own.",
     )
+    username: Optional[str] = Field(
+        default=None,
+        description="Only ever populated the same way user_id is — a non-owner "
+        "read (GET /{log_id}) of someone else's currently public/anonymous "
+        "log. Same rule: null on the caller's own logs (redundant — it's "
+        "already their own username), and null on an `anonymous` log "
+        "regardless of who's asking, since the real author is deliberately "
+        "unreadable there.",
+    )
+    display_name: Optional[str] = Field(
+        default=None,
+        description="Same population rule as username above — only set on a "
+        "non-owner read of someone else's public log, null on the caller's "
+        "own logs and on an anonymous one.",
+    )
+    avatar_path: Optional[str] = Field(
+        default=None,
+        description="Same population rule as username above — only set on a "
+        "non-owner read of someone else's public log, null on the caller's "
+        "own logs and on an anonymous one. Not to be confused with "
+        "ticket_image_path (MovieLogInput) or profile_links' avatar concept "
+        "— this is the log author's own profile avatar_path, same storage "
+        "path shape schemas/public_profile.py's ProfileUpdate.avatar_path "
+        "already documents.",
+    )
 
 
 class VenueRating(BaseModel):
