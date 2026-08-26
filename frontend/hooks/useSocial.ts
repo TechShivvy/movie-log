@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEMO_MODE } from "../lib/api";
 import { patchLogInEveryCache } from "./useMovieLogs";
+import { useAuth } from "./useAuth";
 import type { BlockedUser, Comment, FollowerEntry, MovieLog, PublicProfileResponse, UserSearchResult } from "../types";
 
 // ─── Public profile ─────────────────────────────────────────────────────────
@@ -378,6 +379,7 @@ export function useCommentLikes(commentId: string | undefined, enabled: boolean)
 
 export function useFollowUser() {
   const qc = useQueryClient();
+  const { session } = useAuth();
   return useMutation({
     mutationFn: async ({
       username,
@@ -394,6 +396,33 @@ export function useFollowUser() {
         // not following → POST to follow
         await api.post(`/public/follows/${username}`);
       }
+    },
+    // Real optimistic update, same onMutate/onError shape useLikeLog
+    // above already establishes — the Follow/Following button used to
+    // only flip after the full round-trip landed. The button's state is
+    // derived from useFollowers's own list (does the caller's own
+    // user_id appear in it), not a boolean field, so onMutate adds/
+    // removes a minimal entry (just the id the membership check reads)
+    // rather than a boolean flip — a real follower row's other fields
+    // (username/display_name/avatar_path) get filled in for real once
+    // onSuccess's invalidate refetches, same as onSettled does elsewhere
+    // in this file.
+    onMutate: async ({ username, following }) => {
+      const key = ["public-profile", username, "followers"];
+      await qc.cancelQueries({ queryKey: key });
+      const snapshot = qc.getQueryData<FollowerEntry[]>(key);
+      const myId = session?.user?.id;
+      if (myId) {
+        qc.setQueryData<FollowerEntry[]>(key, (prev = []) =>
+          following
+            ? prev.filter((f) => f.user_id !== myId)
+            : [...prev, { user_id: myId, followed_at: new Date().toISOString() }]
+        );
+      }
+      return { snapshot, key };
+    },
+    onError: (_err, _vars, context) => {
+      if (context) qc.setQueryData(context.key, context.snapshot);
     },
     // Was invalidating ["profile"] — a key nothing in this codebase
     // actually queries under (usePublicProfile uses ["public-profile",
@@ -423,6 +452,25 @@ export function useBlockUser() {
         // not blocked → POST to block
         await api.post(`/public/blocks/${username}`);
       }
+    },
+    // Real optimistic update, same shape as useFollowUser/useLikeLog
+    // above — unlike following, is_blocking is a plain boolean field on
+    // the cached PublicProfileResponse's nested `profile`, so this just
+    // flips it in place rather than patching a separate list.
+    onMutate: async ({ username, blocked }) => {
+      const key = ["public-profile", username];
+      await qc.cancelQueries({ queryKey: key });
+      const snapshot = qc.getQueryData<PublicProfileResponse>(key);
+      if (snapshot) {
+        qc.setQueryData<PublicProfileResponse>(key, {
+          ...snapshot,
+          profile: { ...snapshot.profile, is_blocking: !blocked },
+        });
+      }
+      return { snapshot, key };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) qc.setQueryData(context.key, context.snapshot);
     },
     // Also invalidates ["blocks"] — the Blocked-accounts settings list —
     // so blocking/unblocking from a profile keeps that screen in sync

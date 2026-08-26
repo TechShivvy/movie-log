@@ -352,6 +352,8 @@ export interface Comment {
   movie_log_id: string;
   user_id?: string; // null once the author's account is deleted (anonymized, not removed)
   username?: string;
+  display_name?: string;
+  avatar_path?: string;
   parent_comment_id?: string;
   text?: string; // null once soft-deleted (see deleted_at) — the row stays so replies don't orphan
   like_count: number;

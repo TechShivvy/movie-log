@@ -173,13 +173,17 @@ function CommentItem({
     <View style={depth > 0 ? { marginLeft: 28, marginTop: 6 } : undefined}>
       <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 12, marginBottom: 10 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          {/* Comment has no display_name/avatar_url — only a flat username */}
+          {/* Was username-only (no display_name/avatar_path on Comment at
+              all — the backend's own comments view never joined them,
+              unlike every other author-facing view in the app) —
+              display_name ?? username now matches AuthorRow/PosterCard's
+              own OwnerRow, both already using this exact fallback. */}
           <Pressable onPress={goToProfile} disabled={!comment.username}>
-            <Avatar name={comment.username ?? "?"} size="sm" />
+            <Avatar name={comment.display_name ?? comment.username ?? "?"} uri={avatarUrl(comment.avatar_path)} size="sm" />
           </Pressable>
           <Pressable onPress={goToProfile} disabled={!comment.username}>
             <Text style={{ fontSize: fontSizes.sm, fontWeight: "700", color: theme.text }}>
-              {comment.username ?? "User"}
+              {comment.display_name ?? comment.username ?? "User"}
             </Text>
           </Pressable>
           <Text style={{ fontSize: fontSizes.sm, color: theme.text, opacity: 0.5 }}>{fmtDate(comment.created_at)}</Text>

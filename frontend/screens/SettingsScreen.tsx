@@ -38,7 +38,9 @@ import { Spinner } from "../components/ui/Spinner";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
+import { useMyProfile, useUpdatePrivacy } from "../hooks/useProfile";
 import { useMyBlocks, useBlockUser } from "../hooks/useSocial";
+import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { avatarUrl } from "../lib/storage";
 import { THEMES, type RawTheme } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
@@ -233,50 +235,79 @@ function AccountSection({ theme, user, signOut }: any) {
 
 // ─── Privacy / Blocked accounts ─────────────────────────────────────────────
 //
-// The only privacy control that lives here — account visibility itself
-// (public/followers_only/private) is set from ProfileScreen's own edit
-// flow, not duplicated here. Blocking has no other management surface in
-// the app (the Block button on a profile only ever blocks or unblocks the
-// one account you're looking at) — this is the one place to see the
-// whole list and undo one.
+// Account visibility (public/followers_only/private) has a real backend
+// field, type, and mutation hook (useUpdatePrivacy, PATCH /public/me/
+// privacy) — this file used to claim the control for it "lives" in
+// ProfileScreen's own edit flow, but it never actually did (grep-
+// confirmed empty of any visibility-related code there); the hook was
+// simply never called from any UI in the app, so there was no way to
+// change it after account creation at all. Wired in directly below —
+// this genuinely is the one privacy-adjacent settings surface, blocking
+// included.
 
-function PrivacySection({ theme, blocked, isLoading, unblock }: any) {
+const VISIBILITY_OPTS = [
+  { label: "Public",         value: "public" },
+  { label: "Followers only", value: "followers_only" },
+  { label: "Private",        value: "private" },
+];
+
+function PrivacySection({ theme, profile, updatePrivacy, blocked, isLoading, unblock }: any) {
   const rows = blocked ?? [];
   return (
-    <View>
-      <SectionHeading theme={theme}>Blocked accounts</SectionHeading>
-      {isLoading ? (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 24, alignItems: "center" }}>
-          <Spinner size="md" />
-        </View>
-      ) : rows.length === 0 ? (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-          <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.base }}>You haven't blocked anyone. Block someone from their profile page.</Text>
-        </View>
-      ) : (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: "hidden" }}>
-          {rows.map((r: any, i: number) => (
-            <View
-              key={r.user_id}
-              style={{
-                flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
-                borderTopWidth: i === 0 ? 0 : 1, borderTopColor: theme.divider,
-              }}
-            >
-              <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
-              <Text style={{ flex: 1, fontSize: fontSizes.base, fontWeight: "700", color: theme.text }}>
-                {r.display_name ?? (r.username ? `@${r.username}` : "Someone")}
-              </Text>
-              <Button
-                variant="secondary"
-                label="Unblock"
-                loading={unblock.isPending && unblock.variables?.username === r.username}
-                onPress={() => r.username && unblock.mutate({ username: r.username, blocked: true })}
-              />
-            </View>
-          ))}
-        </View>
-      )}
+    <View style={{ gap: 24 }}>
+      <View>
+        <SectionHeading theme={theme}>Account visibility</SectionHeading>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 12, lineHeight: 18 }}>
+          Who can see your logs, favorites, and theatres by default — a log's own
+          visibility (set per-entry) can still be more private than this, never
+          more public.
+        </Text>
+        {profile ? (
+          <SegmentedControl
+            options={VISIBILITY_OPTS}
+            value={profile.account_visibility}
+            onChange={(v: string) => updatePrivacy.mutate(v)}
+          />
+        ) : (
+          <Spinner size="sm" />
+        )}
+      </View>
+
+      <View>
+        <SectionHeading theme={theme}>Blocked accounts</SectionHeading>
+        {isLoading ? (
+          <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 24, alignItems: "center" }}>
+            <Spinner size="md" />
+          </View>
+        ) : rows.length === 0 ? (
+          <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
+            <Text style={{ color: `${theme.text}66`, fontSize: fontSizes.base }}>You haven't blocked anyone. Block someone from their profile page.</Text>
+          </View>
+        ) : (
+          <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: "hidden" }}>
+            {rows.map((r: any, i: number) => (
+              <View
+                key={r.user_id}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 10, padding: 12,
+                  borderTopWidth: i === 0 ? 0 : 1, borderTopColor: theme.divider,
+                }}
+              >
+                <Avatar name={r.display_name ?? r.username ?? "?"} uri={avatarUrl(r.avatar_path)} size="sm" />
+                <Text style={{ flex: 1, fontSize: fontSizes.base, fontWeight: "700", color: theme.text }}>
+                  {r.display_name ?? (r.username ? `@${r.username}` : "Someone")}
+                </Text>
+                <Button
+                  variant="secondary"
+                  label="Unblock"
+                  loading={unblock.isPending && unblock.variables?.username === r.username}
+                  onPress={() => r.username && unblock.mutate({ username: r.username, blocked: true })}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -346,6 +377,8 @@ export function SettingsScreen() {
 
   // Lifted above the section switch — see this file's header comment.
   const { user, signOut } = useAuth();
+  const { data: profile } = useMyProfile();
+  const updatePrivacy = useUpdatePrivacy();
   const { data: blocked, isLoading: blockedLoading } = useMyBlocks();
   const unblock = useBlockUser();
 
@@ -392,7 +425,7 @@ export function SettingsScreen() {
     section === "ai"         ? <AiSection theme={theme} /> :
     section === "data"       ? <DataSection theme={theme} /> :
     section === "account"    ? <AccountSection theme={theme} user={user} signOut={signOut} /> :
-                                <PrivacySection theme={theme} blocked={blocked} isLoading={blockedLoading} unblock={unblock} />;
+                                <PrivacySection theme={theme} profile={profile} updatePrivacy={updatePrivacy} blocked={blocked} isLoading={blockedLoading} unblock={unblock} />;
 
   return (
     <ScrollView

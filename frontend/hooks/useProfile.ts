@@ -156,6 +156,25 @@ export function useUpdatePrivacy() {
       const { data } = await api.patch<MyProfile>("/public/me/privacy", { account_visibility });
       return data;
     },
+    // Real optimistic update, same onMutate/onError/onSettled shape
+    // useSocial.ts's useLikeLog already establishes — this used to only
+    // flip the SegmentedControl after the full PATCH round-trip landed,
+    // reading as a visible one-beat lag on every tap. onMutate writes the
+    // new value into cache immediately; onError rolls back to the exact
+    // pre-mutation snapshot if the request fails; onSuccess (kept, not
+    // onSettled — this mutation's response IS the authoritative new
+    // profile, no separate invalidate/refetch needed) reconciles with
+    // whatever the server actually persisted.
+    onMutate: async (account_visibility) => {
+      const key = myProfileKey(session?.user?.id);
+      await qc.cancelQueries({ queryKey: key });
+      const snapshot = qc.getQueryData<MyProfile>(key);
+      if (snapshot) qc.setQueryData<MyProfile>(key, { ...snapshot, account_visibility });
+      return { snapshot };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) qc.setQueryData(myProfileKey(session?.user?.id), context.snapshot);
+    },
     onSuccess: (data) => qc.setQueryData(myProfileKey(session?.user?.id), data),
   });
 }
