@@ -19,6 +19,7 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { buildTheme, contrastRatio, type RawTheme } from "../../constants/themes";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -135,6 +136,8 @@ export function CustomThemeEditor({ visible, initial, onApply, onCancel }: Custo
     if (visible) setDraft(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  useEscapeToClose(visible, onCancel);
 
   if (!visible) return null;
 

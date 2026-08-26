@@ -16,6 +16,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { X, Ticket, Robot, WarningCircle, CheckCircle, Camera } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
+import { useEscapeToClose } from "../hooks/useEscapeToClose";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { Spinner } from "../components/ui/Spinner";
 import {
@@ -167,6 +168,8 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
     startBatch.reset?.();
     onClose();
   };
+
+  useEscapeToClose(visible, handleClose);
 
   // Inner content shared between web and native renders
   const dialogContent = (

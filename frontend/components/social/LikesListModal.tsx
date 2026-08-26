@@ -8,6 +8,7 @@ import React from "react";
 import { FlatList, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { avatarUrl } from "../../lib/storage";
 import { Avatar } from "../ui/Avatar";
 import { SectionLoader } from "../ui/Spinner";
@@ -24,6 +25,7 @@ interface LikesListModalProps {
 export function LikesListModal({ visible, entries, isLoading, onClose }: LikesListModalProps) {
   const { theme } = useTheme();
   const router = useRouter();
+  useEscapeToClose(visible, onClose);
   if (!visible) return null;
 
   const goToProfile = (username?: string) => {

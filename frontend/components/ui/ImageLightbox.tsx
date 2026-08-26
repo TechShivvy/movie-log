@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, WarningCircle } from "phosphor-react-native";
 import { Spinner } from "./Spinner";
 import { useTheme } from "../../hooks/useTheme";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 
 interface ImageLightboxProps {
   uri: string | undefined;
@@ -63,17 +64,7 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
     setTimeout(onClose, CLOSE_ANIM_MS);
   }
 
-  // Escape closes it on web — nothing native-equivalent to add here;
-  // Android's hardware/gesture back button already triggers
-  // onRequestClose below, which is that platform's own version of the
-  // same "escape" gesture.
-  useEffect(() => {
-    if (Platform.OS !== "web" || !uri) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") handleClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uri]);
+  useEscapeToClose(!!uri, handleClose);
 
   if (!uri && !closing) return null;
 

@@ -10,6 +10,7 @@ import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View }
 import { PencilSimple, Shuffle } from "phosphor-react-native";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { useUpdateProfile, useUpdateUsername, useUsernameAvailability, type MyProfile } from "../../hooks/useProfile";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { avatarUrl, bannerUrl, pickAndUploadImage } from "../../lib/storage";
@@ -84,6 +85,8 @@ export function EditProfileModal({ visible, profile, onClose }: EditProfileModal
     setBannerPath(profile?.banner_path);
     setUsernameError(undefined);
   }, [visible, profile, metadataName]);
+
+  useEscapeToClose(visible, onClose);
 
   if (!visible) return null;
 

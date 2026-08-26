@@ -22,6 +22,7 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View, Platform } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { useEscapeToClose } from "../../hooks/useEscapeToClose";
 import { Button } from "./Button";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -54,6 +55,11 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const { theme } = useTheme();
+  // Same "disabled while a request is in flight" rule the backdrop-click
+  // dismiss already follows below — Escape shouldn't be able to close
+  // a dialog out from under a destructive action that's still actually
+  // running.
+  useEscapeToClose(visible && !loading, onCancel);
   if (!visible) return null;
 
   const confirmColor = destructive ? theme.error : theme.accent;
