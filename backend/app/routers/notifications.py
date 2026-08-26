@@ -1,0 +1,113 @@
+"""Follow/request notifications. Rows are only ever written by database
+triggers (see supabase/migrations/20260813000003_notifications.sql) — this
+router only reads and marks-read, both scoped to the caller's own rows via
+RLS (their own token, no service-role calls needed here, unlike reports
+triage). The table also has Supabase Realtime enabled, so a client can
+subscribe directly instead of polling GET / — these REST endpoints remain
+the source of truth/fallback either way.
+"""
+
+from typing import Annotated, Any
+
+from auth.supabase_auth import AuthenticatedUser, get_current_user
+from config import settings
+from fastapi import APIRouter, Depends, Query, Request, status
+from rate_limit import limiter
+from responses.notifications import responses
+from services import supabase_rest
+from utils.errors import APIError
+
+router = APIRouter()
+
+_DEFAULT_LIMIT = f'{settings.default_rate_limit_per_minute}/minute'
+
+
+@router.get(
+    '',
+    tags=['Notifications'],
+    description="The caller's own notifications, newest first — "
+    '`follow_request` (someone followers_only/private wants to follow you), '
+    '`follow_accepted` (a pending request of yours was accepted), '
+    '`new_follower` (someone followed you instantly, i.e. your account is '
+    'public), `new_comment` (someone commented on your log), `comment_reply` '
+    '(someone replied to one of your comments — the log owner is *not* '
+    "separately notified for a reply, only for the top-level comment), "
+    '`log_like`/`comment_like` (someone liked your log/comment), or '
+    '`report_resolved` (a report you filed was reviewed or dismissed — '
+    '`actor_id` is always null for this type, an admin action is never '
+    "attributed to a specific admin here). `movie_log_id`/`comment_id`/"
+    '`report_id` carry the relevant deep-link id depending on `type` — at '
+    'most one is set, all three are null for the follow-related types. '
+    "`actor_id` is null if that user has since deleted their account, or if "
+    'the type has no actor at all (`report_resolved`) — the notification '
+    'itself is kept, not retroactively removed. A notification whose target '
+    '(log/comment/report) has since been deleted is removed along with it, '
+    'not left as a dead link.\n\n'
+    "`actor_username`/`actor_avatar_path` are resolved server-side (there's "
+    "no by-id user lookup endpoint for a client to do this itself) — both "
+    'null under the same conditions as `actor_id`. `movie`/`comment_preview`/'
+    '`report_status` are a content preview matched to whichever id is set: '
+    "the log's title, the comment's current text verbatim (also null if "
+    "it's since been soft-deleted, same shape GET /comments already uses), "
+    "or the filed report's current status. Enough to render a full "
+    'notification directly from this response — no follow-up call needed '
+    'per item.',
+    response_description="The caller's notifications.",
+    responses=responses['list_notifications'],
+    operation_id='ListNotifications',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def list_notifications(
+    request: Request,
+    unread_only: Annotated[bool, Query()] = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    return await supabase_rest.list_notifications(
+        current_user.access_token, unread_only=unread_only, limit=limit, offset=offset
+    )
+
+
+@router.post(
+    '/{notification_id}/read',
+    tags=['Notifications'],
+    description="Mark one of the caller's own notifications as read. Returns "
+    'the base notification row, not the enriched shape GET / returns — '
+    '`actor_username`/`actor_avatar_path`/`movie`/`comment_preview`/'
+    "`report_status` all come back null here regardless of the real values, "
+    "since the client already has the enriched version it just acted on and "
+    "doesn't need it echoed back.",
+    response_description='The updated notification.',
+    responses=responses['mark_read'],
+    operation_id='MarkNotificationRead',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def mark_read(
+    request: Request,
+    notification_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    updated = await supabase_rest.mark_notification_read(
+        current_user.access_token, notification_id
+    )
+    if updated is None:
+        raise APIError(status.HTTP_404_NOT_FOUND, 'NOT_FOUND', 'Notification not found.')
+    return updated
+
+
+@router.post(
+    '/read-all',
+    tags=['Notifications'],
+    description="Mark every one of the caller's unread notifications as read.",
+    response_description='How many were marked read.',
+    responses=responses['mark_all_read'],
+    operation_id='MarkAllNotificationsRead',
+)
+@limiter.limit(_DEFAULT_LIMIT)
+async def mark_all_read(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Any:
+    count = await supabase_rest.mark_all_notifications_read(current_user.access_token)
+    return {'marked_read': count}

@@ -1,0 +1,196 @@
+from dataclasses import dataclass
+from functools import lru_cache
+from uuid import UUID
+
+import jwt
+from config import settings
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2AuthorizationCodeBearer
+from jwt import InvalidTokenError, PyJWKClient, PyJWKClientError
+from loguru_setup import LOGGER
+
+# Still just reads `Authorization: Bearer <token>` at request time — identical
+# runtime behavior to plain HTTPBearer. The only difference is the OpenAPI
+# metadata this carries, which makes Swagger UI's "Authorize" button do a
+# real OAuth2 popup flow instead of a plain paste-a-token box. The flow
+# points at routers/dev_oauth.py, a LOCAL/DEV-only shim that translates
+# Swagger's generic OAuth2 requests into what Supabase's /authorize and
+# /token endpoints actually expect (see that file for why a shim is needed
+# at all). In PROD those URLs 404 and docs are disabled anyway, but this
+# scheme object works identically either way for actual token extraction.
+oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl=f'{settings.api_prefix}/auth/dev/google/authorize',
+    tokenUrl=f'{settings.api_prefix}/auth/dev/google/token',
+    auto_error=False,
+)
+
+
+@dataclass(frozen=True)
+class AuthenticatedUser:
+    user_id: str
+    email: str | None
+    access_token: str
+
+
+def _expected_issuer() -> str | None:
+    if not settings.supabase_url:
+        return None
+    return f"{settings.supabase_url.rstrip('/')}/auth/v1"
+
+
+@lru_cache(maxsize=1)
+def _get_jwks_client() -> PyJWKClient:
+    if not settings.supabase_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Supabase URL is not configured on the backend.',
+        )
+
+    jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    return PyJWKClient(jwks_url)
+
+
+def decode_access_token(token: str) -> dict:
+    legacy_secret = (
+        settings.supabase_jwt_secret.get_secret_value().strip()
+        if settings.supabase_jwt_secret
+        else ''
+    )
+
+    issuer = _expected_issuer()
+    # A few seconds of leeway on iat/exp/nbf -- PyJWT validates these with
+    # zero tolerance by default, but the token-issuing server (Supabase
+    # Auth) and this backend are two independent machines; even NTP-synced
+    # clocks routinely differ by a fraction of a second. Confirmed live:
+    # a token minted 0.7s "in the future" relative to this backend's own
+    # clock was hard-rejected as ImmatureSignatureError with zero leeway --
+    # a real, freshly-issued, otherwise-valid token, not an attack. 10s is
+    # generous enough to absorb realistic clock drift without meaningfully
+    # weakening exp's actual purpose (a stolen token is still only usable
+    # ~10s past its real expiry, not minutes).
+    _LEEWAY_SECONDS = 10
+
+    if legacy_secret:
+        try:
+            return jwt.decode(
+                token,
+                legacy_secret,
+                algorithms=['HS256'],
+                audience='authenticated',
+                issuer=issuer,
+                leeway=_LEEWAY_SECONDS,
+                options={'require': ['exp', 'sub'], 'verify_iss': bool(issuer)},
+            )
+        except InvalidTokenError:
+            # Newer Supabase projects use asymmetric signing (JWKS).
+            # If a legacy secret is set but doesn't verify, try JWKS next.
+            LOGGER.warning(
+                'HS256 token verification failed; attempting JWKS verification fallback.'
+            )
+
+    try:
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=['RS256', 'ES256', 'EdDSA'],
+            audience='authenticated',
+            issuer=issuer,
+            leeway=_LEEWAY_SECONDS,
+            options={'require': ['exp', 'sub'], 'verify_iss': bool(issuer)},
+        )
+    except (InvalidTokenError, PyJWKClientError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid or expired access token.',
+        ) from exc
+
+
+def get_current_user(
+    token: str | None = Depends(oauth2_scheme),
+) -> AuthenticatedUser:
+    # LOCAL/DEV only: if DEV_BYPASS_AUTH=true is set in .env and no token is
+    # provided, return a fixed dev user so you can hit endpoints from curl/Postman
+    # without needing a real Supabase JWT.
+    # NEVER set this in production — doubly enforced: ProductionSettings itself
+    # refuses to start if it's true (config/settings.py:reject_dev_bypass_auth),
+    # and this env check is a second, independent layer on top of that.
+    if (
+        settings.env in ('LOCAL', 'DEV')
+        and getattr(settings, 'dev_bypass_auth', False)
+        and (not token)
+    ):
+        LOGGER.warning(
+            'DEV_BYPASS_AUTH is active — using dev user. Never do this in production.'
+        )
+        return AuthenticatedUser(
+            user_id='00000000-0000-0000-0000-000000000001',
+            email='dev@localhost',
+            access_token='dev-bypass',
+        )
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Missing bearer token.',
+        )
+
+    payload = decode_access_token(token)
+    user_id = payload.get('sub')
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Token is missing subject claim.',
+        )
+
+    try:
+        UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Token subject claim is not a valid UUID.',
+        ) from exc
+
+    return AuthenticatedUser(
+        user_id=user_id,
+        email=payload.get('email'),
+        access_token=token,
+    )
+
+
+def get_current_admin(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> AuthenticatedUser:
+    """Gate for the handful of admin-only routes (report triage). A flat
+    allowlist (settings.admin_user_ids), not a role/RBAC system — this is a
+    solo-owner project, a `role` column would be more machinery than the
+    problem needs right now. Empty by default, so every admin route 403s
+    for everyone until it's explicitly configured."""
+    if current_user.user_id not in settings.admin_user_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail='This action requires admin access.',
+        )
+    return current_user
+
+
+def get_current_user_optional(
+    token: str | None = Depends(oauth2_scheme),
+) -> AuthenticatedUser | None:
+    """Same identity resolution as get_current_user, reused directly — but
+    returns None instead of raising when no token is present, for routes
+    that must stay fully anonymous-callable (GET /users/{username}, GET
+    /users/search) while still reading identity when a token IS present
+    (block-filtering: excluding a mutually-blocked pair from each other's
+    view). A token that IS present but invalid/expired still raises 401 —
+    silently downgrading a bad token to "anonymous" would mask a real
+    client bug instead of surfacing it.
+
+    Deliberately does NOT trigger DEV_BYPASS_AUTH on a missing token — "no
+    token" should faithfully mean anonymous for these routes even in dev;
+    the dev bypass user only matters for routes that actually require an
+    identity to function at all.
+    """
+    if not token:
+        return None
+    return get_current_user(token=token)
