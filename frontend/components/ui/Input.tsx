@@ -12,13 +12,25 @@
  * textarea.input: min-height:90px; resize:vertical
  */
 import React, { useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 import { useTheme } from "../../hooks/useTheme";
+import { Icon, type IconName } from "./Icon";
 import { type as fontSizes } from "../../constants/fonts";
 
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  /** An icon button inside the field's own right edge — e.g. the
+   * password show/hide toggle. Was previously always a separate full-
+   * width Button below the field (LoginScreen's "Show password" row);
+   * this puts it where a user actually expects it, inside the field
+   * itself, same as (almost) every other password field anywhere. Both
+   * props are required together — an icon with no press handler isn't
+   * interactive, and vice versa. */
+  rightIcon?: IconName;
+  onRightIconPress?: () => void;
+  /** Hover tooltip / accessible name for the right-icon button. */
+  rightIconLabel?: string;
 }
 
 // forwardRef so a caller can chain focus (email field's onSubmitEditing →
@@ -26,7 +38,7 @@ interface InputProps extends TextInputProps {
 // function component silently drops any `ref` passed to it and logs a
 // dev warning, which would make that chaining a no-op.
 export const Input = React.forwardRef<TextInput, InputProps>(function Input(
-  { label, error, style, multiline, ...rest },
+  { label, error, style, multiline, rightIcon, onRightIconPress, rightIconLabel, ...rest },
   ref,
 ) {
   const { theme } = useTheme();
@@ -69,36 +81,55 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
     return (
       <div className="field" style={style as React.CSSProperties}>
         {label && <label>{label}</label>}
-        <Tag
-          ref={ref as any}
-          className={`input${error ? " input-error" : ""}`}
-          rows={multiline ? (numberOfLines ?? 4) : undefined}
-          type={multiline ? undefined : type}
-          inputMode={inputMode}
-          value={value ?? ""}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          disabled={editable === false}
-          autoFocus={autoFocus}
-          autoCapitalize={autoCapitalize}
-          autoComplete={autoComplete}
-          // returnKeyType's closest real web equivalent — hints the
-          // on-screen keyboard's enter key label/icon (mobile Safari and
-          // Chrome both honor it) — plus onKeyDown below actually wires
-          // Enter to onSubmitEditing, which enterKeyHint alone doesn't do.
-          enterKeyHint={returnKeyType}
-          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChangeText?.(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onKeyDown={(e: React.KeyboardEvent) => {
-            if (e.key === "Enter" && !multiline) onSubmitEditing?.();
-          }}
-          style={
-            error
-              ? ({ borderColor: theme.error } as React.CSSProperties)
-              : {}
-          }
-        />
+        {/* position:relative wrapper only needed for the right-icon case
+            — an extra div around every plain field (the overwhelming
+            majority) would be pure churn for no visual difference. */}
+        <div style={rightIcon ? ({ position: "relative" } as React.CSSProperties) : undefined}>
+          <Tag
+            ref={ref as any}
+            className={`input${error ? " input-error" : ""}`}
+            rows={multiline ? (numberOfLines ?? 4) : undefined}
+            type={multiline ? undefined : type}
+            inputMode={inputMode}
+            value={value ?? ""}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            disabled={editable === false}
+            autoFocus={autoFocus}
+            autoCapitalize={autoCapitalize}
+            autoComplete={autoComplete}
+            // returnKeyType's closest real web equivalent — hints the
+            // on-screen keyboard's enter key label/icon (mobile Safari and
+            // Chrome both honor it) — plus onKeyDown below actually wires
+            // Enter to onSubmitEditing, which enterKeyHint alone doesn't do.
+            enterKeyHint={returnKeyType}
+            onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChangeText?.(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onKeyDown={(e: React.KeyboardEvent) => {
+              if (e.key === "Enter" && !multiline) onSubmitEditing?.();
+            }}
+            style={{
+              ...(rightIcon ? { paddingRight: 36 } : {}),
+              ...(error ? { borderColor: theme.error } : {}),
+            } as React.CSSProperties}
+          />
+          {rightIcon && (
+            <button
+              type="button"
+              onClick={onRightIconPress}
+              title={rightIconLabel}
+              aria-label={rightIconLabel}
+              style={{
+                position: "absolute", top: 0, right: 0, bottom: 0, width: 34,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+              } as React.CSSProperties}
+            >
+              <Icon name={rightIcon} size={16} color={`${theme.text}88`} />
+            </button>
+          )}
+        </div>
         {error && (
           <span style={{ fontSize: fontSizes.sm, color: theme.error, marginTop: 4, display: "block" } as React.CSSProperties}>
             {error}
@@ -121,26 +152,39 @@ export const Input = React.forwardRef<TextInput, InputProps>(function Input(
       {label ? (
         <Text style={[styles.label, { color: `${theme.text}b3` }]}>{label}</Text>
       ) : null}
-      <TextInput
-        ref={ref}
-        multiline={multiline}
-        placeholderTextColor={`${theme.text}61`}
-        onFocus={(e) => { setFocused(true); callerOnFocus?.(e); }}
-        onBlur={(e) => { setFocused(false); callerOnBlur?.(e); }}
-        style={[
-          styles.input,
-          multiline && styles.multiline,
-          {
-            color:           theme.text,
-            backgroundColor: theme.surface,
-            borderColor:     error ? theme.error
-                           : focused ? theme.accent
-                           : theme.divider,
-          },
-          style,
-        ]}
-        {...restNoFocus}
-      />
+      <View style={rightIcon ? styles.fieldWithIcon : undefined}>
+        <TextInput
+          ref={ref}
+          multiline={multiline}
+          placeholderTextColor={`${theme.text}61`}
+          onFocus={(e) => { setFocused(true); callerOnFocus?.(e); }}
+          onBlur={(e) => { setFocused(false); callerOnBlur?.(e); }}
+          style={[
+            styles.input,
+            multiline && styles.multiline,
+            rightIcon && styles.inputWithIcon,
+            {
+              color:           theme.text,
+              backgroundColor: theme.surface,
+              borderColor:     error ? theme.error
+                             : focused ? theme.accent
+                             : theme.divider,
+            },
+            style,
+          ]}
+          {...restNoFocus}
+        />
+        {rightIcon && (
+          <Pressable
+            onPress={onRightIconPress}
+            accessibilityLabel={rightIconLabel}
+            style={styles.rightIconBtn}
+            hitSlop={8}
+          >
+            <Icon name={rightIcon} size={16} color={`${theme.text}88`} />
+          </Pressable>
+        )}
+      </View>
       {error ? (
         <Text style={[styles.error, { color: theme.error }]}>{error}</Text>
       ) : null}
@@ -163,4 +207,10 @@ const styles = StyleSheet.create({
   },
   multiline: { minHeight: 90, textAlignVertical: "top" },
   error:     { fontSize: fontSizes.sm, marginTop: 4 },
+  fieldWithIcon: { position: "relative", justifyContent: "center" },
+  inputWithIcon: { paddingRight: 36 },
+  rightIconBtn: {
+    position: "absolute", right: 0, top: 0, bottom: 0, width: 36,
+    alignItems: "center", justifyContent: "center",
+  },
 });

@@ -218,6 +218,12 @@ export function LoginScreen() {
         onSubmitEditing={() => passwordRef.current?.focus()}
       />
 
+      {/* Was a separate full-width "Show password"/"Hide password" Button
+          below the field(s) — moved into the password field's own right
+          edge (Input's rightIcon prop), where a user actually expects
+          this control to live, same as almost every other password
+          field anywhere. Toggles both password and confirm-password at
+          once, same as before. */}
       <Input
         ref={passwordRef as any}
         label="Password"
@@ -227,6 +233,9 @@ export function LoginScreen() {
         autoComplete={mode === "signin" ? "current-password" : "new-password"}
         returnKeyType={mode === "signin" ? "go" : "next"}
         onSubmitEditing={() => (mode === "signin" ? submit() : undefined)}
+        rightIcon={showPassword ? "eye-slash" : "eye"}
+        rightIconLabel={showPassword ? "Hide password" : "Show password"}
+        onRightIconPress={() => setShowPassword((s) => !s)}
       />
 
       {mode === "signup" ? (
@@ -238,15 +247,11 @@ export function LoginScreen() {
           autoComplete="new-password"
           returnKeyType="go"
           onSubmitEditing={submit}
+          rightIcon={showPassword ? "eye-slash" : "eye"}
+          rightIconLabel={showPassword ? "Hide password" : "Show password"}
+          onRightIconPress={() => setShowPassword((s) => !s)}
         />
       ) : null}
-
-      <Button
-        variant="ghost"
-        icon={showPassword ? "eye-slash" : "eye"}
-        label={showPassword ? "Hide password" : "Show password"}
-        onPress={() => setShowPassword((s) => !s)}
-      />
 
       {mode === "signin" ? (
         <>
