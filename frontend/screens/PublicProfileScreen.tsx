@@ -27,6 +27,7 @@ import { usePublicProfile, useFollowers, useFollowUser, useBlockUser } from "../
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { Icon } from "../components/ui/Icon";
 import { PosterCard } from "../components/ui/PosterCard";
 import { ImageLightbox } from "../components/ui/ImageLightbox";
 import { ScreenLoader } from "../components/ui/Spinner";
@@ -190,6 +191,7 @@ export function PublicProfileScreen() {
                   variant="icon"
                   icon="prohibit"
                   color={isBlocking ? theme.error : undefined}
+                  accessibilityLabel={isBlocking ? `Unblock @${profile.username}` : `Block @${profile.username}`}
                   onPress={toggleBlock}
                 />
               </View>
@@ -200,12 +202,12 @@ export function PublicProfileScreen() {
 
           {!profile.can_view_content ? (
             <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
-              <Text style={{ fontSize: 40 }}>🔒</Text>
+              <Icon name="lock" size={36} color={`${theme.text}33`} />
               <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>This account is private.</Text>
             </View>
           ) : logs.length === 0 ? (
             <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
-              <Text style={{ fontSize: 40 }}>🎬</Text>
+              <Icon name="film-slate" size={36} color={`${theme.text}33`} />
               <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No public logs yet.</Text>
             </View>
           ) : Platform.OS === "web" && !isMobile ? (

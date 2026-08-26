@@ -43,6 +43,7 @@ import {
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { PencilSimple, GearSix, CaretRight } from "phosphor-react-native";
+import { Icon } from "../components/ui/Icon";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
@@ -228,21 +229,28 @@ export function ProfileScreen() {
         </View>
         {/* Icon-only action pair on both platforms — was a text-labeled
             .btn-secondary duo on web and this same icon-only square pair
-            on native; adopted native's version everywhere (a wide desktop
-            tooltip could label them later, but two matching icons is
-            already unambiguous next to a profile header). */}
+            on native; adopted native's version everywhere. Two matching
+            icons read unambiguous visually, but neither had an actual
+            accessible name. accessibilityLabel on the Pressable gives
+            the real screen-reader name; `title` on the raw phosphor icon
+            (imported directly, not through this app's Icon.tsx wrapper)
+            gives a real hover tooltip on web — RNW's Pressable/View has
+            no path to a DOM `title` attribute at all, but phosphor's own
+            SVG <title> child does render one natively. */}
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
           <Pressable
             onPress={() => setEditing(true)}
+            accessibilityLabel="Edit profile"
             style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
           >
-            <PencilSimple size={16} color={theme.text} />
+            <PencilSimple size={16} color={theme.text} title="Edit profile" />
           </Pressable>
           <Pressable
             onPress={() => router.push("/(app)/settings" as any)}
+            accessibilityLabel="Settings"
             style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
           >
-            <GearSix size={16} color={theme.text} />
+            <GearSix size={16} color={theme.text} title="Settings" />
           </Pressable>
         </View>
       </View>
@@ -286,7 +294,7 @@ export function ProfileScreen() {
       ) : activeTab === "theatres" ? (
         theatres.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
-            <Text style={{ fontSize: 40 }}>🎦</Text>
+            <Icon name="film-slate" size={36} color={`${theme.text}33`} />
             <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>No theatres linked to your logs yet.</Text>
           </View>
         ) : (
@@ -298,7 +306,7 @@ export function ProfileScreen() {
         )
       ) : logsForTab.length === 0 ? (
         <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
-          <Text style={{ fontSize: 40 }}>🎬</Text>
+          <Icon name="film-slate" size={36} color={`${theme.text}33`} />
           <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base, textAlign: "center" }}>
             {activeTab === "favorites" ? "No favorites yet — star up to 4 logs from their detail page." : "No logs yet. Start by logging a film!"}
           </Text>

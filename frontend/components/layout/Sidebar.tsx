@@ -171,6 +171,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               className="tapc text-muted"
               style={{ cursor: "pointer" }}
               onClick={() => setCollapsed((c) => !c)}
+              accessibilityLabel={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             />
           </div>
 
@@ -300,6 +301,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                 className="tapc text-muted lbl"
                 style={{ cursor: "pointer" }}
                 onClick={() => router.push("/(app)/settings" as any)}
+                accessibilityLabel="Settings"
               />
             </div>
           </div>
@@ -336,7 +338,11 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               CineLog
             </Text>
           )}
-          <Pressable onPress={() => setCollapsed((c) => !c)} hitSlop={8}>
+          <Pressable
+            onPress={() => setCollapsed((c) => !c)}
+            hitSlop={8}
+            accessibilityLabel={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
             <Icon name="sidebar-simple" size={20} color={muted} />
           </Pressable>
         </View>
@@ -395,6 +401,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                     active={t.key === theme.key}
                     activeColor={theme.accent}
                     onPress={() => setTheme(t.key)}
+                    title={t.label}
                   />
                 ))}
                 <ThemeSwatch
@@ -403,6 +410,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   active={theme.key === "custom"}
                   activeColor={theme.accent}
                   onPress={() => setShowCustomEditor(true)}
+                  title="Custom theme"
                 />
               </View>
             </View>
@@ -411,6 +419,9 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           <Pressable
             onPress={() => router.push("/(app)/settings" as any)}
             style={[styles.userRow, collapsed && styles.centered]}
+            // Collapsed, this row has no visible text at all (just the
+            // avatar + gear icon) — not just decorative labeling.
+            accessibilityLabel="Settings"
           >
             {/* Shared Avatar component — same fix as the web branch above:
                 was a hand-rolled one-letter circle, never showed the

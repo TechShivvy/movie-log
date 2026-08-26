@@ -40,6 +40,14 @@ interface ButtonProps {
    * varies, not a whole new visual shape.
    */
   color?: string;
+  /** Required in practice for any `icon`-only button (no `label`, no
+   * `children`) — that's otherwise a control with no accessible name at
+   * all, unlabeled for a screen reader and untitled on hover for a mouse
+   * user. Sets `title`+`aria-label` on web, `accessibilityLabel` on
+   * native. Safe to pass alongside a visible `label` too (it just
+   * becomes the tooltip/redundant accessible name there), but the real
+   * requirement is icon-only buttons. */
+  accessibilityLabel?: string;
   style?: ViewStyle | any;
   /**
    * Full content override. Unlike `icon`+`label`, children fully replace
@@ -57,7 +65,7 @@ interface ButtonProps {
 }
 
 export function Button({
-  onPress, label, icon, variant = "primary", loading, disabled, block, color, style, children, type = "button",
+  onPress, label, icon, variant = "primary", loading, disabled, block, color, accessibilityLabel, style, children, type = "button",
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDisabled = disabled || loading;
@@ -72,6 +80,8 @@ export function Button({
         className={classes}
         onClick={onPress}
         disabled={isDisabled}
+        title={accessibilityLabel}
+        aria-label={accessibilityLabel}
         style={{ ...(color ? { color, borderColor: color } : {}), ...(style as object) } as React.CSSProperties}
       >
         {children ?? (
@@ -94,6 +104,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityLabel={accessibilityLabel}
       style={({ pressed }) => [
         styles.base,
         variant === "icon"  && styles.iconBtn,

@@ -97,6 +97,8 @@ export function TopBar() {
             className="btn btn-icon btn-secondary"
             style={{ position: "relative" } as React.CSSProperties}
             onClick={() => router.push("/(app)/notifications" as any)}
+            title="Notifications"
+            aria-label="Notifications"
           >
             <Icon name="bell" size={18} />
           </button>
@@ -115,7 +117,11 @@ export function TopBar() {
         <Text style={{ fontSize: fontSizes.base, color: `${theme.text}55` }}>Search films, theatres, people…</Text>
       </Pressable>
 
-      <Pressable onPress={() => router.push("/(app)/notifications" as any)} style={styles.bellBtn}>
+      <Pressable
+        onPress={() => router.push("/(app)/notifications" as any)}
+        style={styles.bellBtn}
+        accessibilityLabel="Notifications"
+      >
         <Icon name="bell" size={20} color={theme.text} />
       </Pressable>
     </View>

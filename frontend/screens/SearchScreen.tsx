@@ -358,7 +358,7 @@ export function SearchScreen() {
       <View style={{ maxWidth: pageMaxWidth, width: "100%", alignSelf: isMobile ? "stretch" : "center", paddingHorizontal: isMobile ? 16 : 32 }}>
         {!query ? (
           <View style={{ alignItems: "center", paddingVertical: isMobile ? 80 : 60 }}>
-            <Text style={{ fontSize: isMobile ? 36 : 40, marginBottom: 12 }}>🔍</Text>
+            <MagnifyingGlass size={isMobile ? 32 : 36} color={`${theme.text}33`} style={{ marginBottom: 12 }} />
             <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>
               {isMobile ? "Type to search" : "Type to search movies, logs, or people"}
             </Text>

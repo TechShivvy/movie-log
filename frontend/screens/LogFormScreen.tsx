@@ -1089,7 +1089,7 @@ export function LogFormScreen() {
       {/* Same discard action as the desktop header's own Discard button
           below, just wearing an icon-only shape — same red tint and the
           same dirty-check confirm, not a plain unconfirmed back button. */}
-      <Button variant="icon" icon="caret-left" color={theme.error} onPress={handleDiscard} disabled={isPending} />
+      <Button variant="icon" icon="caret-left" color={theme.error} accessibilityLabel="Discard" onPress={handleDiscard} disabled={isPending} />
       <Text style={{ color: theme.text, fontSize: fontSizes.xl, fontWeight: "700", flex: 1 }}>
         {isEditing ? "Edit screening" : "Log a screening"}
       </Text>

@@ -199,6 +199,7 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
       <View style={[styles.domeWrap, { bottom: insets.bottom }]} pointerEvents="box-none">
         <Pressable
           onPress={() => router.push("/(app)/log/new" as any)}
+          accessibilityLabel="Log a screening"
           style={[
             styles.dome,
             {
@@ -210,7 +211,7 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
             },
           ]}
         >
-          <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} />
+          <Icon name="plus" weight="bold" size={FAB_ICON} color={theme.bg} accessibilityLabel="Log a screening" />
         </Pressable>
       </View>
     </View>

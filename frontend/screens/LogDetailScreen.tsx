@@ -109,8 +109,15 @@ function fmtWatched(log: MovieLog): string {
   const timeStr = t.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return `${dateStr} · ${timeStr}${log.timezone_abbrv ? " " + log.timezone_abbrv : ""}`;
 }
+// Was color-coded via a leading emoji dot (🟢/🟡/🔴) — MetaRowData.value
+// is a plain string (every other row in buildMetaRows is one too), so an
+// actual colored View can't be embedded inline the way visColor()'s own
+// badge can further down this file. Plain text instead, matching the
+// adjacent "Screening" row's own screeningStartLabel() (early/on_time/
+// delayed/cancelled), which never had a color signal either — the two
+// status-shaped rows now read consistently with each other.
 function punctualityLabel(s?: string) {
-  return s === "early" ? "🟢 Arrived Early" : s === "on_time" ? "🟡 On Time" : s === "late" ? "🔴 Late" : null;
+  return s === "early" ? "Arrived Early" : s === "on_time" ? "On Time" : s === "late" ? "Late" : null;
 }
 function screeningStartLabel(s?: string) {
   return s === "early" ? "Started Early" : s === "on_time" ? "Started On Time"
@@ -391,7 +398,7 @@ function TagsRow({ log, theme, vcol }: { log: MovieLog; theme: any; vcol: string
           {log.visibility.replace("_", " ")}
         </Text>
       </View>
-      {log.is_fdfs && <Tag variant="accent" label="FDFS 🎟️" />}
+      {log.is_fdfs && <Tag variant="accent" icon="ticket" label="FDFS" />}
       {/* is_fdfs implies is_first_day server-side (schemas/movie_logs.py's
           _fdfs_implies_first_day) — showing both tags when both are true
           would just repeat "opening day" twice. */}
@@ -503,27 +510,44 @@ function ManageButtons({ log, theme, onEdit, onArchive, onDelete }: {
 }) {
   return (
     <View style={{ flexDirection: "row", gap: 6 }}>
+      {/* accessibilityLabel on the Pressable (the real screen-reader
+          target — react-native-web maps this to aria-label) AND `title`
+          on the raw phosphor icon itself: these three icons are imported
+          straight from phosphor-react-native, not through this app's own
+          Icon.tsx wrapper, and react-native-web's Pressable/View has no
+          path to a real DOM `title` attribute at all (not in RNW's
+          forwarded-props list) — but phosphor's own IconProps DOES
+          accept `title` (an SVG <title> child), which browsers natively
+          show as a hover tooltip over the SVG, same visible effect. */}
       <Pressable
         onPress={onEdit}
+        accessibilityLabel="Edit"
         style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surfaceHigh }}
       >
-        <PencilSimple size={17} color={theme.text} />
+        <PencilSimple size={17} color={theme.text} title="Edit" />
       </Pressable>
       <Pressable
         onPress={onArchive}
+        accessibilityLabel={log.is_archived ? "Unarchive" : "Archive"}
         style={{
           width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1,
           borderColor: log.is_archived ? theme.accent : theme.divider,
           backgroundColor: log.is_archived ? `${theme.accent}1a` : theme.surfaceHigh,
         }}
       >
-        <Archive size={17} color={log.is_archived ? theme.accent : theme.text} weight={log.is_archived ? "fill" : "regular"} />
+        <Archive
+          size={17}
+          color={log.is_archived ? theme.accent : theme.text}
+          weight={log.is_archived ? "fill" : "regular"}
+          title={log.is_archived ? "Unarchive" : "Archive"}
+        />
       </Pressable>
       <Pressable
         onPress={onDelete}
+        accessibilityLabel="Delete"
         style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: `${theme.error}55`, backgroundColor: `${theme.error}15` }}
       >
-        <Trash size={17} color={theme.error} />
+        <Trash size={17} color={theme.error} title="Delete" />
       </Pressable>
     </View>
   );

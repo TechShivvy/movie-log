@@ -174,11 +174,11 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ fontSize: 18 }}>🎟</Text>
+              <Ticket size={18} color={theme.accent} weight="fill" />
               <Text style={[styles.title, { color: theme.text }]}>AI ticket scan</Text>
             </View>
-            <Pressable onPress={handleClose} style={styles.closeBtn}>
-              <X size={20} color={theme.text} />
+            <Pressable onPress={handleClose} style={styles.closeBtn} accessibilityLabel="Close">
+              <X size={20} color={theme.text} title="Close" />
             </Pressable>
           </View>
 

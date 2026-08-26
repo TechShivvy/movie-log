@@ -31,6 +31,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { StarRating } from "../components/ui/StarRating";
 import { Poster } from "../components/ui/Poster";
 import { Tag } from "../components/ui/Tag";
+import { Icon } from "../components/ui/Icon";
 import { SectionLoader } from "../components/ui/Spinner";
 import { tmdbPosterUrl } from "../lib/tmdb";
 import type { MovieLog } from "../types";
@@ -156,7 +157,7 @@ export function FeedScreen() {
           <SectionLoader size="lg" padding={60} />
         ) : (
           <View style={{ alignItems: "center", paddingTop: 40, gap: 8 }}>
-            <Text style={{ fontSize: 40 }}>🎬</Text>
+            <Icon name="film-slate" size={36} color={`${theme.text}33`} />
             <Text style={{ color: `${theme.text}55`, fontSize: fontSizes.md, textAlign: "center" }}>
               No activity yet — log a film to get started!
             </Text>

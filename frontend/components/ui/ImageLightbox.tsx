@@ -7,6 +7,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { Image, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, WarningCircle } from "phosphor-react-native";
 import { Spinner } from "./Spinner";
 import { useTheme } from "../../hooks/useTheme";
@@ -36,6 +37,7 @@ const PLACEHOLDER_SIZE = 280;
 export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
   const { theme } = useTheme();
   const { width: winWidth, height: winHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   // Local "closing" flag so the fade-out transition actually gets a
   // chance to run — the parent clears `uri` (which would unmount this
   // instantly) only after this delay, not the moment the user clicks.
@@ -146,6 +148,8 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
           <button
             className="btn btn-icon"
             onClick={(e) => { e.stopPropagation(); handleClose(); }}
+            title="Close"
+            aria-label="Close"
             style={{
               position: "absolute", top: -14, right: -14,
               backgroundColor: "rgba(20,20,20,0.85)", border: "none", color: "#fff",
@@ -161,7 +165,16 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
-      <Pressable style={styles.overlay} onPress={handleClose}>
+      {/* Extra top padding by the safe-area inset — the close button is
+          anchored at top:-14 relative to the (centered, up-to-85%-of-
+          window-height) image box below, with no safe-area awareness of
+          its own. On a device with a notch/dynamic island, a tall image
+          left little enough room above it that -14 could land the
+          button under/behind system UI. Padding the box's own available
+          area down by insets.top keeps its top edge — and therefore the
+          button anchored just above it — clear of that area on any
+          device, and is a no-op (insets.top === 0) on web/most phones. */}
+      <Pressable style={[styles.overlay, { paddingTop: 24 + insets.top }]} onPress={handleClose}>
         <Pressable
           onPress={() => {}}
           style={[
@@ -211,7 +224,7 @@ export function ImageLightbox({ uri, onClose }: ImageLightboxProps) {
               <Text style={{ fontSize: 13, color: theme.text, opacity: 0.7 }}>Couldn't load image</Text>
             </View>
           )}
-          <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={10}>
+          <Pressable onPress={handleClose} style={styles.closeBtn} hitSlop={10} accessibilityLabel="Close">
             <X size={16} color="#fff" />
           </Pressable>
         </Pressable>

@@ -12,7 +12,7 @@ export const MOCK_USER: PublicProfile = {
   user_id: "u1",
   username: "cinemaphile",
   display_name: "Alex Chen",
-  bio: "Watching films since the VHS era 🎬",
+  bio: "Watching films since the VHS era.",
   account_visibility: "public",
   profile_links: [],
   is_blocking: false,

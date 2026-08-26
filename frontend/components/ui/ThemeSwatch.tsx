@@ -27,7 +27,8 @@ interface ThemeSwatchProps {
   onPress: () => void;
   size?: number;
   radius?: number;
-  /** Web only — the tooltip shown on hover. */
+  /** The hover tooltip on web AND the accessible name on native (a bare
+   * SVG swatch has no text of its own on either platform otherwise). */
   title?: string;
 }
 
@@ -74,6 +75,7 @@ export function ThemeSwatch({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityLabel={title}
       style={{ width: size, height: size, borderRadius: radius, borderWidth: 2, borderColor: ringColor }}
     >
       {svg}

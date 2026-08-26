@@ -17,13 +17,13 @@ import React from "react";
 import { Platform } from "react-native";
 import {
   Armchair, ArrowClockwise, BatteryHigh, Bell, BookmarkSimple, Brain, CalendarBlank,
-  CameraPlus, CaretLeft, CaretRight, CellSignalFull, ChartBar, ChatCircle,
+  CameraPlus, CaretLeft, CaretRight, CellSignalFull, ChartBar, ChatCircle, Check,
   CheckCircle, CircleNotch, Clock, Database, DeviceMobileCamera, DotsThree,
   DownloadSimple, Eye, EyeSlash, FilmSlate, FilmStrip, Flag, FloppyDisk, GearSix, Globe,
   GoogleLogo, Heart, Lock, LockKeyOpen, LockSimple, MagicWand, MagnifyingGlass,
   MapPin, MapTrifold, Monitor, Note, Palette, PaperPlaneTilt, PencilSimple,
   Plus, PlusCircle, Popcorn, Prohibit, ProjectorScreen, Robot, Rows, Rss, ShareNetwork,
-  SidebarSimple, SignIn, SignOut, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
+  Shuffle, SidebarSimple, SignIn, SignOut, Sparkle, SquaresFour, StackPlus, Star, StarHalf,
   Ticket, Timer, Trash, Upload, UploadSimple, User, UserCheck, UserPlus, Users, Warning,
   WarningCircle, WifiHigh, WifiSlash, X,
 } from "phosphor-react-native";
@@ -44,6 +44,7 @@ const NATIVE = {
   "cell-signal-full": CellSignalFull,
   "chart-bar": ChartBar,
   "chat-circle": ChatCircle,
+  "check": Check,
   "check-circle": CheckCircle,
   "circle-notch": CircleNotch,
   "clock": Clock,
@@ -82,6 +83,7 @@ const NATIVE = {
   "rows": Rows,
   "rss": Rss,
   "share-network": ShareNetwork,
+  "shuffle": Shuffle,
   "sidebar-simple": SidebarSimple,
   "sign-in": SignIn,
   "sign-out": SignOut,
@@ -119,6 +121,14 @@ export interface IconProps {
   style?: any;
   /** Web-only click handler; on native wrap the Icon in a Pressable instead. */
   onClick?: () => void;
+  /** Only meaningful when this Icon IS the tap target itself (passed
+   * onClick above, or wraps a raw `Pressable`/`div role="button"` with no
+   * visible text child) — sets the web hover tooltip (`title`) and
+   * screen-reader name (`aria-label`) together on web, and
+   * `accessibilityLabel` on native. An Icon used purely decoratively
+   * (inside a Button that already has its own label, or beside visible
+   * text) should leave this unset. */
+  accessibilityLabel?: string;
 }
 
 export function Icon({
@@ -129,6 +139,7 @@ export function Icon({
   className,
   style,
   onClick,
+  accessibilityLabel,
 }: IconProps) {
   if (Platform.OS === "web") {
     // ph = regular, ph-fill, ph-bold — the three weight stylesheets imported
@@ -138,6 +149,9 @@ export function Icon({
       <i
         className={[weightCls, `ph-${name}`, className].filter(Boolean).join(" ")}
         onClick={onClick}
+        title={accessibilityLabel}
+        aria-label={accessibilityLabel}
+        role={accessibilityLabel ? "img" : undefined}
         style={{
           fontSize: size,
           color,
@@ -151,5 +165,9 @@ export function Icon({
 
   const Cmp = NATIVE[name];
   if (!Cmp) return null;
-  return <Cmp size={size} color={color} weight={weight} style={style} />;
+  // phosphor-react-native's own IconProps has no accessibilityLabel — it
+  // renders an SVG, and `title` is what becomes that SVG's own <title>
+  // element (the accessible name screen readers pick up), not a plain
+  // RN accessibilityLabel prop.
+  return <Cmp size={size} color={color} weight={weight} style={style} title={accessibilityLabel} />;
 }

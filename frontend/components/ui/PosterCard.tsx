@@ -16,6 +16,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { useMovie } from "../../hooks/useSearch";
 import { tmdbPosterUrl } from "../../lib/tmdb";
 import { Poster } from "./Poster";
+import { Icon } from "./Icon";
 import type { MovieLog } from "../../types";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -58,9 +59,10 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
               background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)",
               borderRadius: 20, padding: "3px 8px",
               fontSize: fontSizes.xs, color: "#fff", fontWeight: 600,
-              zIndex: 1,
+              zIndex: 1, display: "flex", alignItems: "center", gap: 3,
             } as React.CSSProperties}>
-              ★ {log.rating.toFixed(1)}
+              <Icon name="star" weight="fill" size={11} color="#fff" />
+              {log.rating.toFixed(1)}
             </div>
           )}
 
@@ -95,15 +97,27 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 
   // ── Native ─────────────────────────────────────────────────────────────────
   return (
+    // Was also given an explicit height:h — exactly the poster's own
+    // height, with no room reserved for the footer (title + format tag)
+    // that renders *below* it inside this same box. Yoga doesn't grow or
+    // clip a box to fit a child once an explicit height is set, so the
+    // footer visually spilled past this card's bottom edge into whatever
+    // sat below it in the next grid row — most visible when two adjacent
+    // cards in the same column happened to show the same movie twice.
+    // Letting the card size itself (Poster's own fixed height + the
+    // footer's natural height + styles.card's own gap) fixes that;
+    // overflow:hidden is a defensive backstop against a title genuinely
+    // long enough to still run past its own 2-line clamp.
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, { width, height: h, opacity: pressed ? 0.85 : 1 }]}
+      style={({ pressed }) => [styles.card, { width, opacity: pressed ? 0.85 : 1 }]}
     >
       <Poster title={log.movie ?? "Untitled"} imageUrl={posterUrl} loading={isLoading} style={{ width, height: h }}>
         {/* Star badge */}
         {log.rating != null && (
           <View style={[styles.starBadge, { backgroundColor: `${theme.bg}cc` }]}>
-            <Text style={styles.starText}>★ {log.rating.toFixed(1)}</Text>
+            <Icon name="star" weight="fill" size={10} color="#fff" />
+            <Text style={styles.starText}>{log.rating.toFixed(1)}</Text>
           </View>
         )}
 
@@ -138,8 +152,8 @@ export function PosterCard({ log, onPress, width = 120 }: PosterCardProps) {
 }
 
 const styles = StyleSheet.create({
-  card:        { flexDirection: "column", gap: 6 },
-  starBadge:   { position: "absolute", top: 8, right: 8, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8 },
+  card:        { flexDirection: "column", gap: 6, overflow: "hidden" },
+  starBadge:   { position: "absolute", top: 8, right: 8, borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 3 },
   starText:    { fontSize: fontSizes.xs, color: "#fff", fontWeight: "600" },
   overlay:     { position: "absolute", inset: 0, justifyContent: "flex-end", padding: 12 },
   overlayTitle:{ fontSize: fontSizes.sm, fontWeight: "600", color: "#fff", lineHeight: 17 },

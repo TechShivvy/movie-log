@@ -297,7 +297,10 @@ export function LibraryScreen() {
                 <Text numberOfLines={1} style={{ flex: 1, fontFamily: heading, fontSize: fontSizes.lg, color: theme.text }}>
                   {log.movie}
                 </Text>
-                <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>★ {(log.rating ?? 0).toFixed(1)}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <Icon name="star" weight="fill" size={12} color={theme.accent} />
+                  <Text style={{ fontSize: fontSizes.sm, color: theme.accent }}>{(log.rating ?? 0).toFixed(1)}</Text>
+                </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <Icon name="map-pin" size={12} color={muted} />
@@ -380,13 +383,19 @@ function ViewToggle({ mode, setMode, theme }: { mode: "grid" | "list"; setMode: 
           onPress={() => setMode(m)}
           accessibilityRole="button"
           accessibilityState={{ selected: mode === m }}
+          accessibilityLabel={m === "grid" ? "Grid view" : "List view"}
           style={{
             paddingHorizontal: 12, paddingVertical: 7,
             borderLeftWidth: i === 1 ? 1 : 0, borderLeftColor: theme.divider,
             backgroundColor: mode === m ? `${theme.accent}1f` : "transparent",
           }}
         >
-          <Icon name={m === "grid" ? "squares-four" : "rows"} size={16} color={mode === m ? theme.accent : theme.text} />
+          <Icon
+            name={m === "grid" ? "squares-four" : "rows"}
+            size={16}
+            color={mode === m ? theme.accent : theme.text}
+            accessibilityLabel={m === "grid" ? "Grid view" : "List view"}
+          />
         </Pressable>
       ))}
     </View>
