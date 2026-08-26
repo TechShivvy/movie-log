@@ -27,6 +27,41 @@ import { type as fontSizes } from "../../constants/fonts";
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+// ─── Randomize — HSL math, not raw random hex (which would mostly fail
+// the contrast warning) ─────────────────────────────────────────────────
+
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (n: number) => Math.round(f(n) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(0)}${toHex(8)}${toHex(4)}`;
+}
+
+/** A plausible palette, not noise — same spirit as how this app's own 12
+ * built-in themes are authored (one hue driving a coherent bg/surface/
+ * text/accent set), not four independently-random hex values. Nudges
+ * text lightness up to a few steps if the first draw is borderline on
+ * contrast, using the same relativeLuminance/contrastRatio math the
+ * editor's own warning already reuses. */
+function randomPalette(): RawTheme {
+  const hue = Math.floor(Math.random() * 360);
+  const dark = Math.random() < 0.75; // this app's own 12 themes are 11 dark, 1 light
+  const bg = hslToHex(hue, 20 + Math.random() * 15, dark ? 8 + Math.random() * 5 : 96 + Math.random() * 2);
+  const surface = hslToHex(hue, 20 + Math.random() * 15, dark ? 14 + Math.random() * 5 : 91 + Math.random() * 4);
+  const accent = hslToHex(hue, 60 + Math.random() * 25, dark ? 48 + Math.random() * 12 : 38 + Math.random() * 12);
+  let textLightness = dark ? 90 + Math.random() * 6 : 15 + Math.random() * 8;
+  let text = hslToHex(hue, 10 + Math.random() * 15, textLightness);
+  for (let i = 0; i < 4; i++) {
+    if (contrastRatio(text, bg) >= 4.5 && contrastRatio(text, surface) >= 4.5) break;
+    textLightness = dark ? Math.min(99, textLightness + 3) : Math.max(1, textLightness - 3);
+    text = hslToHex(hue, 10 + Math.random() * 15, textLightness);
+  }
+  return { key: "custom", label: "Custom", bg, surface, text, accent };
+}
+
 interface CustomThemeEditorProps {
   visible: boolean;
   /** Seed values — the current custom pick if one exists, otherwise the
@@ -48,20 +83,28 @@ function ColorField({ label, value, onChangeText, theme }: {
         {/* Web gets a real native color-picker swatch alongside the hex
             field — native has no equivalent picker component in this
             app's dependencies (and adding one is out of scope here), so
-            it gets the hex field alone, same as the plan calls for. */}
-        {Platform.OS === "web" ? (
-          <input
-            type="color"
-            value={swatchColor}
-            onChange={(e) => onChangeText((e.target as HTMLInputElement).value)}
-            style={{
-              width: 36, height: 36, padding: 0, cursor: "pointer",
-              border: `1px solid ${theme.divider}`, borderRadius: 8, background: "none",
-            } as React.CSSProperties}
-          />
-        ) : (
-          <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: swatchColor, borderWidth: 1, borderColor: theme.divider }} />
-        )}
+            it gets the hex field alone, same as the plan calls for.
+            The <input type="color"> is rendered fully transparent and
+            stretched over a plain colored View this app draws itself —
+            every browser gives that input its own chrome (padding, its
+            own border-radius) that a wrapper's borderRadius can't
+            override, so it never actually filled its box; clicking
+            anywhere on the visible square still hits the real (just
+            invisible) input underneath and opens the native OS picker,
+            but the square itself is now drawn entirely by this app. */}
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: swatchColor, borderWidth: 1, borderColor: theme.divider, overflow: "hidden" }}>
+          {Platform.OS === "web" && (
+            <input
+              type="color"
+              value={swatchColor}
+              onChange={(e) => onChangeText((e.target as HTMLInputElement).value)}
+              style={{
+                width: "100%", height: "100%", padding: 0, margin: 0, cursor: "pointer",
+                border: "none", opacity: 0,
+              } as React.CSSProperties}
+            />
+          )}
+        </View>
         <View style={{ flex: 1 }}>
           <Input
             value={value}
@@ -104,7 +147,16 @@ export function CustomThemeEditor({ visible, initial, onApply, onCancel }: Custo
 
   const body = (
     <>
-      <Text style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text }}>Custom theme</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ fontSize: fontSizes.xl, fontWeight: "700", color: theme.text }}>Custom theme</Text>
+        <Button
+          variant="ghost"
+          icon="shuffle"
+          label="Randomize"
+          accessibilityLabel="Randomize colors"
+          onPress={() => setDraft(randomPalette())}
+        />
+      </View>
 
       <ColorField label="Background" value={draft.bg} onChangeText={setField("bg")} theme={theme} />
       <ColorField label="Surface" value={draft.surface} onChangeText={setField("surface")} theme={theme} />
