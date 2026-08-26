@@ -47,7 +47,7 @@
  */
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useNavigateOnce } from "../../hooks/useNavigateOnce";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useTheme } from "../../hooks/useTheme";
 import { Icon, type IconName } from "../ui/Icon";
@@ -95,7 +95,7 @@ const FAB_ICON = 26;
 
 export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { theme } = useTheme();
-  const router = useRouter();
+  const navigateOnce = useNavigateOnce();
 
   // No Platform.OS guard: the parent layout (app/(app)/_layout.tsx) now
   // decides whether to mount TabBar at all, based on viewport width, not
@@ -198,7 +198,7 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
           is why this went unnoticed until a real device). */}
       <View style={[styles.domeWrap, { bottom: insets.bottom }]} pointerEvents="box-none">
         <Pressable
-          onPress={() => router.push("/(app)/log/new" as any)}
+          onPress={() => navigateOnce("/(app)/log/new" as any)}
           accessibilityLabel="Log a screening"
           style={[
             styles.dome,

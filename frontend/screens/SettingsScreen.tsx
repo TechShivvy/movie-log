@@ -42,10 +42,9 @@ import { useMyProfile, useUpdatePrivacy } from "../hooks/useProfile";
 import { useMyBlocks, useBlockUser } from "../hooks/useSocial";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { avatarUrl } from "../lib/storage";
-import { THEMES, type RawTheme } from "../constants/themes";
+import { THEMES } from "../constants/themes";
 import { FONT_OPTIONS } from "../constants/fonts";
 import { type as fontSizes } from "../constants/fonts";
-import { CustomThemeEditor } from "../components/ui/CustomThemeEditor";
 import { Icon } from "../components/ui/Icon";
 
 type Section = "appearance" | "account" | "privacy" | "ai" | "data";
@@ -131,15 +130,15 @@ function CustomThemeTile({ theme, onPress }: { theme: any; onPress: () => void }
 
 function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobile }: any) {
   const swatchWidth = isMobile ? "47%" : "31%";
-  const [showEditor, setShowEditor] = useState(false);
-  // Seed the editor from the user's own last custom pick if one exists
-  // (continuing an edit, not restarting it), otherwise from whichever
-  // built-in theme is active right now — a real starting point instead
-  // of a blank/arbitrary one.
-  const editorSeed: RawTheme = {
-    key: "custom", label: "Custom",
-    bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
-  };
+  // openCustomThemeEditor from ThemeContext — this tile is a trigger
+  // only, not a second render site. See ThemeContext's own comment: a
+  // local boolean + a local <CustomThemeEditor> instance here, mirrored
+  // by another local boolean + instance in Sidebar.tsx, meant two
+  // independent modals could both be open at once (opening from this
+  // tile while Sidebar's own palette trigger was also clicked showed
+  // two stacked, unrelated instances). Sidebar renders the single
+  // shared instance now; this only needs to open it.
+  const { openCustomThemeEditor } = useTheme();
   return (
     <View style={{ gap: isMobile ? 24 : 28 }}>
       <View>
@@ -179,17 +178,17 @@ function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobil
             </View>
           ))}
           <View style={{ width: swatchWidth }}>
-            <CustomThemeTile theme={theme} onPress={() => setShowEditor(true)} />
+            <CustomThemeTile theme={theme} onPress={openCustomThemeEditor} />
           </View>
         </View>
       </View>
 
-      <CustomThemeEditor
-        visible={showEditor}
-        initial={editorSeed}
-        onApply={(raw) => { setTheme(raw); setShowEditor(false); }}
-        onCancel={() => setShowEditor(false)}
-      />
+      {/* No <CustomThemeEditor> rendered here — Sidebar.tsx renders the
+          single shared instance (see ThemeContext's own comment); this
+          screen only needs to trigger it via openCustomThemeEditor()
+          above. Sidebar is always part of the authenticated shell
+          wrapping this screen, so that instance is always available to
+          open. */}
     </View>
   );
 }

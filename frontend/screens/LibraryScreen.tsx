@@ -65,6 +65,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useNavigateOnce } from "../hooks/useNavigateOnce";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -159,6 +160,7 @@ function sortRecent(logs: MovieLog[]): MovieLog[] {
 export function LibraryScreen() {
   const { theme, fontConfig } = useTheme();
   const router = useRouter();
+  const navigateOnce = useNavigateOnce();
   const { isMobile, isTablet } = useBreakpoint();
   const [filter, setFilter] = useState<Filter>("All");
   const [mode, setMode] = useState<"grid" | "list">("grid");
@@ -259,7 +261,7 @@ export function LibraryScreen() {
   const body =
     isLoading ? <SectionLoader /> :
     isError ? <ErrorState theme={theme} muted={muted} onRetry={refetch} /> :
-    shown.length === 0 ? <EmptyState theme={theme} muted={muted} onLog={() => router.push("/(app)/log/new" as any)} /> :
+    shown.length === 0 ? <EmptyState theme={theme} muted={muted} onLog={() => navigateOnce("/(app)/log/new" as any)} /> :
     mode === "grid" ? (
       // Grid-mode card rendering keeps its Platform.OS split — see this
       // file's header comment on why (hover-reveal overlay has no touch

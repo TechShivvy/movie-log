@@ -32,6 +32,7 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigateOnce } from "../hooks/useNavigateOnce";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Heart,
@@ -658,6 +659,7 @@ export function LogDetailScreen() {
   const headingFamily = fontFamily(fontConfig, "heading", 700);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const navigateOnce = useNavigateOnce();
   const { user } = useAuth();
 
   const { data: log, isLoading, error } = useMovieLog(id ?? "");
@@ -882,7 +884,7 @@ export function LogDetailScreen() {
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
                 <TagsRow log={log} theme={theme} vcol={vcol} />
-                {isOwnLog && <ManageButtons log={log} theme={theme} onEdit={() => router.push(`/log/new?edit=${log.id}` as never)} onArchive={handleArchive} onDelete={handleDelete} />}
+                {isOwnLog && <ManageButtons log={log} theme={theme} onEdit={() => navigateOnce(`/log/new?edit=${log.id}` as never)} onArchive={handleArchive} onDelete={handleDelete} />}
               </View>
 
               <TitleAndRating log={log} theme={theme} headingFamily={headingFamily} isMobile={false} router={router} />
@@ -958,7 +960,7 @@ export function LogDetailScreen() {
 
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
             <LikeButton log={log} theme={theme} onPress={handleLike} onShowLikes={() => setShowLogLikes(true)} style={{ flex: 1 }} />
-            {isOwnLog && <ManageButtons log={log} theme={theme} onEdit={() => router.push(`/log/new?edit=${log.id}` as never)} onArchive={handleArchive} onDelete={handleDelete} />}
+            {isOwnLog && <ManageButtons log={log} theme={theme} onEdit={() => navigateOnce(`/log/new?edit=${log.id}` as never)} onArchive={handleArchive} onDelete={handleDelete} />}
           </View>
 
           <MetaList rows={metaRows} theme={theme} />

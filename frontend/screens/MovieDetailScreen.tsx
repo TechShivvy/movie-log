@@ -19,6 +19,7 @@
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigateOnce } from "../hooks/useNavigateOnce";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
@@ -49,8 +50,9 @@ export function MovieDetailScreen() {
   const { data: note, isLoading: noteLoading } = useMovieNote(id);
   const setNote = useSetMovieNote(id);
 
+  const navigateOnce = useNavigateOnce();
   const openLog = (log: MovieLog) => router.push(`/(app)/log/${log.id}` as any);
-  const logThisMovie = () => router.push(
+  const logThisMovie = () => navigateOnce(
     `/(app)/log/new?movieId=${encodeURIComponent(movie?.id ?? "")}&movieTitle=${encodeURIComponent(movie?.title ?? "")}&poster=${encodeURIComponent(movie?.poster_path ?? "")}` as any
   );
 

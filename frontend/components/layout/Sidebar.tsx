@@ -37,6 +37,7 @@ import { Avatar } from "../ui/Avatar";
 import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
 import { CustomThemeEditor } from "../ui/CustomThemeEditor";
+import { useNavigateOnce } from "../../hooks/useNavigateOnce";
 import { fontFamily } from "../../constants/fonts";
 import { type as fontSizes } from "../../constants/fonts";
 
@@ -67,11 +68,15 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   const { isTablet } = useBreakpoint();
   const [collapsed, setCollapsed] = useState(isTablet);
   useEffect(() => { setCollapsed(isTablet); }, [isTablet]);
-  const { theme, setTheme, fontConfig } = useTheme();
-  // Shared by both the web and native palette pickers below (only one of
-  // which ever renders per platform, but the state/editor itself is the
-  // same regardless of which branch opened it).
-  const [showCustomEditor, setShowCustomEditor] = useState(false);
+  const {
+    theme, setTheme, fontConfig,
+    customThemeEditorVisible, openCustomThemeEditor, closeCustomThemeEditor,
+  } = useTheme();
+  // customThemeEditorVisible/open/closeCustomThemeEditor come from
+  // ThemeContext, not local state — see that file's own comment on why
+  // (a local boolean here, mirrored by another local boolean in
+  // SettingsScreen's AppearanceSection, meant two independent
+  // <CustomThemeEditor> instances could both be open at once).
   const customThemeSeed: RawTheme = {
     key: "custom", label: "Custom",
     bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
@@ -82,6 +87,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   // whatever ProfileScreen/EditProfileModal already triggered).
   const { data: profile } = useMyProfile();
   const router = useRouter();
+  const navigateOnce = useNavigateOnce();
   const pathname = usePathname();
 
   const headingFamily = fontFamily(fontConfig, "heading", 600);
@@ -221,7 +227,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           <button
             className="btn btn-primary btn-block"
             style={{ marginTop: 12 } as React.CSSProperties}
-            onClick={() => router.push("/(app)/log/new" as any)}
+            onClick={() => navigateOnce("/(app)/log/new" as any)}
           >
             <Icon name="plus-circle" size={16} />
             <span className="lbl">Log a screening</span>
@@ -260,7 +266,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   accent={theme.key === "custom" ? theme.accent : theme.divider}
                   active={theme.key === "custom"}
                   activeColor={theme.accent}
-                  onPress={() => setShowCustomEditor(true)}
+                  onPress={openCustomThemeEditor}
                   title="Custom theme"
                 />
               </div>
@@ -313,10 +319,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         </div>
 
         <CustomThemeEditor
-          visible={showCustomEditor}
+          visible={customThemeEditorVisible}
           initial={customThemeSeed}
-          onApply={(raw) => { setTheme(raw); setShowCustomEditor(false); }}
-          onCancel={() => setShowCustomEditor(false)}
+          onApply={(raw) => { setTheme(raw); closeCustomThemeEditor(); }}
+          onCancel={closeCustomThemeEditor}
         />
       </div>
     );
@@ -376,7 +382,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           })}
 
           <Pressable
-            onPress={() => router.push("/(app)/log/new" as any)}
+            onPress={() => navigateOnce("/(app)/log/new" as any)}
             style={[styles.cta, { borderColor: theme.accent }, collapsed && styles.centered]}
           >
             <Icon name="plus-circle" size={16} color={theme.accent} />
@@ -409,7 +415,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                   accent={theme.key === "custom" ? theme.accent : theme.divider}
                   active={theme.key === "custom"}
                   activeColor={theme.accent}
-                  onPress={() => setShowCustomEditor(true)}
+                  onPress={openCustomThemeEditor}
                   title="Custom theme"
                 />
               </View>
@@ -443,10 +449,10 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
       <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
 
       <CustomThemeEditor
-        visible={showCustomEditor}
+        visible={customThemeEditorVisible}
         initial={customThemeSeed}
-        onApply={(raw) => { setTheme(raw); setShowCustomEditor(false); }}
-        onCancel={() => setShowCustomEditor(false)}
+        onApply={(raw) => { setTheme(raw); closeCustomThemeEditor(); }}
+        onCancel={closeCustomThemeEditor}
       />
     </View>
   );
