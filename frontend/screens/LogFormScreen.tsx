@@ -42,7 +42,7 @@
  *     arrangements, computed from isMobile, sharing the same dashed-
  *     border/CameraPlus/Sparkle visual language either way.
  */
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Image,
@@ -58,7 +58,7 @@ import { CameraPlus, Robot, Sparkle } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useCreateLog, useUpdateLog, useMovieLog } from "../hooks/useMovieLogs";
-import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie, useSearchPlaces, useCreateTheatreManual } from "../hooks/useSearch";
+import { useMovieSearch, useVenueSearch, useCreateMovie, useMovie, useSearchPlaces, useCreateTheatreManual, useTheatreScreens } from "../hooks/useSearch";
 import { useVenueRating, useUpsertVenueRating } from "../hooks/useVenueRating";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useToast } from "../context/ToastContext";
@@ -68,6 +68,7 @@ import { Input } from "../components/ui/Input";
 import { Tag } from "../components/ui/Tag";
 import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { ScreenLoader } from "../components/ui/Spinner";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { AITicketModal } from "../modals/AITicketModal";
 import { tmdbPosterUrl, releaseYear } from "../lib/tmdb";
 import { venueDisplayName, placesFooterLabel, randomSessionToken } from "../lib/venue";
@@ -85,6 +86,11 @@ import type {
 import { type as fontSizes } from "../constants/fonts";
 
 const FORMATS: Format[] = ["IMAX", "4DX", "Dolby", "ScreenX", "Laser", "PLF", "Standard"];
+// No certificate enum exists anywhere (frontend, backend, or DB) — same
+// situation Format was already in. India-centric since that's this app's
+// existing seed data (matches FORMATS' own precedent); tappable chips,
+// never a hard picker — the Input above stays freely editable.
+const CERTIFICATES = ["U", "U/A", "A", "S"] as const;
 // LogVisibility is "private" | "anonymous" | "public" — there is no
 // "followers_only" at the log level (that's the distinct account-level
 // AccountVisibility).
@@ -134,6 +140,16 @@ interface FormState {
   venueId:        string | undefined;
   venueName:      string;
   screenNumber:   string;
+  // Resolved from useTheatreScreens(fs.venueId) via the Screen field's own
+  // dropdown, same shape as movieId above — a real screen row's id, not
+  // just its free-typed name. Was never set/submitted anywhere in this
+  // file despite MovieLog/MovieLogInput both supporting it and
+  // ScreenDetailScreen already reading it — the same "free-typed value
+  // with nothing real behind it" loophole this file's own comments
+  // already describe closing for movie_id/theatre_id, just not yet done
+  // for this one. Cleared whenever screenNumber is hand-typed instead of
+  // picked, same rule venueId already follows for venueName.
+  screenId:       string | undefined;
   // Free-typed, comma-separated — split into MovieLogInput.seats (string[])
   // on submit. The real backend has no single "seat" field.
   seat:           string;
@@ -170,7 +186,7 @@ interface FormState {
 
 const BLANK_FORM: FormState = {
   movieTitle: "", movieId: undefined, moviePosterUrl: undefined, rating: 0, format: undefined,
-  venueId: undefined, venueName: "", screenNumber: "", seat: "",
+  venueId: undefined, venueName: "", screenNumber: "", screenId: undefined, seat: "",
   isFdfs: false, isFirstDay: false,
   arrivalStatus: "on_time", arrivalDeltaMinutes: "",
   screeningStartStatus: undefined, screeningStartDeltaMinutes: "",
@@ -191,6 +207,7 @@ function logToFormState(log: MovieLog): FormState {
     venueId: log.theatre_id,
     venueName: log.theater ?? "",
     screenNumber: log.screen ?? "",
+    screenId: log.screen_id,
     seat: log.seats?.join(", ") ?? "",
     isFdfs: log.is_fdfs,
     isFirstDay: log.is_first_day,
@@ -225,8 +242,14 @@ function FieldSection({ label, theme, children }: { label: string; theme: any; c
   );
 }
 
-function FieldRow({ children }: { children: React.ReactNode }) {
-  return <View style={{ flexDirection: "row", gap: 12 }}>{children}</View>;
+function FieldRow({ children, alignTop }: { children: React.ReactNode; alignTop?: boolean }) {
+  // Default (stretch) is right for two plain same-height Inputs, but a
+  // column that grows taller than its neighbor — the Screen field's
+  // dropdown, the Certificate field's suggestion chips — would stretch
+  // the shorter neighbor's own box to match under the default, leaving
+  // visible dead space in it. alignTop lets those two rows size each
+  // column independently instead.
+  return <View style={{ flexDirection: "row", gap: 12, alignItems: alignTop ? "flex-start" : undefined }}>{children}</View>;
 }
 
 function ToggleRow({ label, description, value, onValueChange, disabled, theme }: {
@@ -320,6 +343,14 @@ export function LogFormScreen() {
   const [fs, setFs] = useState<FormState>(BLANK_FORM);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showAIModal, setShowAIModal] = useState(false);
+  // Discard-confirm dirty check — the form-as-loaded (blank for a new
+  // entry, the existing log's own values for edit mode, updated by the
+  // edit-mode effect below once it resolves), never touched again after
+  // that. A ref, not state: nothing should ever re-render off this value
+  // changing, and it deliberately doesn't participate in the isDirty
+  // useMemo's own dependency array.
+  const initialFormRef = useRef<FormState>(BLANK_FORM);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Movie search — the input itself stays live/uncontrolled by the
   // debounce (it needs to reflect every keystroke instantly); only the
@@ -360,6 +391,15 @@ export function LogFormScreen() {
   // handleSubmit's theatre_place) — nothing lands in the shared theatres
   // table for a place that was only compared and the save then abandoned.
   const [pendingPlace, setPendingPlace] = useState<TheatrePlaceSuggestion | null>(null);
+  // Screen dropdown — only reachable once a real venue is picked (a
+  // theatre_id to query screens under); a Places-picked or hand-typed
+  // venue with no local row falls back to plain free text, same as
+  // before. Reuses the same in-flow DropdownRow idiom the movie/venue
+  // fields above already establish.
+  const { data: theatreScreens } = useTheatreScreens(fs.venueId);
+  const [showScreenSuggestions, setShowScreenSuggestions] = useState(false);
+  const screenDropdownOpen = showScreenSuggestions && !!fs.venueId && (theatreScreens?.length ?? 0) > 0;
+
   // "Add manually" — the fallback when neither local search nor Places
   // has the real venue (small/obscure theatre, private screening room).
   // Unlike a Places pick this creates immediately on submit of this small
@@ -376,7 +416,13 @@ export function LogFormScreen() {
   // another tab's edit — doesn't clobber what the user is actively typing).
   useEffect(() => {
     if (!existingLog) return;
-    setFs(logToFormState(existingLog));
+    const loaded = logToFormState(existingLog);
+    setFs(loaded);
+    // Discard's dirty check compares against THIS (the log as it was
+    // loaded), not BLANK_FORM — an edit form is never "blank" to begin
+    // with, and comparing edits against an empty form would show the
+    // confirm dialog for every discard, changed or not.
+    initialFormRef.current = loaded;
     setMovieQuery(existingLog.movie ?? "");
     setVenueQuery(existingLog.theater ?? "");
     // The existing log only carries movie_id, not a poster — resolved
@@ -437,7 +483,12 @@ export function LogFormScreen() {
 
   const setVenueQueryAndForm = useCallback((v: string) => {
     setVenueQuery(v);
-    setFs((p) => ({ ...p, venueName: v, venueId: undefined }));
+    // A picked screen belongs to whatever theatre it was fetched under —
+    // changing the venue away from that theatre leaves screenId pointing
+    // at a screen that's no longer under the (new, or not-yet-real)
+    // venueId this log would actually submit. Clearing it here matches
+    // venueId's own clear-on-typing rule just above.
+    setFs((p) => ({ ...p, venueName: v, venueId: undefined, screenNumber: "", screenId: undefined }));
     setShowVenueSuggestions(v.length > 1);
     setPlacesResults([]);
     setPlacesSearched(false);
@@ -467,7 +518,9 @@ export function LogFormScreen() {
   }, [createMovie, qc]);
 
   const pickVenue = useCallback((v: { id: string; name: string }) => {
-    setFs((p) => ({ ...p, venueId: v.id, venueName: v.name }));
+    // Same reasoning as setVenueQueryAndForm above — a new venue means
+    // any previously-picked screen no longer applies.
+    setFs((p) => ({ ...p, venueId: v.id, venueName: v.name, screenNumber: "", screenId: undefined }));
     setVenueQuery(v.name);
     setShowVenueSuggestions(false);
     setPlacesResults([]);
@@ -508,7 +561,11 @@ export function LogFormScreen() {
   // happen for this venue before the log itself can carry a theatre_id.
   const pickPlace = useCallback((place: TheatrePlaceSuggestion) => {
     const name = place.main_text ?? place.description ?? "Unknown theatre";
-    setFs((p) => ({ ...p, venueId: undefined, venueName: name }));
+    // Same reasoning as pickVenue above — and a Places pick has no local
+    // theatre_id yet anyway (screens can't be looked up for it at all
+    // until the server resolves it on submit), so there's nothing valid
+    // a screenId could point at here regardless.
+    setFs((p) => ({ ...p, venueId: undefined, venueName: name, screenNumber: "", screenId: undefined }));
     setVenueQuery(name);
     setShowVenueSuggestions(false);
     setPlacesResults([]);
@@ -546,6 +603,22 @@ export function LogFormScreen() {
     if (result.theater) setVenueQuery(result.theater);
   }, []);
 
+  // Whether the form has anything in it worth confirming before throwing
+  // away — every FormState field is a primitive, so a plain per-key
+  // comparison against the loaded baseline is enough (no nested
+  // objects/arrays in this shape to worry about missing).
+  const isDirty = useMemo(
+    () => (Object.keys(BLANK_FORM) as (keyof FormState)[]).some((k) => fs[k] !== initialFormRef.current[k]),
+    [fs],
+  );
+
+  function handleDiscard() {
+    // An untouched form has nothing to lose — don't make the user
+    // confirm leaving a form they never filled in.
+    if (isDirty) setShowDiscardConfirm(true);
+    else router.back();
+  }
+
   async function handleSubmit() {
     const newErrors: Record<string, string> = {};
     if (!fs.movieTitle.trim()) newErrors.movieTitle = "Movie title is required";
@@ -579,6 +652,7 @@ export function LogFormScreen() {
         formatted_address: pendingPlace.description,
       } : undefined,
       screen:        fs.screenNumber || undefined,
+      screen_id:     fs.screenId,
       seats:         fs.seat ? fs.seat.split(",").map((s) => s.trim()).filter(Boolean) : [],
       format:        fs.format,
       rating:        fs.rating > 0 ? fs.rating : undefined,
@@ -883,8 +957,35 @@ export function LogFormScreen() {
         )}
       </View>
 
-      <FieldRow>
-        <View style={{ flex: 1 }}><Input label="Screen" value={fs.screenNumber} onChangeText={(v) => setFs((p) => ({ ...p, screenNumber: v }))} placeholder="e.g. 3" /></View>
+      <FieldRow alignTop>
+        {/* In-flow suggestions dropdown, same idiom as Movie title/Theatre
+            above — only populated once a real venueId exists (a
+            Places-picked or hand-typed venue with no local row has no
+            theatre_id to look screens up under, so this quietly has
+            nothing to show and the field stays plain free text). */}
+        <View style={{ flex: 1 }}>
+          <Input
+            label="Screen"
+            value={fs.screenNumber}
+            onChangeText={(v) => { setFs((p) => ({ ...p, screenNumber: v, screenId: undefined })); setShowScreenSuggestions(v.length > 0); }}
+            onFocus={() => setShowScreenSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowScreenSuggestions(false), 150)}
+            placeholder="e.g. 3"
+          />
+          {screenDropdownOpen && (
+            <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
+              {theatreScreens!.map((s) => (
+                <DropdownRow
+                  key={s.id}
+                  title={s.name}
+                  subtitle={s.screen_type}
+                  onPress={() => { setFs((p) => ({ ...p, screenNumber: s.name, screenId: s.id })); setShowScreenSuggestions(false); }}
+                  theme={theme}
+                />
+              ))}
+            </View>
+          )}
+        </View>
         <View style={{ flex: 1 }}><Input label="Seat" value={fs.seat} onChangeText={(v) => setFs((p) => ({ ...p, seat: v }))} placeholder="e.g. H12" /></View>
       </FieldRow>
 
@@ -895,8 +996,21 @@ export function LogFormScreen() {
         <View style={{ flex: 1 }}><Input label="Currency" value={fs.currency} onChangeText={(v) => setFs((p) => ({ ...p, currency: v.toUpperCase() }))} placeholder="e.g. INR" maxLength={3} /></View>
       </FieldRow>
 
-      <FieldRow>
-        <View style={{ flex: 1 }}><Input label="Certificate" value={fs.certificate} onChangeText={(v) => setFs((p) => ({ ...p, certificate: v }))} placeholder="e.g. U/A" /></View>
+      <FieldRow alignTop>
+        {/* No certificate enum exists (frontend, backend, or DB) — same
+            shape of gap Format was already in, solved the same way: a
+            small suggestion row beneath the still-freely-editable Input,
+            not a hard picker. */}
+        <View style={{ flex: 1 }}>
+          <Input label="Certificate" value={fs.certificate} onChangeText={(v) => setFs((p) => ({ ...p, certificate: v }))} placeholder="e.g. U/A" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            {CERTIFICATES.map((c) => (
+              <Pressable key={c} onPress={() => setFs((p) => ({ ...p, certificate: c }))}>
+                <Tag variant={fs.certificate === c ? "accent" : "neutral"} size="sm" label={c} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
         <View style={{ flex: 1 }}><Input label="Booking ref" value={fs.bookingRef} onChangeText={(v) => setFs((p) => ({ ...p, bookingRef: v }))} placeholder="e.g. BMS12345678" /></View>
       </FieldRow>
 
@@ -972,7 +1086,10 @@ export function LogFormScreen() {
 
   const header = isMobile ? (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
-      <Button variant="icon" icon="caret-left" onPress={() => router.back()} disabled={isPending} />
+      {/* Same discard action as the desktop header's own Discard button
+          below, just wearing an icon-only shape — same red tint and the
+          same dirty-check confirm, not a plain unconfirmed back button. */}
+      <Button variant="icon" icon="caret-left" color={theme.error} onPress={handleDiscard} disabled={isPending} />
       <Text style={{ color: theme.text, fontSize: fontSizes.xl, fontWeight: "700", flex: 1 }}>
         {isEditing ? "Edit screening" : "Log a screening"}
       </Text>
@@ -992,8 +1109,13 @@ export function LogFormScreen() {
         {/* Discard disabled mid-save too — navigating away right as the
             request lands read as a race between "did my save actually
             happen" and "I just left", same reasoning as blocking the
-            delete dialog from being dismissed mid-flight. */}
-        <Button variant="secondary" icon="x" label="Discard" onPress={() => router.back()} disabled={isPending} />
+            delete dialog from being dismissed mid-flight. Red like
+            ConfirmDialog's own destructive confirm / Settings' "Delete
+            account" — this is the same class of action (throws away
+            work), and now actually confirms when the form has anything
+            in it worth losing (see isDirty/handleDiscard above), instead
+            of silently discarding a form full of typed fields. */}
+        <Button variant="secondary" icon="x" label="Discard" color={theme.error} onPress={handleDiscard} disabled={isPending} />
         <Button
           label={isPending ? "Saving…" : isEditing ? "Save changes" : "Save log"}
           loading={isPending}
@@ -1034,6 +1156,16 @@ export function LogFormScreen() {
         visible={showAIModal}
         onClose={() => setShowAIModal(false)}
         onResult={handleExtractionResult}
+      />
+
+      <ConfirmDialog
+        visible={showDiscardConfirm}
+        title="Discard changes?"
+        message="You'll lose what you've entered on this form."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => router.back()}
+        onCancel={() => setShowDiscardConfirm(false)}
       />
     </ScrollView>
   );
