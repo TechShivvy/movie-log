@@ -4,9 +4,20 @@
  * VenueDetailScreen/ScreenDetailScreen (see ScopedLogGrid): the caller's
  * own logs of this movie, logs from people they follow, and public
  * reviews from anyone.
+ *
+ * One JSX tree, breakpoint-driven (see Part C of the architecture-
+ * unification plan) — this screen was already "mechanical" (every visual
+ * element already a shared component: Button, Poster, PrivateNoteCard,
+ * ScopedLogGrid), so the old web/native fork only ever differed in
+ * numeric presentational values (poster size, gaps, font-size step,
+ * outer padding/max-width), now computed from `isMobile` instead of
+ * `Platform.OS`. The web branch's CSS `.pulse-loading` skeleton pulse on
+ * the loading-rating placeholder is dropped in favor of the plain dimmed
+ * text native already used — a decorative-only difference, not worth a
+ * second render path.
  */
 import React from "react";
-import { Platform, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
@@ -61,63 +72,49 @@ export function MovieDetailScreen() {
   const posterUrl = tmdbPosterUrl(movie.poster_path, "w342");
   const year = releaseYear(movie.release_date);
   const ratingText = stats?.avg_rating != null ? `★ ${stats.avg_rating.toFixed(1)}` : null;
+  const posterSize = isMobile ? { width: 110, height: 165 } : { width: 200, height: 300 };
 
-  // ── Web (desktop/tablet only — narrower falls through to the native
-  // branch below, same as every other screen; see ProfileScreen.tsx) ────────
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        <div style={{ display: "flex", gap: 28, marginBottom: 28 } as React.CSSProperties}>
-          <Poster title={movie.title} imageUrl={posterUrl} style={{ width: 200, aspectRatio: "2/3", flexShrink: 0 } as React.CSSProperties} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end" } as React.CSSProperties}>
-            <h1 style={{ fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 6px", letterSpacing: -0.5 } as React.CSSProperties}>
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{
+        paddingTop: isMobile ? 16 : 28,
+        paddingHorizontal: isMobile ? 16 : 32,
+        paddingBottom: isMobile ? 100 : 40,
+      }}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      <View style={{ maxWidth: isMobile ? undefined : 1000, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
+        <View style={{ flexDirection: "row", gap: isMobile ? 16 : 28, marginBottom: isMobile ? 20 : 28 }}>
+          <Poster title={movie.title} imageUrl={posterUrl} style={{ ...posterSize, flexShrink: 0 }} />
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <Text style={{
+              fontSize: isMobile ? fontSizes.xxl : fontSizes.h1,
+              fontWeight: "700",
+              color: theme.text,
+              marginBottom: isMobile ? 4 : 6,
+              letterSpacing: isMobile ? undefined : -0.5,
+            }}>
               {movie.title}
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, fontSize: fontSizes.base, color: `${theme.text}88` } as React.CSSProperties}>
-              {year && <span>{year}</span>}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 10 : 12, marginBottom: isMobile ? 14 : 20 }}>
+              {year && <Text style={{ fontSize: isMobile ? fontSizes.sm : fontSizes.base, color: `${theme.text}88` }}>{year}</Text>}
               {statsLoading ? (
-                <span className="pulse-loading" style={{ color: `${theme.text}44` } as React.CSSProperties}>★ …</span>
+                <Text style={{ fontSize: isMobile ? fontSizes.sm : fontSizes.base, color: `${theme.text}44` }}>★ …</Text>
               ) : ratingText ? (
-                <span style={{ color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
-                  {ratingText} <span style={{ color: `${theme.text}66`, fontWeight: 400 } as React.CSSProperties}>({stats!.rating_count})</span>
-                </span>
+                <Text style={{ fontSize: isMobile ? fontSizes.sm : fontSizes.base, color: theme.accent, fontWeight: "600" }}>
+                  {ratingText} <Text style={{ color: `${theme.text}66`, fontWeight: "400" }}>({stats!.rating_count})</Text>
+                </Text>
               ) : null}
-            </div>
-            <Button label="Log this movie" icon="plus" onPress={logThisMovie} style={{ width: "fit-content" } as React.CSSProperties} />
-          </div>
-        </div>
+            </View>
+            <Button label="Log this movie" icon="plus" onPress={logThisMovie} style={{ alignSelf: "flex-start" }} />
+          </View>
+        </View>
 
         <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
 
         <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
-      </div>
-    );
-  }
-
-  // ── Native ─────────────────────────────────────────────────────────────────
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
-      <View style={{ flexDirection: "row", gap: 16, marginBottom: 20 }}>
-        <Poster title={movie.title} imageUrl={posterUrl} style={{ width: 110, height: 165, flexShrink: 0 }} />
-        <View style={{ flex: 1, justifyContent: "flex-end" }}>
-          <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{movie.title}</Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            {year && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}88` }}>{year}</Text>}
-            {statsLoading ? (
-              <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44` }}>★ …</Text>
-            ) : ratingText ? (
-              <Text style={{ fontSize: fontSizes.sm, color: theme.accent, fontWeight: "600" }}>
-                {ratingText} <Text style={{ color: `${theme.text}66`, fontWeight: "400" }}>({stats!.rating_count})</Text>
-              </Text>
-            ) : null}
-          </View>
-          <Button label="Log this movie" icon="plus" onPress={logThisMovie} style={{ alignSelf: "flex-start" }} />
-        </View>
       </View>
-
-      <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
-
-      <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
     </ScrollView>
   );
 }

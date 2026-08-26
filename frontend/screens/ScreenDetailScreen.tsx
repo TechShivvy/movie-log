@@ -4,6 +4,15 @@
  * a private note, and the three-scope log pattern (see ScopedLogGrid) —
  * no nickname editing (nicknames are theatre-only) and no nested browse
  * (a screen doesn't contain further screens).
+ *
+ * One JSX tree, breakpoint-driven (see Part C of the architecture-
+ * unification plan). The one remaining Platform.OS branch is the "back
+ * to theatre" link: a real `<a href>` on web (Cmd/Ctrl-click-to-open-in-
+ * new-tab is a genuine, worth-keeping web affordance with no native
+ * equivalent) vs a Text onPress on native — everything else, including
+ * the loading-rating placeholder's `.pulse-loading` CSS skeleton
+ * (dropped in favor of the plain dimmed text native already used), is
+ * one shared render path with breakpoint-driven sizing.
  */
 import React from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
@@ -63,60 +72,55 @@ export function ScreenDetailScreen() {
   const ratingText = stats?.overall_avg != null ? stats.overall_avg.toFixed(1) : null;
   const theatreName = theatre ? venueDisplayName(theatre) : undefined;
 
-  // ── Web (desktop/tablet only — narrower falls through to native) ──────────
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      <div style={{ padding: "28px 32px 40px", maxWidth: 1000, width: "100%", margin: "0 auto" } as React.CSSProperties}>
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{
+        paddingTop: isMobile ? 16 : 28,
+        paddingHorizontal: isMobile ? 16 : 32,
+        paddingBottom: isMobile ? 100 : 40,
+      }}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      <View style={{ maxWidth: isMobile ? undefined : 1000, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
         {theatreName && (
-          <a href={`/venue/${id}`} style={{ fontSize: fontSizes.sm, color: theme.accent, textDecoration: "none" } as React.CSSProperties}>
-            ← {theatreName}
-          </a>
+          Platform.OS === "web" ? (
+            <a href={`/venue/${id}`} style={{ fontSize: fontSizes.sm, color: theme.accent, textDecoration: "none" } as React.CSSProperties}>
+              ← {theatreName}
+            </a>
+          ) : (
+            <Text
+              onPress={() => router.push(`/(app)/venue/${id}` as any)}
+              style={{ fontSize: fontSizes.sm, color: theme.accent }}
+            >
+              ← {theatreName}
+            </Text>
+          )
         )}
-        <h1 style={{ fontSize: fontSizes.h2, fontWeight: 700, color: theme.text, margin: "6px 0 4px", letterSpacing: -0.5 } as React.CSSProperties}>
+        <Text style={{
+          fontSize: isMobile ? fontSizes.xxl : fontSizes.h2,
+          fontWeight: "700",
+          color: theme.text,
+          marginTop: isMobile ? undefined : 6,
+          marginBottom: 4,
+          letterSpacing: isMobile ? undefined : -0.5,
+        }}>
           {screen.name}
-        </h1>
-        {screen.screen_type && <div style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 12 } as React.CSSProperties}>{screen.screen_type}</div>}
+        </Text>
+        {screen.screen_type && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: isMobile ? 10 : 12 }}>{screen.screen_type}</Text>}
         {statsLoading ? (
-          <div className="pulse-loading" style={{ marginBottom: 20, fontSize: fontSizes.sm, color: `${theme.text}44` } as React.CSSProperties}>★ overall rating …</div>
+          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, marginBottom: isMobile ? 16 : 20 }}>★ overall rating …</Text>
         ) : ratingText ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 20, fontSize: fontSizes.md, color: theme.accent, fontWeight: 600 } as React.CSSProperties}>
-            ★ {ratingText}
-            <span style={{ color: `${theme.text}66`, fontWeight: 400, fontSize: fontSizes.sm } as React.CSSProperties}>overall rating</span>
-          </div>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: isMobile ? 16 : 20 }}>
+            <Text style={{ fontSize: fontSizes.md, color: theme.accent, fontWeight: "700" }}>★ {ratingText}</Text>
+            <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66` }}>overall rating</Text>
+          </View>
         ) : null}
 
         <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
 
         <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
-      </div>
-    );
-  }
-
-  // ── Native ─────────────────────────────────────────────────────────────────
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
-      {theatreName && (
-        <Text
-          onPress={() => router.push(`/(app)/venue/${id}` as any)}
-          style={{ fontSize: fontSizes.sm, color: theme.accent, marginBottom: 4 }}
-        >
-          ← {theatreName}
-        </Text>
-      )}
-      <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.text, marginBottom: 4 }}>{screen.name}</Text>
-      {screen.screen_type && <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66`, marginBottom: 10 }}>{screen.screen_type}</Text>}
-      {statsLoading ? (
-        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}44`, marginBottom: 16 }}>★ overall rating …</Text>
-      ) : ratingText ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
-          <Text style={{ fontSize: fontSizes.md, color: theme.accent, fontWeight: "700" }}>★ {ratingText}</Text>
-          <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}66` }}>overall rating</Text>
-        </View>
-      ) : null}
-
-      <PrivateNoteCard note={note} loading={noteLoading} saving={setNote.isPending} onSave={(text) => setNote.mutate(text)} />
-
-      <ScopedLogGrid tabs={tabs} onLogPress={openLog} isSignedIn={!!user} />
+      </View>
     </ScrollView>
   );
 }

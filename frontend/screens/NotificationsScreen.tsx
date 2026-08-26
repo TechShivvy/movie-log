@@ -1,21 +1,15 @@
 /**
- * NotificationsScreen — pixel-accurate match to design spec.
- *
- * Web layout (padding:28px 32px 40px; max-width:660px):
- *   h1 "Notifications" + list of notification rows
- *     Each: 40px/12px icon box (accent-800 bg, accent-100 icon) + text + time
- *           + optional Accept/Ignore btns for follow requests
- *
- * Mobile: scrollable list with same card layout
+ * NotificationsScreen — one JSX tree, breakpoint-driven (see Part C of the
+ * architecture-unification plan). NotifRow used to fork on Platform.OS for
+ * a structurally-identical row (icon box + text + Accept/Ignore + unread
+ * dot) that only really needed the shared <Button> component's own
+ * per-platform rendering for Accept/Ignore — hand-rolling a second
+ * Pressable-based copy of it here had also let the message/time font
+ * sizes silently drift between the two branches (web: base/sm, native:
+ * sm/xs), not a deliberate design choice.
  */
 import React from "react";
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import {
   Heart,
   ChatCircle,
@@ -26,6 +20,7 @@ import {
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import { Button } from "../components/ui/Button";
 import type { NotificationType } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
@@ -101,77 +96,17 @@ const DEMO_NOTIFS = [
 function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }) {
   const isFollowRequest = notif.type === "follow_request";
 
-  if (Platform.OS === "web") {
-    return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "14px 0",
-        borderBottom: `1px solid ${theme.divider}`,
-        opacity: notif.read ? 0.65 : 1,
-      } as React.CSSProperties}>
-        {/* Icon box — 40×40px, accent-800 bg */}
-        <div style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: theme.accent800,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        } as React.CSSProperties}>
-          {notifIcon(notif.type, theme.accent)}
-        </div>
-
-        {/* Text */}
-        <div style={{ flex: 1 } as React.CSSProperties}>
-          <div style={{ fontSize: fontSizes.base, color: theme.text, lineHeight: 1.4 } as React.CSSProperties}>
-            {notifText(notif)}
-          </div>
-          <div style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 3 } as React.CSSProperties}>
-            {relTime(notif.created_at)}
-          </div>
-        </div>
-
-        {/* Actions for follow requests */}
-        {isFollowRequest && (
-          <div style={{ display: "flex", gap: 6 } as React.CSSProperties}>
-            <button className="btn btn-primary" style={{ fontSize: fontSizes.sm, padding: "4px 12px" } as React.CSSProperties}>
-              Accept
-            </button>
-            <button className="btn btn-secondary" style={{ fontSize: fontSizes.sm, padding: "4px 12px" } as React.CSSProperties}>
-              Ignore
-            </button>
-          </div>
-        )}
-
-        {/* Unread dot */}
-        {!notif.read && (
-          <div style={{
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor: theme.accent,
-            flexShrink: 0,
-          } as React.CSSProperties} />
-        )}
-      </div>
-    );
-  }
-
   return (
     <View style={{
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
-      paddingVertical: 12,
+      gap: 14,
+      paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: theme.divider,
       opacity: notif.read ? 0.65 : 1,
     }}>
-      {/* Icon box */}
+      {/* Icon box — 40×40, accent-800 bg */}
       <View style={{
         width: 40,
         height: 40,
@@ -186,36 +121,23 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
 
       {/* Text */}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: fontSizes.sm, color: theme.text, lineHeight: 18 }}>{notifText(notif)}</Text>
-        <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}55`, marginTop: 3 }}>{relTime(notif.created_at)}</Text>
+        <Text style={{ fontSize: fontSizes.base, color: theme.text, lineHeight: 20 }}>{notifText(notif)}</Text>
+        <Text style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 3 }}>{relTime(notif.created_at)}</Text>
       </View>
 
-      {/* Follow actions */}
+      {/* Follow-request actions — <Button> already handles the real
+          per-platform rendering (CSS .btn classes + hover on web, a
+          Pressable on native), so this row needs no branch of its own. */}
       {isFollowRequest && (
         <View style={{ flexDirection: "row", gap: 6 }}>
-          <Pressable style={{
-            backgroundColor: theme.accent,
-            borderRadius: 6,
-            paddingHorizontal: 10,
-            paddingVertical: 5,
-          }}>
-            <Text style={{ color: theme.onAccent, fontSize: fontSizes.sm, fontWeight: "600" }}>Accept</Text>
-          </Pressable>
-          <Pressable style={{
-            borderWidth: 1,
-            borderColor: theme.divider,
-            borderRadius: 6,
-            paddingHorizontal: 10,
-            paddingVertical: 5,
-          }}>
-            <Text style={{ color: `${theme.text}88`, fontSize: fontSizes.sm, fontWeight: "600" }}>Ignore</Text>
-          </Pressable>
+          <Button variant="primary" label="Accept" />
+          <Button variant="secondary" label="Ignore" />
         </View>
       )}
 
       {/* Unread dot */}
       {!notif.read && (
-        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent }} />
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent, flexShrink: 0 }} />
       )}
     </View>
   );
@@ -228,24 +150,28 @@ export function NotificationsScreen() {
   const { isMobile } = useBreakpoint();
   const notifs = DEMO_NOTIFS;
 
-  if (Platform.OS === "web" && !isMobile) {
-    return (
-      /* width:"100%" alongside maxWidth — see LibraryScreen.tsx's root div;
-         same shrink-wrap-instead-of-filling bug as every other screen
-         below this maxWidth+margin:auto shape. */
-      <div style={{ padding: "28px 32px 40px", maxWidth: 660, width: "100%", margin: "0 auto" } as React.CSSProperties}>
-        <h1 style={{ fontSize: fontSizes.h1, fontWeight: 700, color: theme.text, margin: "0 0 24px", letterSpacing: -0.5 } as React.CSSProperties}>
-          Notifications
-        </h1>
-        {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
-      </div>
-    );
-  }
-
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }} contentInsetAdjustmentBehavior="automatic">
-      <Text style={{ fontSize: fontSizes.display, fontWeight: "800", color: theme.text, marginBottom: 16 }}>Notifications</Text>
-      {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.bg }}
+      contentContainerStyle={{
+        paddingTop: isMobile ? 16 : 28,
+        paddingHorizontal: isMobile ? 16 : 32,
+        paddingBottom: isMobile ? 100 : 40,
+      }}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      <View style={{ maxWidth: isMobile ? undefined : 660, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
+        <Text style={{
+          fontSize: isMobile ? fontSizes.display : fontSizes.h1,
+          fontWeight: isMobile ? "800" : "700",
+          color: theme.text,
+          marginBottom: isMobile ? 16 : 24,
+          letterSpacing: isMobile ? undefined : -0.5,
+        }}>
+          Notifications
+        </Text>
+        {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
+      </View>
     </ScrollView>
   );
 }
