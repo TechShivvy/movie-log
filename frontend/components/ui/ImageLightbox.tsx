@@ -230,14 +230,25 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", padding: 24,
   },
   // Close button positioned relative to this wrapper (the image's own
-  // box), not the screen — same reasoning as the web branch above.
-  imageWrap: { maxWidth: "100%", borderRadius: 12, overflow: "hidden", position: "relative" },
+  // box), not the screen — same reasoning as the web branch above. No
+  // overflow:"hidden" here (unlike an earlier version): the close button
+  // is deliberately anchored *outside* this box (closeBtn's top:-14/
+  // right:-14 below), and overflow:"hidden" on the same box that
+  // establishes its containing block clips absolutely-positioned
+  // children that fall outside its bounds — same as an ancestor
+  // overflow:hidden clips on web. That silently clipped the button on
+  // every native render (rounded corners never needed the clip in the
+  // first place; image/placeholder/error views below each carry their
+  // own borderRadius:12 directly).
+  imageWrap: { maxWidth: "100%", position: "relative" },
   // No fixed aspectRatio — this shows both square avatars and wide
   // banners; resizeMode:"contain" against a fixed box correctly
   // letterboxes either shape without needing to know it up front.
   // Both 100% — imageWrap now always has a real, definite width+height
   // (see its own style override above) for these to resolve against.
-  image: { width: "100%", height: "100%" },
+  // borderRadius here (not on the now-unclipped imageWrap) is what
+  // rounds the actual loaded image's corners.
+  image: { width: "100%", height: "100%", borderRadius: 12 },
   // Kept mounted (not conditionally rendered) while loading so onLoad
   // still fires — just invisible and out of layout, so it can't be the
   // thing collapsing imageWrap to nothing the way an absent Image would.
