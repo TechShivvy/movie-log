@@ -17,19 +17,22 @@ interface ThemeContextValue {
   setFontOption: (key: FontOption) => void;
   /** Single source of truth for whether CustomThemeEditor is open —
    * every entry point that can open it (SettingsScreen's theme grid,
-   * both of Sidebar's palette pickers) calls openCustomThemeEditor()
-   * instead of managing its own local boolean. That used to mean two
-   * independent useState()s in two independently-mounted components
-   * (Sidebar is always part of the authenticated shell; SettingsScreen
-   * is mounted as its children whenever /settings is open), each
-   * rendering its own <CustomThemeEditor> — opening it from Settings
-   * while Sidebar's own trigger was also clicked (or vice versa) showed
-   * two independent modal instances stacked on top of each other, with
-   * no relationship to one another. Lifting the visibility flag here
-   * (this provider already wraps the whole app, above Sidebar) and
-   * mounting exactly one <CustomThemeEditor> — in Sidebar.tsx, the one
-   * place guaranteed to always be part of the authenticated shell —
-   * removes the whole class of bug, not just today's two triggers. */
+   * Sidebar's palette picker) calls openCustomThemeEditor() instead of
+   * managing its own local boolean. That used to mean two independent
+   * useState()s in two independently-mounted components (Sidebar and
+   * SettingsScreen), each rendering its own <CustomThemeEditor> —
+   * opening it from Settings while Sidebar's own trigger was also
+   * clicked (or vice versa) showed two independent modal instances
+   * stacked on top of each other, with no relationship to one another.
+   * Lifting the visibility flag here (this provider already wraps the
+   * whole app) fixed that, but the single <CustomThemeEditor> mount
+   * itself first landed in Sidebar.tsx on the theory that Sidebar is
+   * "always part of the authenticated shell" — false at mobile width,
+   * where app/(app)/_layout.tsx renders MobileLayout instead and
+   * Sidebar never mounts, silently breaking the editor there. The one
+   * mount now lives in app/(app)/_layout.tsx's AppLayout, above the
+   * desktop-Sidebar-vs-mobile-TabBar split, so it's present regardless
+   * of which shell is active. */
   customThemeEditorVisible: boolean;
   openCustomThemeEditor: () => void;
   closeCustomThemeEditor: () => void;

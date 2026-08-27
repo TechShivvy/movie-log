@@ -136,8 +136,9 @@ function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobil
   // by another local boolean + instance in Sidebar.tsx, meant two
   // independent modals could both be open at once (opening from this
   // tile while Sidebar's own palette trigger was also clicked showed
-  // two stacked, unrelated instances). Sidebar renders the single
-  // shared instance now; this only needs to open it.
+  // two stacked, unrelated instances). app/(app)/_layout.tsx renders the
+  // single shared instance now (not Sidebar — Sidebar doesn't mount at
+  // mobile width); this only needs to open it.
   const { openCustomThemeEditor } = useTheme();
   return (
     <View style={{ gap: isMobile ? 24 : 28 }}>
@@ -183,12 +184,13 @@ function AppearanceSection({ theme, fontOption, setTheme, setFontOption, isMobil
         </View>
       </View>
 
-      {/* No <CustomThemeEditor> rendered here — Sidebar.tsx renders the
-          single shared instance (see ThemeContext's own comment); this
-          screen only needs to trigger it via openCustomThemeEditor()
-          above. Sidebar is always part of the authenticated shell
-          wrapping this screen, so that instance is always available to
-          open. */}
+      {/* No <CustomThemeEditor> rendered here — app/(app)/_layout.tsx
+          renders the single shared instance (see ThemeContext's own
+          comment); this screen only needs to trigger it via
+          openCustomThemeEditor() above. That layout wraps every
+          authenticated screen regardless of platform/width, so the
+          instance is always available to open — unlike Sidebar, which
+          isn't mounted at mobile width. */}
     </View>
   );
 }

@@ -31,12 +31,11 @@ import { useTheme } from "../../hooks/useTheme";
 import { useAuth } from "../../hooks/useAuth";
 import { useMyProfile } from "../../hooks/useProfile";
 import { useBreakpoint } from "../../hooks/useBreakpoint";
-import { THEMES, type RawTheme } from "../../constants/themes";
+import { THEMES } from "../../constants/themes";
 import { Icon, type IconName } from "../ui/Icon";
 import { Avatar } from "../ui/Avatar";
 import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
-import { CustomThemeEditor } from "../ui/CustomThemeEditor";
 import { useNavigateOnce } from "../../hooks/useNavigateOnce";
 import { fontFamily } from "../../constants/fonts";
 import { type as fontSizes } from "../../constants/fonts";
@@ -68,19 +67,16 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   const { isTablet } = useBreakpoint();
   const [collapsed, setCollapsed] = useState(isTablet);
   useEffect(() => { setCollapsed(isTablet); }, [isTablet]);
-  const {
-    theme, setTheme, fontConfig,
-    customThemeEditorVisible, openCustomThemeEditor, closeCustomThemeEditor,
-  } = useTheme();
-  // customThemeEditorVisible/open/closeCustomThemeEditor come from
-  // ThemeContext, not local state — see that file's own comment on why
-  // (a local boolean here, mirrored by another local boolean in
-  // SettingsScreen's AppearanceSection, meant two independent
-  // <CustomThemeEditor> instances could both be open at once).
-  const customThemeSeed: RawTheme = {
-    key: "custom", label: "Custom",
-    bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
-  };
+  const { theme, setTheme, fontConfig, openCustomThemeEditor } = useTheme();
+  // openCustomThemeEditor comes from ThemeContext, not local state — see
+  // that file's own comment on why (a local boolean here, mirrored by
+  // another local boolean in SettingsScreen's AppearanceSection, meant two
+  // independent <CustomThemeEditor> instances could both be open at once).
+  // The actual <CustomThemeEditor> mount itself now lives in
+  // app/(app)/_layout.tsx, not here — Sidebar isn't part of the mobile-
+  // width shell (see MobileLayout in that file), so a render site here
+  // alone left mobile with no listener for openCustomThemeEditor() at all.
+  // This component only ever needs to trigger it.
   const { signOut, session } = useAuth();
   // Own-profile data (this hook is cached app-wide under a single
   // ["my-profile"] key, so this doesn't cost a second request beyond
@@ -317,13 +313,6 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" } as React.CSSProperties}>
           {children}
         </div>
-
-        <CustomThemeEditor
-          visible={customThemeEditorVisible}
-          initial={customThemeSeed}
-          onApply={(raw) => { setTheme(raw); closeCustomThemeEditor(); }}
-          onCancel={closeCustomThemeEditor}
-        />
       </div>
     );
   }
@@ -447,13 +436,6 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
       </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
-
-      <CustomThemeEditor
-        visible={customThemeEditorVisible}
-        initial={customThemeSeed}
-        onApply={(raw) => { setTheme(raw); closeCustomThemeEditor(); }}
-        onCancel={closeCustomThemeEditor}
-      />
     </View>
   );
 }

@@ -11,6 +11,8 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { TabBar } from "../../components/layout/TabBar";
 import { TopBar } from "../../components/layout/TopBar";
 import { ScreenLoader } from "../../components/ui/Spinner";
+import { CustomThemeEditor } from "../../components/ui/CustomThemeEditor";
+import type { RawTheme } from "../../constants/themes";
 
 /**
  * Sidebar shell — the desktop/tablet layout (Sidebar + TopBar), not just a
@@ -115,8 +117,37 @@ export default function AppLayout() {
   // call just 401s, which useMyProfile's own try/catch already turns
   // into `null` rather than an error state.
   const { data: profile, isLoading: profileLoading } = useMyProfile();
-  const { theme } = useTheme();
+  const {
+    theme, setTheme,
+    customThemeEditorVisible, closeCustomThemeEditor,
+  } = useTheme();
   const { isMobile } = useBreakpoint();
+  // Single global mount for the whole authenticated shell — regardless of
+  // which layout is actually on screen (SidebarShellLayout on desktop/
+  // tablet, MobileLayout below mobile width). This used to live inside
+  // Sidebar.tsx on the theory that Sidebar was "always part of the
+  // authenticated shell" — true on desktop/tablet, false at mobile width,
+  // where AppLayout renders MobileLayout instead and Sidebar (and its
+  // sole <CustomThemeEditor>) never mounts at all. openCustomThemeEditor()
+  // from Settings' theme grid still flipped ThemeContext's boolean in that
+  // case, just with nothing left listening to render the modal — the
+  // editor silently never appeared on mobile web or native. Hoisting the
+  // one instance here, above the isMobile branch, keeps the single-
+  // source-of-truth visibility state from ThemeContext (no reintroducing
+  // the old duplicate-instance bug this same lift was meant to fix) while
+  // guaranteeing it's mounted no matter which shell is active.
+  const customThemeSeed: RawTheme = {
+    key: "custom", label: "Custom",
+    bg: theme.bg, surface: theme.surface, text: theme.text, accent: theme.accent,
+  };
+  const customThemeEditor = (
+    <CustomThemeEditor
+      visible={customThemeEditorVisible}
+      initial={customThemeSeed}
+      onApply={(raw) => { setTheme(raw); closeCustomThemeEditor(); }}
+      onCancel={closeCustomThemeEditor}
+    />
+  );
 
   if (loading || (session && profileLoading)) return <ScreenLoader />;
 
@@ -201,10 +232,20 @@ export default function AppLayout() {
   // shell — collapsed by default at tablet width via Sidebar's own
   // breakpoint check, same as web.
   if (!isMobile) {
-    return <SidebarShellLayout>{tabs}</SidebarShellLayout>;
+    return (
+      <>
+        <SidebarShellLayout>{tabs}</SidebarShellLayout>
+        {customThemeEditor}
+      </>
+    );
   }
 
-  return <MobileLayout>{tabs}</MobileLayout>;
+  return (
+    <>
+      <MobileLayout>{tabs}</MobileLayout>
+      {customThemeEditor}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
