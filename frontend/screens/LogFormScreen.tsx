@@ -24,18 +24,19 @@
  * Two deliberate, narrow exceptions:
  *   - Watched date/time: web keeps real `<input type="date"/"time">`
  *     (a genuine browser-native picker, free) — native has no
- *     equivalent RN picker installed. The plan's own recommendation was
- *     to add @react-native-community/datetimepicker so native gets a
- *     real picker too, but that's a native module requiring a rebuild
- *     this pass has no way to produce or verify (this session's testing
- *     is Playwright-driven, against the web build, the whole way
- *     through) — installing a dependency Expo Go doesn't already bundle
- *     and never actually exercising it once would be a real regression
- *     risk dressed up as a feature. Native keeps its existing, already-
- *     honest plain-text fallback (with a format hint) rather than
- *     shipping an unverified native module; this is flagged, not
- *     silently done, and is the one item from the plan's Phase 7 this
- *     pass didn't complete.
+ *     equivalent RN picker installed. @react-native-community/
+ *     datetimepicker was actually tried this pass (Expo's own SDK docs
+ *     do confirm it's Expo-Go-compatible, no dev client needed) — but a
+ *     corrupted temp dir left by `npx expo install` on this Windows
+ *     dev machine crashed Metro's file watcher the moment an Android
+ *     bundle was requested, taking the whole dev server down mid a live
+ *     real-device debugging session. Reverted rather than retried while
+ *     that session was still fragile — the risk of a second crash right
+ *     when real-device testing finally mattered outweighed shipping this
+ *     one field. Native keeps its existing, already-honest plain-text
+ *     fallback (with a format hint); this remains the one item from the
+ *     plan's Phase 7 this pass didn't complete, now for a concrete,
+ *     reproduced reason rather than an unverified assumption.
  *   - The AI-extraction poster frame/card: genuinely different sizes
  *     and positions (a 260px column on wide screens, an inline 80×120
  *     thumbnail beside the card on narrow ones) — kept as two small

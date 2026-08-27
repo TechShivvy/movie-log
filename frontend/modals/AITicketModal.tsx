@@ -180,8 +180,15 @@ export function AITicketModal({ visible, llmKey, onClose, onResult, onBatchResul
               <Ticket size={18} color={theme.accent} weight="fill" />
               <Text style={[styles.title, { color: theme.text }]}>AI ticket scan</Text>
             </View>
+            {/* title on the raw phosphor icon is web-only — it renders a
+                real SVG <title> hover tooltip there, but is fatal on
+                native (phosphor-react-native's IconBase emits it as a
+                literal JSX <title>, which isn't a registered native host
+                component — see Icon.tsx's own note on this exact crash).
+                accessibilityLabel on the Pressable already covers
+                native's real screen-reader name. */}
             <Pressable onPress={handleClose} style={styles.closeBtn} accessibilityLabel="Close">
-              <X size={20} color={theme.text} title="Close" />
+              <X size={20} color={theme.text} title={Platform.OS === "web" ? "Close" : undefined} />
             </Pressable>
           </View>
 

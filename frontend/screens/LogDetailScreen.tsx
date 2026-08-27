@@ -25,6 +25,7 @@
 import React, { useState } from "react";
 import {
   Image,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -524,20 +525,28 @@ function ManageButtons({ log, theme, onEdit, onArchive, onDelete }: {
   return (
     <View style={{ flexDirection: "row", gap: 6 }}>
       {/* accessibilityLabel on the Pressable (the real screen-reader
-          target — react-native-web maps this to aria-label) AND `title`
-          on the raw phosphor icon itself: these three icons are imported
-          straight from phosphor-react-native, not through this app's own
-          Icon.tsx wrapper, and react-native-web's Pressable/View has no
-          path to a real DOM `title` attribute at all (not in RNW's
-          forwarded-props list) — but phosphor's own IconProps DOES
-          accept `title` (an SVG <title> child), which browsers natively
-          show as a hover tooltip over the SVG, same visible effect. */}
+          target — react-native-web maps this to aria-label) AND, web
+          only, `title` on the raw phosphor icon itself: these three
+          icons are imported straight from phosphor-react-native, not
+          through this app's own Icon.tsx wrapper, and react-native-web's
+          Pressable/View has no path to a real DOM `title` attribute at
+          all (not in RNW's forwarded-props list) — but phosphor's own
+          IconProps DOES accept `title` (an SVG <title> child), which
+          browsers natively show as a hover tooltip over the SVG, same
+          visible effect. Native must never receive this prop, though —
+          phosphor-react-native's IconBase renders `title` as a literal
+          JSX <title> element inside its <Svg>, which is fatal on native
+          (confirmed via a real device crash: "Text strings must be
+          rendered within a <Text> component" / an invariant violation on
+          the unregistered `title` host component — see Icon.tsx's own,
+          longer note on the exact same bug). accessibilityLabel on the
+          Pressable already covers native's real screen-reader name. */}
       <Pressable
         onPress={onEdit}
         accessibilityLabel="Edit"
         style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: theme.divider, backgroundColor: theme.surfaceHigh }}
       >
-        <PencilSimple size={17} color={theme.text} title="Edit" />
+        <PencilSimple size={17} color={theme.text} title={Platform.OS === "web" ? "Edit" : undefined} />
       </Pressable>
       <Pressable
         onPress={onArchive}
@@ -552,7 +561,7 @@ function ManageButtons({ log, theme, onEdit, onArchive, onDelete }: {
           size={17}
           color={log.is_archived ? theme.accent : theme.text}
           weight={log.is_archived ? "fill" : "regular"}
-          title={log.is_archived ? "Unarchive" : "Archive"}
+          title={Platform.OS === "web" ? (log.is_archived ? "Unarchive" : "Archive") : undefined}
         />
       </Pressable>
       <Pressable
@@ -560,7 +569,7 @@ function ManageButtons({ log, theme, onEdit, onArchive, onDelete }: {
         accessibilityLabel="Delete"
         style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: `${theme.error}55`, backgroundColor: `${theme.error}15` }}
       >
-        <Trash size={17} color={theme.error} title="Delete" />
+        <Trash size={17} color={theme.error} title={Platform.OS === "web" ? "Delete" : undefined} />
       </Pressable>
     </View>
   );

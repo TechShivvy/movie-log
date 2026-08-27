@@ -165,9 +165,23 @@ export function Icon({
 
   const Cmp = NATIVE[name];
   if (!Cmp) return null;
-  // phosphor-react-native's own IconProps has no accessibilityLabel — it
-  // renders an SVG, and `title` is what becomes that SVG's own <title>
-  // element (the accessible name screen readers pick up), not a plain
-  // RN accessibilityLabel prop.
-  return <Cmp size={size} color={color} weight={weight} style={style} title={accessibilityLabel} />;
+  // NOT passing accessibilityLabel through as `title` here, despite what
+  // phosphor-react-native's own IconBase looks like it supports — it
+  // renders `title` as a literal JSX <title> element inside its <Svg>
+  // (react-native-svg), which is exactly correct on web (a real SVG
+  // <title> child, picked up by browsers as a hover tooltip) but fatal
+  // on native: RN's renderer treats an unrecognized lowercase JSX tag as
+  // a host-component lookup, and `'title'` isn't one react-native-svg
+  // registers — confirmed via a real crash on a physical device,
+  // "Text strings must be rendered within a <Text> component" /
+  // "View config getter callback for component `title` must be a
+  // function", the instant any screen rendered an Icon with this prop
+  // set (LibraryScreen's ViewToggle, the very first screen after
+  // sign-in, made this unconditionally fatal on native). The screen-
+  // reader name on native was never actually carried by this prop
+  // anyway — every real call site already sets accessibilityLabel on
+  // the wrapping Pressable/Button, which is what VoiceOver/TalkBack
+  // read; this was purely extra (and, it turns out, native-breaking)
+  // and is dropped rather than reproduced some other way.
+  return <Cmp size={size} color={color} weight={weight} style={style} />;
 }

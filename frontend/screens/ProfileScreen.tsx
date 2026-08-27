@@ -233,24 +233,30 @@ export function ProfileScreen() {
             icons read unambiguous visually, but neither had an actual
             accessible name. accessibilityLabel on the Pressable gives
             the real screen-reader name; `title` on the raw phosphor icon
-            (imported directly, not through this app's Icon.tsx wrapper)
-            gives a real hover tooltip on web — RNW's Pressable/View has
-            no path to a DOM `title` attribute at all, but phosphor's own
-            SVG <title> child does render one natively. */}
+            (imported directly, not through this app's Icon.tsx wrapper),
+            web only, gives a real hover tooltip on web — RNW's
+            Pressable/View has no path to a DOM `title` attribute at all,
+            but phosphor's own SVG <title> child does render one there.
+            Native must never get this prop: phosphor-react-native's
+            IconBase renders `title` as a literal JSX <title> inside its
+            <Svg>, which is fatal on native (confirmed via a real device
+            crash — see Icon.tsx's own note on the same bug).
+            accessibilityLabel on the Pressable already covers native's
+            real screen-reader name. */}
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
           <Pressable
             onPress={() => setEditing(true)}
             accessibilityLabel="Edit profile"
             style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
           >
-            <PencilSimple size={16} color={theme.text} title="Edit profile" />
+            <PencilSimple size={16} color={theme.text} title={Platform.OS === "web" ? "Edit profile" : undefined} />
           </Pressable>
           <Pressable
             onPress={() => router.push("/(app)/settings" as any)}
             accessibilityLabel="Settings"
             style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
           >
-            <GearSix size={16} color={theme.text} title="Settings" />
+            <GearSix size={16} color={theme.text} title={Platform.OS === "web" ? "Settings" : undefined} />
           </Pressable>
         </View>
       </View>
