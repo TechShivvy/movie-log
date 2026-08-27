@@ -31,6 +31,16 @@ export interface PublicProfile {
   // blocked — that's deliberate, see PublicProfileScreen.tsx.
   is_blocking: boolean;
   can_view_content: boolean;
+  // NOT YET returned by GET /public/users/{username} as of this writing —
+  // the profile RPC (get_public_profile_by_username) has no equivalent of
+  // is_blocking for follow state, so there's no backend signal for "I have
+  // a pending request to this private account" on a fresh page load today.
+  // useFollowUser already tracks this client-side (from the POST/DELETE
+  // response's own `status`, cached per-session) as a stopgap — this field
+  // is typed now so PublicProfileScreen picks it up for real the moment
+  // the backend adds it, with the client-side value as fallback until
+  // then. See the backend handoff note in useFollowUser (hooks/useSocial.ts).
+  caller_follow_status?: "none" | "pending" | "accepted";
 }
 
 // GET /public/blocks — the caller's own blocked accounts. Only the

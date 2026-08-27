@@ -56,10 +56,21 @@ export function PublicProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [lightbox, setLightbox] = useState<string | undefined>(undefined);
   const [confirmingBlock, setConfirmingBlock] = useState(false);
+  const [confirmingUnfollow, setConfirmingUnfollow] = useState(false);
 
   const profile = data?.profile;
   const logs = data?.logs ?? [];
-  const isFollowing = !!followers?.some((f) => f.user_id === user?.id);
+  // caller_follow_status is the real tri-state signal (see its own type
+  // comment in types/index.ts and useFollowUser's) — falls back to the
+  // old accepted-followers-list-membership check only for the window
+  // before that field exists on a fresh page load with nothing in cache
+  // yet (it can only ever resolve to 'accepted' or 'none' that way, never
+  // 'pending' — a private/followers_only account you've already requested
+  // still shows a plain "Follow" until you tap it again, at which point
+  // the 409 the backend already returns for a duplicate request makes
+  // useFollowUser's own onError put it right).
+  const followStatus: NonNullable<typeof profile>["caller_follow_status"] =
+    profile?.caller_follow_status ?? (followers?.some((f) => f.user_id === user?.id) ? "accepted" : "none");
   const isOwnProfile = !!profile && profile.user_id === user?.id;
   const isPreviewingSelf = isOwnProfile && !!preview;
   // is_blocking is caller-directional (see types/index.ts) — this is only
@@ -70,7 +81,26 @@ export function PublicProfileScreen() {
   const openLog = (log: MovieLog) => router.push(`/(app)/log/${log.id}` as any);
   const toggleFollow = () => {
     if (!username) return;
-    followUser.mutate({ username, following: isFollowing });
+    if (followStatus === "accepted") {
+      // Unfollowing someone you're actually following is the one
+      // consequential direction here (you'd lose access to their
+      // followers_only content again, and following someone you already
+      // follow back has social weight) — confirm it, same as Block.
+      // Canceling a still-pending request you just sent, below, is the
+      // safe/reversible direction and doesn't need the same friction.
+      setConfirmingUnfollow(true);
+      return;
+    }
+    // DELETE .../follows/{username} tears down a pending request exactly
+    // the same way it unfollows an accepted one (see routers/follows.py),
+    // so "following" here just means "is there anything to tear down" —
+    // true for 'pending' (cancel), only false for 'none' (send a new one).
+    followUser.mutate({ username, following: followStatus !== "none" });
+  };
+  const confirmUnfollow = () => {
+    setConfirmingUnfollow(false);
+    if (!username) return;
+    followUser.mutate({ username, following: true });
   };
   const toggleBlock = () => {
     if (!username) return;
@@ -182,9 +212,14 @@ export function PublicProfileScreen() {
             {!isOwnProfile && (
               <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
                 <Button
-                  variant={isFollowing ? "secondary" : "primary"}
-                  icon={isFollowing ? "user-check" : "user-plus"}
-                  label={isFollowing ? "Following" : "Follow"}
+                  variant={followStatus === "none" ? "primary" : "secondary"}
+                  icon={followStatus === "accepted" ? "user-check" : followStatus === "pending" ? "clock" : "user-plus"}
+                  label={followStatus === "accepted" ? "Following" : followStatus === "pending" ? "Requested" : "Follow"}
+                  accessibilityLabel={
+                    followStatus === "accepted" ? `Unfollow @${profile.username}`
+                    : followStatus === "pending" ? `Cancel follow request to @${profile.username}`
+                    : `Follow @${profile.username}`
+                  }
                   onPress={toggleFollow}
                 />
                 <Button
@@ -239,6 +274,15 @@ export function PublicProfileScreen() {
       destructive
       onConfirm={confirmBlock}
       onCancel={() => setConfirmingBlock(false)}
+    />
+    <ConfirmDialog
+      visible={confirmingUnfollow}
+      title={`Unfollow @${profile.username}`}
+      message="You'll stop seeing their logs in your feed. They won't be notified."
+      confirmLabel="Unfollow"
+      destructive
+      onConfirm={confirmUnfollow}
+      onCancel={() => setConfirmingUnfollow(false)}
     />
     </>
   );

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, DEMO_MODE } from "../lib/api";
+import { api, ApiError, DEMO_MODE } from "../lib/api";
 import { patchLogInEveryCache } from "./useMovieLogs";
 import { useAuth } from "./useAuth";
-import type { BlockedUser, Comment, FollowerEntry, MovieLog, PublicProfileResponse, UserSearchResult } from "../types";
+import type { BlockedUser, Comment, FollowerEntry, MovieLog, PublicProfile, PublicProfileResponse, UserSearchResult } from "../types";
 
 // ─── Public profile ─────────────────────────────────────────────────────────
 
@@ -377,6 +377,17 @@ export function useCommentLikes(commentId: string | undefined, enabled: boolean)
 // Follows are at /api/v1/public/follows/{username}  (not /users/{username}/follow)
 // Blocks  are at /api/v1/public/blocks/{username}   (not /users/{username}/block)
 
+// What POST /public/follows/{username} actually returns — the raw
+// `follows` row (services/supabase_rest.py's create_follow does a plain
+// insert with prefer=return=representation, not a shaped response). The
+// one field this hook actually needs is `status`: 'accepted' if the
+// target is public, 'pending' otherwise (decided server-side, not
+// guessable from account_visibility alone since the router itself is
+// the one branching on it — see routers/follows.py's follow_user).
+interface FollowRow {
+  status: "pending" | "accepted";
+}
+
 export function useFollowUser() {
   const qc = useQueryClient();
   const { session } = useAuth();
@@ -386,51 +397,119 @@ export function useFollowUser() {
       following,
     }: {
       username: string;
+      // Despite the name, this is really "do I have ANY existing
+      // relationship (pending or accepted) to tear down" — DELETE
+      // .../follows/{username} cancels a pending request exactly the
+      // same way it unfollows an accepted one (see the route's own
+      // description), so the caller only ever needs a single boolean,
+      // not a third branch here.
       following: boolean;
-    }) => {
-      if (DEMO_MODE) return;
+    }): Promise<FollowRow | undefined> => {
+      if (DEMO_MODE) return undefined;
       if (following) {
-        // currently following → DELETE to unfollow
+        // currently following (or pending) → DELETE to unfollow/cancel
         await api.delete(`/public/follows/${username}`);
-      } else {
-        // not following → POST to follow
-        await api.post(`/public/follows/${username}`);
+        return undefined;
       }
+      // not following → POST to follow (or request, if private/followers_only)
+      const { data } = await api.post<FollowRow>(`/public/follows/${username}`);
+      return data;
     },
     // Real optimistic update, same onMutate/onError shape useLikeLog
-    // above already establishes — the Follow/Following button used to
-    // only flip after the full round-trip landed. The button's state is
-    // derived from useFollowers's own list (does the caller's own
-    // user_id appear in it), not a boolean field, so onMutate adds/
-    // removes a minimal entry (just the id the membership check reads)
-    // rather than a boolean flip — a real follower row's other fields
-    // (username/display_name/avatar_path) get filled in for real once
-    // onSuccess's invalidate refetches, same as onSettled does elsewhere
-    // in this file.
+    // above already establishes — the Follow button used to only flip
+    // after the full round-trip landed. Two things get patched:
+    //   1. caller_follow_status on the cached PublicProfileResponse's
+    //      `profile` — this is what the button's label/variant ('Follow'/
+    //      'Requested'/'Following') actually reads. The backend's own
+    //      profile RPC (get_public_profile_by_username) doesn't return
+    //      this field yet (no equivalent of is_blocking for follow state
+    //      — see the type comment on PublicProfile.caller_follow_status),
+    //      so this optimistic write plus onSuccess's reconciliation
+    //      against the real POST response is the only source of truth
+    //      this button has *at all* right now, not just an optimistic
+    //      head start — it doesn't get corrected by a refetch the way
+    //      onSuccess's invalidate below quietly assumes for is_blocking.
+    //   2. useFollowers's own accepted-followers list — only touched when
+    //      the relationship is (or becomes) 'accepted'; a 'pending'
+    //      request deliberately never appears there, matching what that
+    //      list actually represents server-side.
     onMutate: async ({ username, following }) => {
-      const key = ["public-profile", username, "followers"];
-      await qc.cancelQueries({ queryKey: key });
-      const snapshot = qc.getQueryData<FollowerEntry[]>(key);
+      const profileKey = ["public-profile", username];
+      const followersKey = ["public-profile", username, "followers"];
+      await qc.cancelQueries({ queryKey: profileKey });
+      await qc.cancelQueries({ queryKey: followersKey });
+      const profileSnapshot = qc.getQueryData<PublicProfileResponse>(profileKey);
+      const followersSnapshot = qc.getQueryData<FollowerEntry[]>(followersKey);
       const myId = session?.user?.id;
+
+      // following:true means "tear down whatever exists" → always lands
+      // on 'none'. following:false means "start one" — optimistically
+      // guess 'accepted' for a public account and 'pending' otherwise
+      // (mirrors the server's own branch); onSuccess overwrites this
+      // guess with the real status the POST actually returned.
+      const optimisticStatus: PublicProfile["caller_follow_status"] = following
+        ? "none"
+        : profileSnapshot?.profile.account_visibility === "public"
+        ? "accepted"
+        : "pending";
+
+      if (profileSnapshot) {
+        qc.setQueryData<PublicProfileResponse>(profileKey, {
+          ...profileSnapshot,
+          profile: { ...profileSnapshot.profile, caller_follow_status: optimisticStatus },
+        });
+      }
       if (myId) {
-        qc.setQueryData<FollowerEntry[]>(key, (prev = []) =>
-          following
-            ? prev.filter((f) => f.user_id !== myId)
-            : [...prev, { user_id: myId, followed_at: new Date().toISOString() }]
+        qc.setQueryData<FollowerEntry[]>(followersKey, (prev = []) => {
+          const withoutMe = prev.filter((f) => f.user_id !== myId);
+          return optimisticStatus === "accepted"
+            ? [...withoutMe, { user_id: myId, followed_at: new Date().toISOString() }]
+            : withoutMe;
+        });
+      }
+      return { profileSnapshot, followersSnapshot, profileKey, followersKey };
+    },
+    onError: (err, _vars, context) => {
+      if (!context) return;
+      // ALREADY_FOLLOWING means the caller's own outgoing request already
+      // exists server-side (pending or accepted) — reached specifically
+      // because there's no backend field yet for a fresh page load to
+      // know that upfront (see caller_follow_status's own type comment),
+      // so the button optimistically showed 'Follow' and the caller just
+      // found out that was wrong. Rolling back to the pre-mutation
+      // snapshot here would silently put 'Follow' right back — the same
+      // wrong state that caused the 409 in the first place, with no way
+      // for the caller to ever discover the real status without an
+      // unrelated action elsewhere. Settling on 'pending' instead is the
+      // correct inference for this specific error: if the relationship
+      // were already 'accepted', useFollowers' own list-membership
+      // fallback would already have shown 'Following' and this branch
+      // would never have been reached at all. Any other error (a real
+      // network failure, etc.) still rolls back to the exact snapshot.
+      if (err instanceof ApiError && err.code === "ALREADY_FOLLOWING" && context.profileSnapshot) {
+        qc.setQueryData<PublicProfileResponse>(context.profileKey, {
+          ...context.profileSnapshot,
+          profile: { ...context.profileSnapshot.profile, caller_follow_status: "pending" },
+        });
+        return;
+      }
+      if (context.profileSnapshot) qc.setQueryData(context.profileKey, context.profileSnapshot);
+      qc.setQueryData(context.followersKey, context.followersSnapshot);
+    },
+    // Reconciles the optimistic guess with the real `status` the POST
+    // returned (a DELETE has no body — undefined here just means "none",
+    // already set correctly in onMutate). Falls through to the same
+    // invalidate as before either way, so any other derived state
+    // (follower counts, etc.) still catches up from the server.
+    onSuccess: (data, { username }) => {
+      if (data?.status) {
+        const profileKey = ["public-profile", username];
+        qc.setQueryData<PublicProfileResponse>(profileKey, (prev) =>
+          prev ? { ...prev, profile: { ...prev.profile, caller_follow_status: data.status } } : prev
         );
       }
-      return { snapshot, key };
+      qc.invalidateQueries({ queryKey: ["public-profile", username] });
     },
-    onError: (_err, _vars, context) => {
-      if (context) qc.setQueryData(context.key, context.snapshot);
-    },
-    // Was invalidating ["profile"] — a key nothing in this codebase
-    // actually queries under (usePublicProfile uses ["public-profile",
-    // username]), so this never invalidated anything real. The prefix
-    // here also covers useFollowers's ["public-profile", username,
-    // "followers"] key, which is what the Follow/Following button's
-    // state is actually derived from.
-    onSuccess: (_data, { username }) => qc.invalidateQueries({ queryKey: ["public-profile", username] }),
   });
 }
 
