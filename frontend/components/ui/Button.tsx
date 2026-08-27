@@ -1,0 +1,167 @@
+/**
+ * Button — matches design-system .btn classes exactly.
+ *
+ * Web:    className="btn btn-{variant}" (CSS handles all hover/active/focus states)
+ * Native: StyleSheet with design-system measurements.
+ *
+ * Design spec (.btn):
+ *   padding: 5.6px 10px; border-radius:8px; font-size:14px; gap:6px
+ *   .btn-primary  → color:accent; border-color:accent
+ *   .btn-secondary → border-color:divider
+ *   .btn-ghost    → color:accent; no border; padding-inline:2.8px
+ *   .btn-icon     → 36×36px; padding:0
+ *   .btn-block    → width:100%
+ */
+import React from "react";
+import { Platform, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
+import { useTheme } from "../../hooks/useTheme";
+import { Spinner } from "./Spinner";
+import { Icon, type IconName } from "./Icon";
+import { type as fontSizes } from "../../constants/fonts";
+
+type Variant = "primary" | "secondary" | "ghost" | "icon";
+
+interface ButtonProps {
+  onPress?: () => void;
+  label?: string;
+  /** Shown before the label. Swaps to a spinning circle-notch while loading — the label stays put either way, so a caller passing a loading-specific label ("Signing in…") doesn't have it vanish under a bare spinner. */
+  icon?: IconName;
+  variant?: Variant;
+  loading?: boolean;
+  disabled?: boolean;
+  block?: boolean;
+  /**
+   * Overrides the variant's own color/border (both platforms) — for the
+   * one real case that needs a color the variant system doesn't have,
+   * not a general escape hatch: a destructive confirm button
+   * (ConfirmDialog) needs theme.error instead of theme.accent, and nothing
+   * else in this app currently needs a fourth color. Composition over
+   * a new "destructive" variant, since it's exactly one property that
+   * varies, not a whole new visual shape.
+   */
+  color?: string;
+  /** Required in practice for any `icon`-only button (no `label`, no
+   * `children`) — that's otherwise a control with no accessible name at
+   * all, unlabeled for a screen reader and untitled on hover for a mouse
+   * user. Sets `title`+`aria-label` on web, `accessibilityLabel` on
+   * native. Safe to pass alongside a visible `label` too (it just
+   * becomes the tooltip/redundant accessible name there), but the real
+   * requirement is icon-only buttons. */
+  accessibilityLabel?: string;
+  style?: ViewStyle | any;
+  /**
+   * Full content override. Unlike `icon`+`label`, children fully replace
+   * whatever `loading` would otherwise show — there's no label for a
+   * loading state to preserve when the caller's supplying arbitrary content.
+   */
+  children?: React.ReactNode;
+  /**
+   * Web only. A bare <button> defaults to type="submit" when it's inside a
+   * <form> — every Button rendered in a form would trigger that form's
+   * onSubmit on click, not just the one meant to. Defaults to "button" so
+   * opting into submit is explicit.
+   */
+  type?: "button" | "submit";
+}
+
+export function Button({
+  onPress, label, icon, variant = "primary", loading, disabled, block, color, accessibilityLabel, style, children, type = "button",
+}: ButtonProps) {
+  const { theme } = useTheme();
+  const isDisabled = disabled || loading;
+  const shownIcon = loading ? "circle-notch" : icon;
+
+  // ── Web ────────────────────────────────────────────────────────────────────
+  if (Platform.OS === "web") {
+    const classes = ["btn", `btn-${variant}`, block ? "btn-block" : ""].filter(Boolean).join(" ");
+    return (
+      <button
+        type={type}
+        className={classes}
+        onClick={onPress}
+        disabled={isDisabled}
+        title={accessibilityLabel}
+        aria-label={accessibilityLabel}
+        style={{ ...(color ? { color, borderColor: color } : {}), ...(style as object) } as React.CSSProperties}
+      >
+        {children ?? (
+          <>
+            {shownIcon ? <Icon name={shownIcon} size={16} color={color} /> : null}
+            {label ? <span>{label}</span> : null}
+          </>
+        )}
+      </button>
+    );
+  }
+
+  // ── Native ─────────────────────────────────────────────────────────────────
+  const nativeColor = color ?? (variant === "primary" || variant === "ghost" ? theme.accent : theme.text);
+  const nativeBorder = color ?? (variant === "primary"   ? theme.accent
+                     : variant === "secondary" ? theme.divider
+                     : "transparent");
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={isDisabled}
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => [
+        styles.base,
+        variant === "icon"  && styles.iconBtn,
+        variant === "ghost" && styles.ghostPad,
+        block && styles.block,
+        {
+          borderColor:     nativeBorder,
+          opacity: (pressed || isDisabled) ? 0.6 : 1,
+        },
+        style,
+      ]}
+    >
+      {children ?? (
+        <>
+          {loading ? (
+            <Spinner size="sm" color={nativeColor} />
+          ) : icon ? (
+            <Icon name={icon} size={16} color={nativeColor} />
+          ) : null}
+          {label ? <Text style={[styles.label, { color: nativeColor }]}>{label}</Text> : null}
+        </>
+      )}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  base: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 5.6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    padding: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  ghostPad: {
+    paddingHorizontal: 2.8,
+    borderWidth: 0,
+  },
+  block: {
+    width: "100%",
+    marginTop: 5.6,
+    justifyContent: "center",
+  },
+  label: {
+    fontSize: fontSizes.base,
+    fontWeight: "500",
+    lineHeight: 16.8,
+  },
+});

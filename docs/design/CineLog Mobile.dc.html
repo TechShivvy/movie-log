@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-6c662832-8804-4912-8194-f1d3781c3c51/styles.css">
+<script src="_ds/nocturne-6c662832-8804-4912-8194-f1d3781c3c51/_ds_bundle.js"></script>
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  .clg-scroll::-webkit-scrollbar { width: 0; height: 0; }
+  .clg-scroll { scrollbar-width: none; }
+  .tapc { cursor: pointer; }
+  .poster { position: relative; border-radius: var(--radius-md); overflow: hidden; display:flex; align-items:flex-end; }
+  .poster .pt { padding: 10px; width:100%; }
+  .lift { transition: transform .16s cubic-bezier(.2,.7,.3,1), box-shadow .16s ease; }
+  .lift:hover { transform: translateY(-2px); }
+  .poster.lift:hover, .gridcard:hover .poster.lift { transform: scale(1.04); }
+  .jumpbtn { text-align:left; justify-content:flex-start; width:100%; }
+  .tag-neutral, .mono { font-family:'JetBrains Mono', ui-monospace, monospace; letter-spacing:.01em; }
+  .btn-primary { transition: box-shadow .2s ease, background .15s ease; }
+  .btn-primary:hover { box-shadow: 0 0 22px color-mix(in srgb, var(--color-accent) 40%, transparent); }
+  .glass { background: color-mix(in srgb, var(--color-surface) 74%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+  .grain { position:absolute; inset:0; z-index:55; pointer-events:none; opacity:.045; mix-blend-mode:overlay; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  @keyframes clgDrift { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(-5%,-4%) scale(1.08)} 100%{transform:translate(0,0) scale(1)} }
+  .cine-bg { position:absolute; inset:-25%; z-index:0; filter:blur(48px); animation:clgDrift 16s ease-in-out infinite; background:radial-gradient(circle at 32% 24%, color-mix(in srgb, var(--color-accent) 34%, transparent), transparent 46%), radial-gradient(circle at 74% 68%, color-mix(in srgb, var(--color-accent) 20%, transparent), transparent 52%); }
+  @keyframes clgIn { from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none} }
+  .screen-anim { animation: clgIn .3s ease both; }
+  @keyframes clgSpin { to { transform: rotate(360deg); } }
+  .ph-circle-notch { display:inline-block; animation: clgSpin 1s linear infinite; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:var(--color-bg); padding:40px 32px; font-family:var(--font-body); color:var(--color-text);">
+
+  <div style="max-width:520px; margin-bottom:28px;">
+    <div style="font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-accent); margin-bottom:8px;">CineLog · Phase 1 · Mobile</div>
+    <h1 style="font-size:40px; margin:0 0 10px;">Your cinema, on the record.</h1>
+    <p class="text-muted" style="font-size:15px; margin:0; max-width:46ch;">A theatre-going diary that doubles as a quiet social feed. Log a ticket, rate the room, follow friends. Every screen and tab, on the Nocturne system — swap the whole palette in Settings.</p>
+  </div>
+
+  <div style="display:flex; gap:36px; align-items:flex-start; flex-wrap:wrap;">
+
+    <!-- ===== REVIEW RAIL ===== -->
+    <div style="width:212px; display:flex; flex-direction:column; gap:20px; position:sticky; top:24px;">
+      <div>
+        <div style="font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px;">Jump to any screen</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <sc-for list="{{ jumpItems }}" as="j" hint-placeholder-count="12">
+            <button class="btn jumpbtn {{ j.cls }}" onClick="{{ j.go }}"><i class="{{ j.icon }}" style="font-size:16px;"></i>{{ j.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px;">Palette · live</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <sc-for list="{{ themes }}" as="t" hint-placeholder-count="11">
+            <button class="tapc" onClick="{{ t.pick }}" title="{{ t.label }}" style="{{ t.swatchStyle }}"></button>
+          </sc-for>
+        </div>
+        <div class="text-muted" style="font-size:11px; margin-top:8px;">{{ themeLabel }}</div>
+      </div>
+    </div>
+
+    <!-- ===== PHONE ===== -->
+    <div style="width:392px; height:848px; border-radius:46px; padding:11px; background:linear-gradient(150deg,#2a2c3a,#101119); box-shadow:0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05); flex:none;">
+      <div style="{{ themeWrapStyle }}">
+      <div style="{{ frameStyle }}">
+        <div class="grain"></div>
+
+        <!-- notch -->
+        <div style="position:absolute; top:0; left:0; right:0; height:34px; display:flex; align-items:center; justify-content:space-between; padding:0 22px; z-index:40; font-size:12px; color:var(--color-text);">
+          <span style="font-weight:600;">9:41</span>
+          <div style="display:flex; gap:5px; align-items:center;"><i class="ph-fill ph-cell-signal-full" style="font-size:13px;"></i><i class="ph-fill ph-wifi-high" style="font-size:13px;"></i><i class="ph-fill ph-battery-high" style="font-size:15px;"></i></div>
+        </div>
+
+        <!-- ============ SCROLL BODY ============ -->
+        <div class="clg-scroll" style="flex:1; overflow-y:auto; overflow-x:hidden; padding-top:34px;">
+
+        <!-- ---------- LOGIN ---------- -->
+        <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+          <div class="screen-anim" style="padding:48px 26px 30px; display:flex; flex-direction:column; min-height:760px; position:relative; overflow:hidden;">
+            <div class="cine-bg" style="z-index:-1;"></div>
+            <div style="margin-top:40px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px;">
+              <div style="width:60px; height:60px; border-radius:16px; display:grid; place-items:center; border:1px solid var(--color-accent); color:var(--color-accent); margin-bottom:6px;"><i class="ph-fill ph-film-slate" style="font-size:30px;"></i></div>
+              <div style="font-family:var(--font-heading); font-size:30px; letter-spacing:-.02em;">CineLog</div>
+              <div class="text-muted" style="font-size:14px;">Track every theatre memory.</div>
+            </div>
+            <div style="margin-top:44px; display:flex; flex-direction:column; gap:16px;">
+              <div class="field"><label>Email address</label><input class="input" value="you@email.com" readonly></div>
+              <div class="field"><label>Password</label><input class="input" type="password" value="password" readonly></div>
+              <button class="btn btn-primary btn-block" onClick="{{ goLibrary }}"><i class="ph ph-sign-in"></i>Sign in</button>
+              <button class="btn btn-secondary btn-block" onClick="{{ goLibrary }}"><i class="ph ph-magic-wand"></i>Send magic link</button>
+              <div style="display:flex; align-items:center; gap:10px; margin:4px 0;"><div style="flex:1; height:1px; background:var(--color-divider);"></div><span class="text-muted" style="font-size:11px;">OR</span><div style="flex:1; height:1px; background:var(--color-divider);"></div></div>
+              <button class="btn btn-secondary btn-block" onClick="{{ goLibrary }}"><i class="ph ph-google-logo"></i>Continue with Google</button>
+            </div>
+            <div class="text-muted" style="margin-top:auto; text-align:center; font-size:13px; padding-top:30px;">New here? <span style="color:var(--color-accent);">Create an account</span></div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- LIBRARY ---------- -->
+        <sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ false }}">
+          <div class="screen-anim" style="padding:14px 18px 24px;">
+            <sc-if value="{{ showPwa }}" hint-placeholder-val="{{ true }}">
+              <div class="glass" style="display:flex; align-items:center; gap:10px; padding:11px; border-radius:var(--radius-md); margin-bottom:16px; border:1px solid var(--color-divider);">
+                <i class="ph ph-device-mobile-camera" style="color:var(--color-accent); font-size:22px;"></i>
+                <div style="flex:1;"><div style="font-size:13px; font-family:var(--font-heading);">Install CineLog</div><div class="text-muted" style="font-size:11px;">Add to home screen — works offline.</div></div>
+                <button class="btn btn-primary" style="padding:4px 12px; font-size:12px;" onClick="{{ dismissPwa }}">Install</button>
+                <i class="ph ph-x tapc text-muted" onClick="{{ dismissPwa }}" style="font-size:16px;"></i>
+              </div>
+            </sc-if>
+            <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:4px;">
+              <div>
+                <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent);">Your library</div>
+                <h2 style="font-size:27px; margin:2px 0 0;">142 films logged</h2>
+              </div>
+              <button class="btn btn-icon btn-secondary" onClick="{{ goStats }}"><i class="ph ph-chart-bar" style="font-size:18px;"></i></button>
+            </div>
+            <div style="display:flex; gap:8px; overflow-x:auto; margin:14px 0 4px; padding-bottom:2px;" class="clg-scroll">
+              <sc-for list="{{ libFilters }}" as="f" hint-placeholder-count="5">
+                <span class="tag {{ f.cls }}" style="white-space:nowrap; cursor:pointer;">{{ f.label }}</span>
+              </sc-for>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; margin:14px 0 12px;">
+              <div class="text-muted" style="font-size:12px;">Sorted by recent</div>
+              <div class="seg">
+                <label class="seg-opt" style="{{ gridSel }}" onClick="{{ setGrid }}"><i class="ph ph-squares-four"></i></label>
+                <label class="seg-opt" style="{{ listSel }}" onClick="{{ setList }}"><i class="ph ph-rows"></i></label>
+              </div>
+            </div>
+
+            <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+                <sc-for list="{{ logs }}" as="m" hint-placeholder-count="8">
+                  <div class="tapc lift" onClick="{{ m.open }}">
+                    <div class="poster" style="{{ m.posterStyle }}; aspect-ratio:2/3;">
+                      <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.45); backdrop-filter:blur(4px); border-radius:6px; padding:2px 7px; font-size:11px; display:flex; align-items:center; gap:3px; color:#fff;"><i class="ph-fill ph-star" style="color:var(--color-accent); font-size:11px;"></i>{{ m.rating }}</div>
+                      <div class="pt"><div style="font-family:var(--font-heading); font-size:16px; line-height:1.1; color:#fff; text-shadow:0 1px 8px rgba(0,0,0,.6);">{{ m.title }}</div></div>
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:7px;">
+                      <span class="text-muted" style="font-size:11px;">{{ m.dateShort }}</span>
+                      <span class="tag tag-neutral" style="font-size:10px; padding:2px 7px;">{{ m.format }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <sc-for list="{{ logs }}" as="m" hint-placeholder-count="8">
+                  <div class="card tapc lift" style="flex-direction:row; gap:12px; align-items:stretch; padding:10px;" onClick="{{ m.open }}">
+                    <div class="poster" style="{{ m.posterStyle }}; width:56px; flex:none; aspect-ratio:2/3;"></div>
+                    <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;">
+                      <div style="display:flex; justify-content:space-between; gap:8px;"><div style="font-family:var(--font-heading); font-size:16px;">{{ m.title }} <span class="text-muted" style="font-weight:400;">{{ m.year }}</span></div><span style="font-size:12px; color:var(--color-accent); white-space:nowrap;"><i class="ph-fill ph-star" style="font-size:11px;"></i> {{ m.rating }}</span></div>
+                      <div class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:5px;"><i class="ph ph-map-pin" style="font-size:12px;"></i>{{ m.theater }}</div>
+                      <div class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:5px;"><i class="ph ph-calendar-blank" style="font-size:12px;"></i>{{ m.dateShort }} · {{ m.time }}</div>
+                      <div style="display:flex; gap:5px; margin-top:3px; flex-wrap:wrap;">
+                        <span class="tag tag-outline" style="font-size:10px; padding:1px 7px;">{{ m.format }}</span>
+                        <span class="tag tag-neutral" style="font-size:10px; padding:1px 7px;">{{ m.cert }}</span>
+                        <span class="tag tag-neutral" style="font-size:10px; padding:1px 7px;">{{ m.lang }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <!-- ---------- FEED ---------- -->
+        <sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+              <h2 style="font-size:27px; margin:0;">Feed</h2>
+              <button class="btn btn-icon btn-secondary" onClick="{{ goNotif }}" style="position:relative;"><i class="ph ph-bell" style="font-size:18px;"></i><span style="position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--color-accent);"></span></button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <sc-for list="{{ feed }}" as="p" hint-placeholder-count="4">
+                <div class="card" style="gap:10px; padding:14px;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="{{ p.avatarStyle }}">{{ p.initial }}</div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:14px;"><span style="font-family:var(--font-heading);">{{ p.user }}</span> <span class="text-muted">logged</span></div>
+                      <div class="text-muted" style="font-size:11px;">{{ p.time }}</div>
+                    </div>
+                    <span style="font-size:13px; color:var(--color-accent); white-space:nowrap;"><i class="ph-fill ph-star" style="font-size:12px;"></i> {{ p.rating }}</span>
+                  </div>
+                  <div class="tapc" onClick="{{ p.open }}" style="display:flex; gap:12px;">
+                    <div class="poster" style="{{ p.posterStyle }}; width:64px; flex:none; aspect-ratio:2/3;"></div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-family:var(--font-heading); font-size:17px; line-height:1.15;">{{ p.film }} <span class="text-muted" style="font-weight:400; font-size:14px;">{{ p.year }}</span></div>
+                      <div class="text-muted" style="font-size:12px; display:flex; align-items:center; gap:4px; margin:3px 0 6px;"><i class="ph ph-map-pin" style="font-size:12px;"></i>{{ p.theater }}</div>
+                      <div style="font-size:13px; opacity:.9; line-height:1.4;">{{ p.text }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:18px; padding-top:4px; border-top:1px solid var(--color-divider); margin-top:2px;">
+                    <span class="tapc text-muted" style="font-size:12px; display:flex; align-items:center; gap:5px; {{ p.likeStyle }}"><i class="{{ p.likeIcon }}" style="font-size:16px;"></i>{{ p.likes }}</span>
+                    <span class="tapc text-muted" onClick="{{ p.open }}" style="font-size:12px; display:flex; align-items:center; gap:5px;"><i class="ph ph-chat-circle" style="font-size:16px;"></i>{{ p.comments }}</span>
+                    <span class="tapc text-muted" style="font-size:12px; display:flex; align-items:center; gap:5px; margin-left:auto;"><i class="ph ph-share-network" style="font-size:16px;"></i></span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- LOG A MOVIE ---------- -->
+        <sc-if value="{{ isLog }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent);">Add new entry</div>
+            <h2 style="font-size:27px; margin:2px 0 16px;">Log a screening</h2>
+
+            <div style="display:flex; gap:12px; margin-bottom:16px;">
+              <div class="poster" style="background:repeating-linear-gradient(135deg, var(--color-surface), var(--color-surface) 10px, color-mix(in srgb, var(--color-text) 5%, var(--color-surface)) 10px, color-mix(in srgb, var(--color-text) 5%, var(--color-surface)) 20px); width:96px; flex:none; aspect-ratio:2/3; border:1px dashed var(--color-divider); align-items:center; justify-content:center;">
+                <div style="text-align:center; color:var(--color-accent);"><i class="ph ph-camera-plus" style="font-size:24px;"></i><div style="font-size:10px; margin-top:4px; color:var(--color-text); opacity:.6;">Poster</div></div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; gap:8px; justify-content:center;">
+                <div style="font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.6;">AI ticket extraction</div>
+                <button class="btn btn-primary" onClick="{{ openAI }}"><i class="ph ph-sparkle"></i>Scan ticket &amp; auto-fill</button>
+                <div class="text-muted" style="font-size:11px;">Snap the ticket — we read the movie, theatre, seats and showtime.</div>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div class="field"><label>Movie title</label><input class="input" value="{{ formTitle }}" placeholder="e.g. Halcyon"></div>
+              <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Release year</label><input class="input" value="{{ formYear }}"></div>
+                <div class="field" style="flex:1;"><label>Runtime (min)</label><input class="input" value="{{ formRuntime }}"></div>
+              </div>
+              <div class="field"><label>Theatre</label><input class="input" value="{{ formTheater }}"></div>
+              <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Screen</label><input class="input" value="{{ formScreen }}"></div>
+                <div class="field" style="flex:1;"><label>Seats</label><input class="input" value="{{ formSeats }}"></div>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <div class="field" style="flex:1;"><label>Date</label><input class="input" value="{{ formDate }}"></div>
+                <div class="field" style="flex:1;"><label>Showtime</label><input class="input" value="{{ formTime }}"></div>
+              </div>
+              <div>
+                <div style="font-size:12px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin-bottom:6px;">Format</div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <sc-for list="{{ formats }}" as="f" hint-placeholder-count="5"><span class="tag {{ f.cls }}" style="cursor:pointer;">{{ f.label }}</span></sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:12px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin-bottom:6px;">Your rating</div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <sc-for list="{{ formStars }}" as="s" hint-placeholder-count="5"><i class="{{ s }}" style="font-size:26px; color:var(--color-accent); cursor:pointer;"></i></sc-for>
+                  <span style="font-size:16px; margin-left:6px;">4.5</span>
+                </div>
+              </div>
+              <div class="field"><label>Review</label><textarea class="input" placeholder="What did the room feel like?">A near-perfect 70mm print. The crowd held its breath through the third act.</textarea></div>
+              <div style="display:flex; flex-direction:column; gap:12px; padding:12px 0; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider);">
+                <div style="display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:14px;">First day, first show</div><div class="text-muted" style="font-size:11px;">Mark this as an FDFS screening</div></div><div style="{{ tglOn }}"><div style="{{ knobOn }}"></div></div></div>
+                <div style="display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:14px;">Visibility</div><div class="text-muted" style="font-size:11px;">Who can see this log</div></div>
+                  <div class="seg"><label class="seg-opt" style="box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent);">Public</label><label class="seg-opt">Followers</label><label class="seg-opt">Private</label></div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:12px; margin-top:2px;">
+                <div>
+                  <div style="font-size:12px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin-bottom:6px;">Arrival</div>
+                  <div class="seg" style="width:100%;"><label class="seg-opt" style="flex:1; justify-content:center;">Early</label><label class="seg-opt" style="flex:1; justify-content:center; box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent);">On time</label><label class="seg-opt" style="flex:1; justify-content:center;">Late</label></div>
+                </div>
+                <div>
+                  <div style="font-size:12px; color:color-mix(in srgb, var(--color-text) 70%, transparent); margin-bottom:6px;">Screening started</div>
+                  <div class="seg" style="width:100%;"><label class="seg-opt" style="flex:1; justify-content:center; box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent);">On time</label><label class="seg-opt" style="flex:1; justify-content:center;">Delayed</label><label class="seg-opt" style="flex:1; justify-content:center;">Cancelled</label></div>
+                </div>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:4px;">
+                <button class="btn btn-secondary" style="flex:1;" onClick="{{ goLibrary }}">Discard</button>
+                <button class="btn btn-primary" style="flex:2;" onClick="{{ goLibrary }}"><i class="ph ph-floppy-disk"></i>Save log</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- SEARCH ---------- -->
+        <sc-if value="{{ isSearch }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <h2 style="font-size:27px; margin:0 0 14px;">Search</h2>
+            <div style="position:relative; margin-bottom:14px;">
+              <i class="ph ph-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-accent); font-size:16px;"></i>
+              <input class="input" style="padding-left:34px;" value="halcy" placeholder="Films, theatres, people…">
+            </div>
+            <div style="display:flex; gap:7px; margin-bottom:18px; flex-wrap:wrap;">
+              <sc-for list="{{ searchScopes }}" as="s" hint-placeholder-count="4"><span class="tag {{ s.cls }}" style="cursor:pointer;">{{ s.label }}</span></sc-for>
+            </div>
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px;">In your logs · matched title</div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:22px;">
+              <sc-for list="{{ searchLogs }}" as="m" hint-placeholder-count="2">
+                <div class="card tapc lift" style="flex-direction:row; gap:12px; padding:10px; align-items:center;" onClick="{{ m.open }}">
+                  <div class="poster" style="{{ m.posterStyle }}; width:44px; flex:none; aspect-ratio:2/3;"></div>
+                  <div style="flex:1;"><div style="font-family:var(--font-heading); font-size:15px;">{{ m.title }} <span class="text-muted" style="font-weight:400;">{{ m.year }}</span></div><div class="text-muted" style="font-size:12px;">{{ m.theater }} · {{ m.dateShort }}</div></div>
+                  <i class="ph ph-caret-right text-muted"></i>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px;">People</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ searchPeople }}" as="u" hint-placeholder-count="2">
+                <div class="card" style="flex-direction:row; gap:10px; padding:10px; align-items:center;">
+                  <div style="{{ u.avatarStyle }}">{{ u.initial }}</div>
+                  <div style="flex:1;"><div style="font-family:var(--font-heading); font-size:15px;">{{ u.name }}</div><div class="text-muted" style="font-size:12px;">{{ u.handle }} · {{ u.films }} films</div></div>
+                  <button class="btn btn-primary" style="padding:5px 12px; font-size:13px;">Follow</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- PROFILE ---------- -->
+        <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="height:120px; background:linear-gradient(135deg, var(--color-accent-900), var(--color-surface)); position:relative;">
+              <button class="btn btn-icon" onClick="{{ goSettings }}" style="position:absolute; top:10px; right:12px; background:rgba(0,0,0,.3); color:#fff;"><i class="ph ph-gear-six" style="font-size:18px;"></i></button>
+            </div>
+            <div style="padding:0 18px 24px; margin-top:-40px;">
+              <div style="display:flex; align-items:flex-end; gap:14px; margin-bottom:14px;">
+                <div style="width:80px; height:80px; border-radius:22px; background:linear-gradient(135deg,var(--color-accent),var(--color-accent-700)); display:grid; place-items:center; font-family:var(--font-heading); font-size:32px; color:#fff; border:3px solid var(--color-bg);">S</div>
+                <div style="flex:1; padding-bottom:6px;"><div style="font-family:var(--font-heading); font-size:22px;">Shiv</div><div class="text-muted" style="font-size:13px;">@techshivvy</div></div>
+                <button class="btn btn-secondary" style="margin-bottom:8px;"><i class="ph ph-pencil-simple"></i>Edit</button>
+              </div>
+              <p style="font-size:13px; opacity:.9; margin:0 0 16px;">Neo-noir and sci-fi at 24fps. Chasing 70mm prints across the city. First-day-first-show apologist.</p>
+              <div style="display:flex; gap:6px; margin-bottom:20px;">
+                <sc-for list="{{ profileStats }}" as="s" hint-placeholder-count="4">
+                  <div class="card" style="flex:1; align-items:center; gap:1px; padding:10px 4px;"><div style="font-family:var(--font-heading); font-size:20px; color:var(--color-accent);">{{ s.n }}</div><div class="text-muted" style="font-size:10px; text-align:center;">{{ s.l }}</div></div>
+                </sc-for>
+              </div>
+              <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px; display:flex; align-items:center; gap:6px;"><i class="ph-fill ph-star" style="color:var(--color-accent);"></i>Favorites</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:22px;">
+                <sc-for list="{{ favorites }}" as="m" hint-placeholder-count="4">
+                  <div class="poster tapc" style="{{ m.posterStyle }}; aspect-ratio:2/3;" onClick="{{ m.open }}"></div>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:16px; border-bottom:1px solid var(--color-divider); margin-bottom:14px;">
+                <div style="font-family:var(--font-heading); font-size:14px; padding-bottom:10px; border-bottom:2px solid var(--color-accent); color:var(--color-accent);">Logs</div>
+                <div class="text-muted" style="font-size:14px; padding-bottom:10px;">Reviews</div>
+                <div class="text-muted" style="font-size:14px; padding-bottom:10px;">Theatres</div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+                <sc-for list="{{ logs }}" as="m" hint-placeholder-count="6"><div class="poster tapc lift" style="{{ m.posterStyle }}; aspect-ratio:2/3;" onClick="{{ m.open }}"><div style="position:absolute; bottom:5px; left:6px; font-size:11px; color:#fff; text-shadow:0 1px 4px #000;"><i class="ph-fill ph-star" style="color:var(--color-accent); font-size:10px;"></i> {{ m.rating }}</div></div></sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- NOTIFICATIONS ---------- -->
+        <sc-if value="{{ isNotif }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+              <button class="btn btn-icon btn-secondary" onClick="{{ goFeed }}"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <h2 style="font-size:24px; margin:0;">Notifications</h2>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <sc-for list="{{ notifs }}" as="n" hint-placeholder-count="6">
+                <div style="display:flex; gap:12px; padding:13px 10px; border-radius:var(--radius-md); align-items:center; background:{{ n.bg }};">
+                  <div style="width:38px; height:38px; border-radius:12px; flex:none; display:grid; place-items:center; background:var(--color-accent-800); color:var(--color-accent-100);"><i class="{{ n.icon }}" style="font-size:18px;"></i></div>
+                  <div style="flex:1; min-width:0;"><div style="font-size:13px; line-height:1.35;"><span style="font-family:var(--font-heading);">{{ n.user }}</span> {{ n.text }}</div><div class="text-muted" style="font-size:11px; margin-top:1px;">{{ n.time }}</div></div>
+                  <sc-if value="{{ n.action }}" hint-placeholder-val="{{ false }}"><button class="btn btn-primary" style="padding:4px 12px; font-size:12px;">Accept</button></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- LOG DETAIL ---------- -->
+        <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="{{ detail.posterStyle }}; height:340px; position:relative; display:flex; align-items:flex-end;">
+              <div style="position:absolute; inset:0; background:linear-gradient(to top, var(--color-bg) 4%, transparent 70%);"></div>
+              <button class="btn btn-icon" onClick="{{ back }}" style="position:absolute; top:10px; left:12px; background:rgba(0,0,0,.4); color:#fff;"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <button class="btn btn-icon" style="position:absolute; top:10px; right:12px; background:rgba(0,0,0,.4); color:#fff;"><i class="ph ph-dots-three" style="font-size:18px;"></i></button>
+              <div style="position:relative; padding:18px; width:100%;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span class="tag tag-outline" style="font-size:10px;"><i class="ph ph-globe" style="font-size:11px; margin-right:3px;"></i>Public</span><sc-if value="{{ detail.fdfs }}" hint-placeholder-val="{{ true }}"><span class="tag tag-accent" style="font-size:10px;">FDFS</span></sc-if></div>
+                <h2 style="font-size:30px; margin:0; color:#fff;">{{ detail.title }} <span style="font-weight:400; opacity:.75;">{{ detail.year }}</span></h2>
+              </div>
+            </div>
+            <div style="padding:4px 18px 24px;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+                <div style="display:flex; gap:2px;"><sc-for list="{{ detailStars }}" as="s" hint-placeholder-count="5"><i class="{{ s }}" style="font-size:22px; color:var(--color-accent);"></i></sc-for></div>
+                <span style="font-size:20px; font-family:var(--font-heading);">{{ detail.rating }}</span><span class="text-muted" style="font-size:13px;">/ 5</span>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
+                <sc-for list="{{ detailMeta }}" as="d" hint-placeholder-count="6">
+                  <div class="card" style="gap:2px; padding:11px;"><div class="text-muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:center; gap:5px;"><i class="{{ d.icon }}" style="font-size:12px;"></i>{{ d.k }}</div><div style="font-size:14px;">{{ d.v }}</div></div>
+                </sc-for>
+              </div>
+              <div style="margin-bottom:8px;"><div class="text-muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase; margin-bottom:6px;">Seats</div><div style="display:flex; gap:6px; flex-wrap:wrap;"><sc-for list="{{ detail.seats }}" as="s" hint-placeholder-count="4"><span class="tag tag-neutral" style="font-family:monospace;">{{ s }}</span></sc-for></div></div>
+              <p style="font-size:14px; line-height:1.6; opacity:.92; margin:16px 0;">{{ detail.review }}</p>
+
+              <div style="display:flex; gap:14px; padding:12px 0; border-top:1px solid var(--color-divider); border-bottom:1px solid var(--color-divider); margin-bottom:16px;">
+                <span class="tapc" style="font-size:13px; display:flex; align-items:center; gap:6px; color:var(--color-accent);"><i class="ph-fill ph-heart" style="font-size:19px;"></i>38</span>
+                <span class="tapc text-muted" style="font-size:13px; display:flex; align-items:center; gap:6px;"><i class="ph ph-chat-circle" style="font-size:19px;"></i>5</span>
+                <span class="tapc text-muted" style="font-size:13px; display:flex; align-items:center; gap:6px; margin-left:auto;"><i class="ph ph-bookmark-simple" style="font-size:19px;"></i></span>
+              </div>
+              <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:12px;">Comments</div>
+              <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:14px;">
+                <sc-for list="{{ comments }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex; gap:10px;">
+                    <div style="{{ c.avatarStyle }}">{{ c.initial }}</div>
+                    <div style="flex:1;"><div style="font-size:13px;"><span style="font-family:var(--font-heading);">{{ c.user }}</span> <span class="text-muted" style="font-size:11px;">{{ c.time }}</span></div><div style="font-size:13px; opacity:.9; margin-top:2px;">{{ c.text }}</div><div class="text-muted" style="font-size:11px; margin-top:4px; display:flex; gap:12px;"><span class="tapc">Reply</span><span class="tapc"><i class="ph ph-heart" style="font-size:12px;"></i> {{ c.likes }}</span></div></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex; gap:8px;"><input class="input" placeholder="Add a comment…"><button class="btn btn-primary btn-icon"><i class="ph ph-paper-plane-tilt" style="font-size:16px;"></i></button></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- MOVIE PAGE ---------- -->
+        <sc-if value="{{ isMovie }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="{{ detail.posterStyle }}; height:280px; position:relative; display:flex; align-items:flex-end;">
+              <div style="position:absolute; inset:0; background:linear-gradient(to top, var(--color-bg) 4%, transparent 72%);"></div>
+              <button class="btn btn-icon" onClick="{{ back }}" style="position:absolute; top:10px; left:12px; background:rgba(0,0,0,.4); color:#fff;"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <div style="position:relative; padding:18px;"><div style="font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-accent-300);">TMDB · Catalog</div><h2 style="font-size:30px; margin:2px 0 0; color:#fff;">{{ detail.title }} <span style="font-weight:400; opacity:.75;">{{ detail.year }}</span></h2></div>
+            </div>
+            <div style="padding:8px 18px 24px;">
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;"><sc-for list="{{ movieGenres }}" as="g" hint-placeholder-count="3"><span class="tag tag-neutral">{{ g }}</span></sc-for><span class="tag tag-neutral">148 min</span><span class="tag tag-neutral">UA</span></div>
+              <div style="display:flex; gap:20px; margin-bottom:16px;">
+                <div><div style="font-family:var(--font-heading); font-size:26px; color:var(--color-accent);">4.4</div><div class="text-muted" style="font-size:11px;">CineLog avg · 1.2k</div></div>
+                <div style="border-left:1px solid var(--color-divider); padding-left:20px;"><div style="font-family:var(--font-heading); font-size:26px;">8.1</div><div class="text-muted" style="font-size:11px;">TMDB score</div></div>
+              </div>
+              <p style="font-size:14px; line-height:1.6; opacity:.9;">A dispatch cutter working the graveyard shift begins receiving calls from a city that no longer exists. A slow-burn noir about memory, static, and the people we keep on the line.</p>
+              <div class="card" style="margin:16px 0; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="font-size:13px;"><i class="ph-fill ph-check-circle" style="color:var(--color-accent);"></i> You logged this</div><span style="font-size:13px; color:var(--color-accent);"><i class="ph-fill ph-star" style="font-size:12px;"></i> 4.5</span></div>
+                <div class="text-muted" style="font-size:12px;">PVR Icon · Screen 4 · 12 Apr 2026</div>
+              </div>
+              <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin:8px 0 12px;">Community reviews</div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <sc-for list="{{ movieReviews }}" as="r" hint-placeholder-count="3">
+                  <div style="display:flex; gap:10px;"><div style="{{ r.avatarStyle }}">{{ r.initial }}</div><div style="flex:1;"><div style="font-size:13px;"><span style="font-family:var(--font-heading);">{{ r.user }}</span> <span style="color:var(--color-accent); font-size:12px;">· <i class="ph-fill ph-star" style="font-size:11px;"></i> {{ r.rating }}</span></div><div style="font-size:13px; opacity:.9; margin-top:2px;">{{ r.text }}</div></div></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- VENUE PAGE ---------- -->
+        <sc-if value="{{ isVenue }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+              <button class="btn btn-icon btn-secondary" onClick="{{ back }}"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <div class="text-muted" style="font-size:12px;">Theatre</div>
+            </div>
+            <h2 style="font-size:26px; margin:0 0 4px;">PVR Icon</h2>
+            <div class="text-muted" style="font-size:13px; display:flex; align-items:center; gap:5px; margin-bottom:6px;"><i class="ph ph-map-pin"></i>Phoenix Mall, Velachery · Chennai</div>
+            <div style="display:flex; gap:6px; margin-bottom:20px;"><span class="tag tag-accent" style="font-size:10px;"><i class="ph ph-map-trifold" style="font-size:11px; margin-right:3px;"></i>Google Places</span><span class="tag tag-neutral" style="font-size:10px;">Open</span></div>
+
+            <div class="card" style="margin-bottom:18px;">
+              <div style="display:flex; align-items:center; gap:14px;">
+                <div style="font-family:var(--font-heading); font-size:36px; color:var(--color-accent);">4.3</div>
+                <div style="flex:1;">
+                  <sc-for list="{{ venueRatings }}" as="v" hint-placeholder-count="4">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span class="text-muted" style="font-size:11px; width:64px;">{{ v.k }}</span><div style="flex:1; height:5px; border-radius:3px; background:var(--color-neutral-800);"><div style="height:100%; border-radius:3px; width:{{ v.pct }}; background:var(--color-accent);"></div></div><span style="font-size:11px; width:22px; text-align:right;">{{ v.n }}</span></div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:18px; gap:6px;"><div class="text-muted" style="font-size:10px; letter-spacing:.06em; text-transform:uppercase;">Your note</div><div style="font-size:13px; opacity:.9;">Screen 4 has the best sound in the city. Recliners in the back three rows. Parking fills up by 6pm on weekends.</div></div>
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:12px;">Your screenings here · 9</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <sc-for list="{{ venueLogs }}" as="m" hint-placeholder-count="3">
+                <div class="card tapc lift" style="flex-direction:row; gap:12px; padding:10px; align-items:center;" onClick="{{ m.open }}"><div class="poster" style="{{ m.posterStyle }}; width:40px; flex:none; aspect-ratio:2/3;"></div><div style="flex:1;"><div style="font-family:var(--font-heading); font-size:14px;">{{ m.title }}</div><div class="text-muted" style="font-size:11px;">Screen {{ m.screen }} · {{ m.dateShort }}</div></div><span style="font-size:12px; color:var(--color-accent);"><i class="ph-fill ph-star" style="font-size:11px;"></i> {{ m.rating }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- STATS ---------- -->
+        <sc-if value="{{ isStats }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+              <button class="btn btn-icon btn-secondary" onClick="{{ goLibrary }}"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <h2 style="font-size:24px; margin:0;">Your year in film</h2>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
+              <sc-for list="{{ statCards }}" as="s" hint-placeholder-count="4"><div class="card" style="gap:2px;"><div style="font-family:var(--font-heading); font-size:26px; color:var(--color-accent);">{{ s.n }}</div><div class="text-muted" style="font-size:12px;">{{ s.l }}</div></div></sc-for>
+            </div>
+            <div class="card" style="margin-bottom:18px; gap:12px;">
+              <div style="font-size:13px; font-family:var(--font-heading);">Films per month</div>
+              <div style="display:flex; align-items:flex-end; gap:6px; height:110px;">
+                <sc-for list="{{ months }}" as="m" hint-placeholder-count="12"><div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; height:100%; justify-content:flex-end;"><div style="width:100%; border-radius:3px 3px 0 0; background:var(--color-accent); height:{{ m.h }}; opacity:.85;"></div><span class="text-muted" style="font-size:9px;">{{ m.l }}</span></div></sc-for>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:18px; gap:10px;">
+              <div style="font-size:13px; font-family:var(--font-heading);">Rating distribution</div>
+              <sc-for list="{{ ratingDist }}" as="r" hint-placeholder-count="5"><div style="display:flex; align-items:center; gap:8px;"><span style="font-size:11px; width:28px; color:var(--color-accent);"><i class="ph-fill ph-star" style="font-size:10px;"></i>{{ r.k }}</span><div style="flex:1; height:6px; border-radius:3px; background:var(--color-neutral-800);"><div style="height:100%; border-radius:3px; width:{{ r.pct }}; background:var(--color-accent);"></div></div><span class="text-muted" style="font-size:11px; width:24px; text-align:right;">{{ r.n }}</span></div></sc-for>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div class="card" style="gap:8px;"><div style="font-size:12px; font-family:var(--font-heading);">Top genres</div><sc-for list="{{ topGenres }}" as="g" hint-placeholder-count="4"><div style="display:flex; justify-content:space-between; font-size:12px;"><span class="text-muted">{{ g.k }}</span><span>{{ g.n }}</span></div></sc-for></div>
+              <div class="card" style="gap:8px;"><div style="font-size:12px; font-family:var(--font-heading);">Punctuality</div><div style="text-align:center; padding:4px 0;"><div style="font-family:var(--font-heading); font-size:30px; color:var(--color-accent);">86%</div><div class="text-muted" style="font-size:11px;">on time to the screening</div></div></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ---------- SETTINGS ---------- -->
+        <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:14px 18px 24px;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+              <button class="btn btn-icon btn-secondary" onClick="{{ goProfile }}"><i class="ph ph-caret-left" style="font-size:18px;"></i></button>
+              <h2 style="font-size:24px; margin:0;">Settings</h2>
+            </div>
+
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-accent); margin-bottom:12px;">Appearance · Typeface</div>
+            <div class="seg" style="width:100%; margin-bottom:22px;">
+              <label class="seg-opt" style="flex:1; justify-content:center; {{ fontCineSel }}" onClick="{{ setFontCine }}">Cinematic</label>
+              <label class="seg-opt" style="flex:1; justify-content:center; {{ fontInterSel }}" onClick="{{ setFontInter }}">Inter</label>
+              <label class="seg-opt" style="flex:1; justify-content:center; {{ fontSysSel }}" onClick="{{ setFontSys }}">System</label>
+            </div>
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-accent); margin-bottom:12px;">Appearance · Theme</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:24px;">
+              <sc-for list="{{ themes }}" as="t" hint-placeholder-count="11">
+                <div class="tapc" onClick="{{ t.pick }}" style="border-radius:var(--radius-md); border:1px solid {{ t.borderCol }}; padding:10px; display:flex; align-items:center; gap:10px; background:{{ t.cardBg }};">
+                  <div style="display:flex;">{{ t.swatchRow }}</div>
+                  <div style="flex:1; min-width:0;"><div style="font-size:13px; font-family:var(--font-heading);">{{ t.label }}</div></div>
+                  <sc-if value="{{ t.active }}" hint-placeholder-val="{{ false }}"><i class="ph-fill ph-check-circle" style="color:var(--color-accent); font-size:18px;"></i></sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin-bottom:10px;">Privacy</div>
+            <div class="card" style="margin-bottom:10px; gap:12px;">
+              <div style="display:flex; align-items:center; justify-content:space-between;"><div><div style="font-size:14px;">Account visibility</div><div class="text-muted" style="font-size:11px;">Who can follow &amp; see your logs</div></div></div>
+              <div class="seg" style="width:100%;"><label class="seg-opt" style="flex:1; justify-content:center; box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent);">Public</label><label class="seg-opt" style="flex:1; justify-content:center;">Followers</label><label class="seg-opt" style="flex:1; justify-content:center;">Private</label></div>
+            </div>
+
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin:20px 0 10px;">AI &amp; extraction · API keys</div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+              <sc-for list="{{ llmKeys }}" as="k" hint-placeholder-count="3">
+                <div class="card" style="flex-direction:row; align-items:center; gap:10px; padding:11px;"><i class="{{ k.icon }}" style="font-size:20px; color:var(--color-accent);"></i><div style="flex:1;"><div style="font-size:13px; font-family:var(--font-heading);">{{ k.name }}</div><div class="text-muted" style="font-size:11px; font-family:monospace;">{{ k.masked }}</div></div><sc-if value="{{ k.active }}" hint-placeholder-val="{{ true }}"><span class="tag tag-accent" style="font-size:10px;">Active</span></sc-if></div>
+              </sc-for>
+              <button class="btn btn-secondary btn-block"><i class="ph ph-plus"></i>Add provider key</button>
+            </div>
+
+            <div style="font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text); opacity:.5; margin:20px 0 10px;">Data</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <sc-for list="{{ settingRows }}" as="r" hint-placeholder-count="4"><div class="card tapc" style="flex-direction:row; align-items:center; gap:10px; padding:12px;"><i class="{{ r.icon }}" style="font-size:18px; color:var(--color-accent);"></i><span style="font-size:14px; flex:1;">{{ r.label }}</span><i class="ph ph-caret-right text-muted"></i></div></sc-for>
+            </div>
+
+            <div style="margin-top:22px; border:1px solid var(--color-error); border-radius:var(--radius-md); padding:14px; background:color-mix(in srgb, var(--color-error) 8%, transparent);">
+              <div style="font-size:13px; color:var(--color-error); font-family:var(--font-heading); display:flex; align-items:center; gap:6px; margin-bottom:8px;"><i class="ph ph-warning"></i>Danger zone</div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;"><div class="text-muted" style="font-size:12px;">Delete account &amp; all logs. Public logs are anonymised, not removed.</div><button class="btn" style="border:1px solid var(--color-error); color:var(--color-error); white-space:nowrap;">Delete</button></div>
+            </div>
+            <button class="btn btn-ghost btn-block" onClick="{{ goLogin }}" style="margin-top:16px;">Sign out</button>
+          </div>
+        </sc-if>
+
+        </div><!-- /scroll body -->
+
+        <!-- ============ TAB BAR ============ -->
+        <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; justify-content:space-around; padding:8px 6px 22px; background:var(--surf2); border-top:1px solid var(--color-divider); position:relative;">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+              <sc-if value="{{ t.center }}" hint-placeholder-val="{{ false }}">
+                <button class="tapc" onClick="{{ t.go }}" style="width:54px; height:54px; border-radius:50%; border:none; margin-top:-24px; background:var(--color-accent); color:var(--color-bg); display:grid; place-items:center; box-shadow:0 6px 20px color-mix(in srgb, var(--color-accent) 45%, transparent);"><i class="ph-bold ph-plus" style="font-size:26px;"></i></button>
+              </sc-if>
+              <sc-if value="{{ t.normal }}" hint-placeholder-val="{{ true }}">
+                <button class="tapc" onClick="{{ t.go }}" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 10px; color:{{ t.color }};"><i class="{{ t.icon }}" style="font-size:22px;"></i><span style="font-size:10px;">{{ t.label }}</span></button>
+              </sc-if>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <!-- ============ AI MODAL ============ -->
+        <sc-if value="{{ aiOpen }}" hint-placeholder-val="{{ false }}">
+          <div class="dialog-backdrop" style="position:absolute; border-radius:38px;">
+            <div class="dialog" style="width:calc(100% - 28px); max-height:calc(100% - 130px);">
+              <div style="display:flex; align-items:center; gap:8px;"><i class="ph ph-sparkle" style="color:var(--color-accent); font-size:20px;"></i><div class="dialog-title" style="font-size:18px;">AI ticket scan</div><button class="btn btn-icon btn-ghost" onClick="{{ closeAI }}" style="margin-left:auto;"><i class="ph ph-x"></i></button></div>
+              <div class="seg" style="width:100%;"><label class="seg-opt" style="flex:1; justify-content:center;">Single</label><label class="seg-opt" style="flex:1; justify-content:center; box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent);">Batch · 4</label></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px;"><span class="text-muted">{{ aiProgressLabel }} · Gemini</span><span style="display:flex; align-items:center; gap:6px; color:var(--color-accent);"><i class="ph-fill ph-magic-wand"></i>Auto-insert</span></div>
+              <div style="height:5px; border-radius:3px; background:var(--color-neutral-800); overflow:hidden;"><div style="height:100%; background:var(--color-accent); border-radius:3px; width:{{ aiProgressPct }}; transition:width .4s;"></div></div>
+              <div class="clg-scroll" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:230px; margin-top:2px;">
+                <sc-for list="{{ aiItems }}" as="a" hint-placeholder-count="4">
+                  <div style="display:flex; align-items:center; gap:10px; padding:8px; border-radius:var(--radius-md); background:var(--color-surface); box-shadow:var(--shadow-sm);">
+                    <div style="width:34px; height:46px; border-radius:6px; flex:none; background:repeating-linear-gradient(45deg,var(--color-neutral-900),var(--color-neutral-900) 4px,var(--color-neutral-800) 4px,var(--color-neutral-800) 8px); display:grid; place-items:center; color:var(--color-accent);"><i class="ph ph-ticket" style="font-size:16px;"></i></div>
+                    <div style="flex:1; min-width:0;"><div style="font-size:13px; font-family:var(--font-heading);">{{ a.film }}</div><div class="text-muted" style="font-size:11px;">{{ a.meta }}</div></div>
+                    <span style="font-size:11px; display:flex; align-items:center; gap:4px; color:{{ a.statusColor }}; white-space:nowrap;"><i class="{{ a.statusIcon }}" style="font-size:14px;"></i>{{ a.statusText }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div class="dialog-actions"><button class="btn btn-secondary" onClick="{{ closeAI }}">Cancel</button><button class="btn btn-primary" onClick="{{ applyAI }}"><sc-if value="{{ aiDone }}" hint-placeholder-val="{{ false }}">Add 4 logs</sc-if><sc-if value="{{ aiLoading }}" hint-placeholder-val="{{ true }}">Processing\u2026</sc-if></button></div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:980}}">
+class Component extends DCLogic {
+  state = { screen: "library", theme: "cinematic", font: "cine", view: "grid", detailIdx: 0, back: "library", ai: "closed", pwa: true };
+
+  fontVars() {
+    const f = this.state.font || "cine";
+    if (f === "inter") return { "--font-heading": "'Inter', system-ui, sans-serif", "--font-body": "'Inter', system-ui, sans-serif" };
+    if (f === "system") return { "--font-heading": "system-ui, -apple-system, sans-serif", "--font-body": "system-ui, -apple-system, sans-serif" };
+    return { "--font-heading": "'Sora', system-ui, sans-serif", "--font-body": "'Plus Jakarta Sans', system-ui, sans-serif" };
+  }
+
+  themeDefs() {
+    return [
+      { key: "cinematic", label: "Cinematic", bg: "#0b1326", surface: "#171f33", text: "#dae2fd", accent: "#e50914" },
+      { key: "nocturne", label: "Nocturne", bg: "#161826", surface: "#232532", text: "#e9e9ed", accent: "#9184d9" },
+      { key: "cinema", label: "Cinema", bg: "#0D0F14", surface: "#15181F", text: "#ECEEF3", accent: "#E8930A" },
+      { key: "indigo", label: "Indigo Dusk", bg: "#0E1020", surface: "#191C33", text: "#E6E8F5", accent: "#6366F1" },
+      { key: "amber", label: "Amber Glow", bg: "#14100A", surface: "#1F1A10", text: "#F3ECDD", accent: "#F5A524" },
+      { key: "nord", label: "Nord", bg: "#2E3440", surface: "#3B4252", text: "#ECEFF4", accent: "#88C0D0" },
+      { key: "sakura", label: "Sakura", bg: "#120B1A", surface: "#1F1429", text: "#F8F1FF", accent: "#E91E63" },
+      { key: "forest", label: "Forest", bg: "#14231F", surface: "#1E322D", text: "#E8F3F1", accent: "#4CAF50" },
+      { key: "sunset", label: "Sunset", bg: "#1A1423", surface: "#2D1E3E", text: "#FFF0F0", accent: "#FF7043" },
+      { key: "crimson", label: "Crimson", bg: "#1A0505", surface: "#2D0D0D", text: "#FFF5F5", accent: "#FF4D4D" },
+      { key: "champagne", label: "Champagne", bg: "#FCF8F2", surface: "#F5EFE6", text: "#4A4031", accent: "#B8893C" },
+      { key: "mono", label: "Monochrome", bg: "#0E0E10", surface: "#1A1A1D", text: "#EDEDED", accent: "#9AA0A8" },
+    ];
+  }
+
+  active() { return this.themeDefs().find((t) => t.key === this.state.theme) || this.themeDefs()[0]; }
+
+  themeVars(t) {
+    const mix = (c, p, w) => `color-mix(in srgb, ${c} ${p}%, ${w})`;
+    return {
+      "--color-bg": t.bg,
+      "--color-surface": t.surface,
+      "--surf2": mix(t.text, 5, t.surface),
+      "--color-text": t.text,
+      "--color-accent": t.accent,
+      "--color-accent-100": mix(t.accent, 30, "#ffffff"),
+      "--color-accent-300": mix(t.accent, 52, "#ffffff"),
+      "--color-accent-400": mix(t.accent, 72, "#ffffff"),
+      "--color-accent-500": t.accent,
+      "--color-accent-600": mix(t.accent, 80, "#000000"),
+      "--color-accent-700": mix(t.accent, 60, "#000000"),
+      "--color-accent-800": mix(t.accent, 26, t.bg),
+      "--color-accent-900": mix(t.accent, 15, t.bg),
+      "--color-neutral-800": mix(t.text, 13, t.bg),
+      "--color-neutral-900": mix(t.text, 7, t.bg),
+      "--color-neutral-100": t.text,
+      "--color-divider": mix(t.text, 15, "transparent"),
+      "--color-error": "#EF4444",
+      "--shadow-sm": `0 0 0 1px ${mix(t.text, 14, "transparent")}`,
+      "--shadow-md": `0 0 0 1px ${mix(t.text, 12, "transparent")}, 0 6px 18px rgba(0,0,0,.5)`,
+      "--shadow-lg": `0 0 0 1px ${mix(t.text, 20, "transparent")}, 0 16px 40px rgba(0,0,0,.6)`,
+    };
+  }
+
+  poster(hue, dark) {
+    const l1 = dark ? 20 : 26, l2 = dark ? 8 : 12;
+    return `background:linear-gradient(155deg, hsl(${hue} 42% ${l1}%), hsl(${(hue + 30) % 360} 38% ${l2}%))`;
+  }
+
+  avatar(hue) {
+    return `width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;font-family:var(--font-heading);font-size:15px;color:#fff;background:linear-gradient(135deg,hsl(${hue} 45% 42%),hsl(${(hue + 40) % 360} 45% 26%))`;
+  }
+  avatarSm(hue) {
+    return `width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-family:var(--font-heading);font-size:12px;color:#fff;background:linear-gradient(135deg,hsl(${hue} 45% 42%),hsl(${(hue + 40) % 360} 45% 26%))`;
+  }
+
+  logData() {
+    return [
+      { title: "Halcyon", year: "2026", hue: 265, dateShort: "12 Apr", time: "9:30 PM", theater: "PVR Icon", screen: "4", seats: ["H12", "H13"], lang: "English", format: "IMAX", price: "₹480", cert: "UA", rating: "4.5", fdfs: true, review: "A near-perfect 70mm-blown-up IMAX print. The dispatch-room sound design wrapped the whole hall — you could feel the static in your chest. The crowd held its breath through the third act and broke into applause at the cut to black.", runtime: "148" },
+      { title: "Umbra", year: "2025", hue: 350, dateShort: "28 Mar", time: "6:15 PM", theater: "Sathyam", screen: "2", seats: ["F7"], lang: "Tamil", format: "2D", price: "₹190", cert: "A", rating: "4.0", fdfs: false, review: "Bleak and beautiful. Sathyam's Screen 2 is still the sharpest projection in the city.", runtime: "122" },
+      { title: "The Salt Road", year: "2026", hue: 28, dateShort: "19 Mar", time: "3:00 PM", theater: "PVR Icon", screen: "6", seats: ["J4", "J5", "J6"], lang: "Hindi", format: "4DX", price: "₹650", cert: "U", rating: "3.5", fdfs: false, review: "The 4DX gimmicks got in the way of a genuinely tender road movie. Went with the family.", runtime: "135" },
+      { title: "Ninefold", year: "2025", hue: 200, dateShort: "2 Mar", time: "10:00 PM", theater: "AGS Cinemas", screen: "3", seats: ["C11"], lang: "English", format: "2D", price: "₹210", cert: "UA", rating: "4.5", fdfs: true, review: "Folded time better than anything since Primer. Watched it twice.", runtime: "119" },
+      { title: "Paper Lantern", year: "2026", hue: 15, dateShort: "24 Feb", time: "7:45 PM", theater: "Sathyam", screen: "1", seats: ["G14", "G15"], lang: "Japanese", format: "2D", price: "₹250", cert: "U", rating: "5.0", fdfs: false, review: "Cried in a theatre for the first time in years. Perfect.", runtime: "104" },
+      { title: "Static Bloom", year: "2026", hue: 300, dateShort: "11 Feb", time: "9:00 PM", theater: "PVR Icon", screen: "4", seats: ["H8"], lang: "English", format: "IMAX", price: "₹480", cert: "A", rating: "3.0", fdfs: false, review: "Style over substance, but what style.", runtime: "141" },
+      { title: "Northwind", year: "2025", hue: 210, dateShort: "30 Jan", time: "5:30 PM", theater: "Rohini", screen: "5", seats: ["D2", "D3"], lang: "Telugu", format: "2D", price: "₹180", cert: "UA", rating: "4.0", fdfs: true, review: "Rousing, old-fashioned adventure. The whole hall whistled at the interval block.", runtime: "156" },
+      { title: "Blue Hour", year: "2026", hue: 230, dateShort: "16 Jan", time: "8:30 PM", theater: "Sathyam", screen: "3", seats: ["E9"], lang: "English", format: "2D", price: "₹230", cert: "UA", rating: "4.5", fdfs: false, review: "A quiet miracle of a film. Golden-hour cinematography that justified the title.", runtime: "112" },
+    ];
+  }
+
+  starsFor(r) {
+    const v = parseFloat(r), out = [];
+    for (let i = 1; i <= 5; i++) out.push(v >= i ? "ph-fill ph-star" : v >= i - 0.5 ? "ph-fill ph-star-half" : "ph ph-star");
+    return out;
+  }
+
+  go(s, from) { this.setState({ screen: s, back: from || this.state.screen }); const el = document.querySelector(".clg-scroll"); }
+  openDetail(i, kind) { this.setState({ screen: kind || "detail", detailIdx: i, back: this.state.screen }); }
+
+  renderVals() {
+    const t = this.active();
+    const dark = t.key !== "champagne";
+    const logs = this.logData();
+    const s = this.state.screen;
+    const isMain = ["library", "feed", "log", "search", "profile"].includes(s);
+    const detail = logs[this.state.detailIdx] || logs[0];
+
+    const withPoster = (arr) => arr.map((m, i) => ({ ...m, posterStyle: this.poster(m.hue, dark), open: () => this.openDetail(i, "detail") }));
+    const logsV = logs.map((m, i) => ({ ...m, posterStyle: this.poster(m.hue, dark), open: () => this.openDetail(i, "detail") }));
+
+    const tabColor = (k) => (s === k || (k === "profile" && ["settings", "notifications"].includes(s)) || (k === "library" && ["detail", "movie", "venue", "stats"].includes(s)) ? t.accent : "color-mix(in srgb, " + t.text + " 45%, transparent)");
+    const tabs = [
+      { icon: "ph ph-film-strip", label: "Library", normal: true, center: false, color: tabColor("library"), go: () => this.go("library") },
+      { icon: "ph ph-rss", label: "Feed", normal: true, center: false, color: tabColor("feed"), go: () => this.go("feed") },
+      { center: true, normal: false, go: () => this.go("log") },
+      { icon: "ph ph-magnifying-glass", label: "Search", normal: true, center: false, color: tabColor("search"), go: () => this.go("search") },
+      { icon: "ph ph-user", label: "Profile", normal: true, center: false, color: tabColor("profile"), go: () => this.go("profile") },
+    ];
+
+    const themes = this.themeDefs().map((th) => {
+      const sw = (extra) => `<span style="width:12px;height:12px;border-radius:3px;display:inline-block;background:${th.bg};border:1px solid rgba(255,255,255,.15)"></span><span style="width:12px;height:12px;border-radius:3px;display:inline-block;background:${th.surface};margin:0 -3px 0 3px"></span><span style="width:12px;height:12px;border-radius:3px;display:inline-block;background:${th.accent}"></span>`;
+      const activeT = th.key === this.state.theme;
+      return {
+        label: th.label, active: activeT,
+        pick: () => this.setState({ theme: th.key }),
+        borderCol: activeT ? "var(--color-accent)" : "var(--color-divider)",
+        cardBg: activeT ? "var(--color-accent-900)" : "var(--color-surface)",
+        swatchStyle: `width:26px;height:26px;border-radius:7px;border:2px solid ${activeT ? "var(--color-accent)" : "transparent"};background:linear-gradient(135deg, ${th.bg} 45%, ${th.accent} 45%);cursor:pointer;padding:0;`,
+        swatchRow: React.createElement("span", { style: { display: "flex", alignItems: "center" }, dangerouslySetInnerHTML: { __html: sw() } }),
+      };
+    });
+
+    const jump = (label, icon, scr) => ({ label, icon: "ph " + icon, go: () => this.go(scr), cls: s === scr ? "btn-primary" : "btn-ghost" });
+    const jumpItems = [
+      jump("Login", "ph-sign-in", "login"),
+      jump("Library", "ph-film-strip", "library"),
+      jump("Feed", "ph-rss", "feed"),
+      jump("Log a screening", "ph-plus-circle", "log"),
+      jump("Log detail", "ph-note", "detail"),
+      jump("Movie page", "ph-popcorn", "movie"),
+      jump("Theatre page", "ph-armchair", "venue"),
+      jump("Search", "ph-magnifying-glass", "search"),
+      jump("Profile", "ph-user", "profile"),
+      jump("Notifications", "ph-bell", "notifications"),
+      jump("Stats", "ph-chart-bar", "stats"),
+      jump("Settings", "ph-gear-six", "settings"),
+    ];
+
+    const feed = [
+      { user: "Anaïs", initial: "A", hue: 320, time: "2h ago", rating: "5.0", film: "Paper Lantern", year: "2026", filmHue: 15, theater: "Sathyam · Screen 1", text: "Cried in a theatre for the first time in years. Stay through the credits.", likes: 24, comments: 6, liked: true, idx: 4 },
+      { user: "Dev", initial: "D", hue: 210, time: "5h ago", rating: "4.5", film: "Halcyon", year: "2026", filmHue: 265, theater: "PVR Icon · IMAX", text: "The IMAX print is the only way to see this. Third act is a religious experience.", likes: 41, comments: 12, liked: false, idx: 0 },
+      { user: "Meera", initial: "M", hue: 160, time: "Yesterday", rating: "4.0", film: "Northwind", year: "2025", filmHue: 210, theater: "Rohini", text: "Whistled at the interval like it was 2005. Pure crowd cinema.", likes: 18, comments: 3, liked: false, idx: 6 },
+      { user: "Kabir", initial: "K", hue: 40, time: "2d ago", rating: "3.5", film: "The Salt Road", year: "2026", filmHue: 28, theater: "PVR Icon · 4DX", text: "Skip the 4DX, the film is quieter than the format wants it to be.", likes: 9, comments: 2, liked: false, idx: 2 },
+    ].map((p) => ({ ...p, posterStyle: this.poster(p.filmHue, dark), avatarStyle: this.avatar(p.hue), open: () => this.openDetail(p.idx, "detail"), likeIcon: p.liked ? "ph-fill ph-heart" : "ph ph-heart", likeStyle: p.liked ? "color:var(--color-accent)" : "" }));
+
+    const notifs = [
+      { icon: "ph ph-stack-plus", user: "CineLog", text: "batch finished — 4 tickets read and auto-logged.", time: "just now", unread: true, action: false },
+      { icon: "ph ph-magic-wand", user: "CineLog", text: "auto-logged Halcyon from your scanned ticket.", time: "12m ago", unread: true, action: false },
+      { icon: "ph ph-user-plus", user: "Dev", text: "started following you.", time: "1h ago", unread: true, action: false },
+      { icon: "ph ph-lock-key-open", user: "priya_watches", text: "requested to follow you.", time: "3h ago", unread: true, action: true },
+      { icon: "ph-fill ph-heart", user: "Anaïs", text: "liked your log of Halcyon.", time: "5h ago", unread: false, action: false },
+      { icon: "ph ph-chat-circle", user: "Meera", text: "commented: “which screen?? need this”", time: "Yesterday", unread: false, action: false },
+      { icon: "ph ph-check-circle", user: "Kabir", text: "accepted your follow request.", time: "2d ago", unread: false, action: false },
+      { icon: "ph-fill ph-heart", user: "Dev", text: "and 12 others liked your review.", time: "3d ago", unread: false, action: false },
+    ].map((n) => ({ ...n, bg: n.unread ? "var(--color-accent-900)" : "transparent" }));
+
+    const comments = [
+      { user: "Dev", initial: "D", hue: 210, time: "2h", text: "Which screen did you catch this on? The IMAX one downtown?", likes: 4 },
+      { user: "Anaïs", initial: "A", hue: 320, time: "1h", text: "That third act cut to black — I gasped out loud 😭", likes: 9 },
+      { user: "Meera", initial: "M", hue: 160, time: "40m", text: "adding to my list immediately", likes: 1 },
+    ].map((c) => ({ ...c, avatarStyle: this.avatarSm(c.hue) }));
+
+    const detailMeta = [
+      { k: "Date", v: detail.dateShort + " 2026", icon: "ph ph-calendar-blank" },
+      { k: "Showtime", v: detail.time, icon: "ph ph-clock" },
+      { k: "Theatre", v: detail.theater, icon: "ph ph-map-pin" },
+      { k: "Screen", v: "Screen " + detail.screen, icon: "ph ph-monitor" },
+      { k: "Format", v: detail.format + " · " + detail.lang, icon: "ph ph-projector-screen" },
+      { k: "Ticket", v: detail.price + " · " + detail.cert, icon: "ph ph-ticket" },
+      { k: "Punctuality", v: "On time · started 8m late", icon: "ph ph-timer" },
+    ];
+
+    const settingRows = [
+      { icon: "ph ph-download-simple", label: "Export my data" },
+      { icon: "ph ph-upload-simple", label: "Import from backup" },
+      { icon: "ph ph-bell", label: "Notification preferences" },
+      { icon: "ph ph-flag", label: "Reports & moderation" },
+    ];
+    const llmKeys = [
+      { icon: "ph ph-sparkle", name: "OpenRouter", masked: "sk-or-••••••4a9c", active: true },
+      { icon: "ph ph-brain", name: "Gemini", masked: "AIza••••••7Xm2", active: false },
+      { icon: "ph ph-robot", name: "OpenAI", masked: "sk-••••••b1d0", active: false },
+    ];
+    const aiState = this.state.ai;
+    const batchTickets = [
+      { film: "Halcyon", meta: "PVR Icon · H12, H13" },
+      { film: "Umbra", meta: "Sathyam · F7" },
+      { film: "Ninefold", meta: "AGS · C11" },
+      { film: "Blue Hour", meta: "Sathyam · E9" },
+    ];
+    const aiDoneN = aiState === "done" ? 4 : 2;
+    const aiItems = batchTickets.map((b, i) => {
+      const st = aiState === "done" || i < 2 ? "done" : i === 2 ? "loading" : "queued";
+      return { ...b,
+        statusIcon: st === "done" ? "ph-fill ph-check-circle" : st === "loading" ? "ph ph-circle-notch" : "ph ph-clock",
+        statusText: st === "done" ? "Read" : st === "loading" ? "Reading…" : "Queued",
+        statusColor: st === "queued" ? "color-mix(in srgb, " + t.text + " 45%, transparent)" : "var(--color-accent)" };
+    });
+
+    return {
+      themeStyle: { ...this.themeVars(t), ...this.fontVars() },
+      themeWrapStyle: { ...this.themeVars(t), ...this.fontVars(), width: "100%", height: "100%" },
+      showPwa: this.state.pwa, dismissPwa: () => this.setState({ pwa: false }),
+      fontCineSel: this.state.font === "cine" ? "box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent)" : "",
+      fontInterSel: this.state.font === "inter" ? "box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent)" : "",
+      fontSysSel: this.state.font === "system" ? "box-shadow:inset 0 0 0 1px var(--color-accent); color:var(--color-accent)" : "",
+      setFontCine: () => this.setState({ font: "cine" }), setFontInter: () => this.setState({ font: "inter" }), setFontSys: () => this.setState({ font: "system" }),
+      frameStyle: "position:relative;width:100%;height:100%;border-radius:35px;overflow:hidden;background:var(--color-bg);color:var(--color-text);display:flex;flex-direction:column;font-family:var(--font-body)",
+      themeLabel: t.label,
+      themes, jumpItems,
+      isLogin: s === "login", isLibrary: s === "library", isFeed: s === "feed", isLog: s === "log",
+      isSearch: s === "search", isProfile: s === "profile", isNotif: s === "notifications",
+      isSettings: s === "settings", isDetail: s === "detail", isMovie: s === "movie",
+      isVenue: s === "venue", isStats: s === "stats",
+      showTabs: s !== "login", aiOpen: this.state.ai !== "closed", aiLoading: this.state.ai === "loading", aiDone: this.state.ai === "done",
+      aiItems, aiProgressLabel: aiDoneN + " of 4 tickets read", aiProgressPct: (aiDoneN / 4 * 100) + "%",
+      tabs,
+      goLibrary: () => this.go("library"), goFeed: () => this.go("feed"), goProfile: () => this.go("profile"),
+      goSettings: () => this.go("settings"), goNotif: () => this.go("notifications"), goStats: () => this.go("stats"),
+      goLogin: () => this.go("login"), back: () => this.go(this.state.back),
+      openAI: () => { this.setState({ ai: "loading" }); setTimeout(() => this.setState({ ai: "done" }), 1400); },
+      closeAI: () => this.setState({ ai: "closed" }),
+      applyAI: () => this.setState({ ai: "closed" }),
+      logs: logsV, favorites: withPoster(logs.slice(0, 4)), feed, notifs, comments,
+      detail: { ...detail, posterStyle: this.poster(detail.hue, dark) }, detailStars: this.starsFor(detail.rating), detailMeta,
+      isGrid: this.state.view === "grid", isList: this.state.view === "list",
+      setGrid: () => this.setState({ view: "grid" }), setList: () => this.setState({ view: "list" }),
+      gridSel: this.state.view === "grid" ? "box-shadow:inset 0 0 0 1px var(--color-accent);color:var(--color-accent)" : "",
+      listSel: this.state.view === "list" ? "box-shadow:inset 0 0 0 1px var(--color-accent);color:var(--color-accent)" : "",
+      libFilters: [
+        { label: "All", cls: "tag-accent" }, { label: "IMAX", cls: "tag-neutral" }, { label: "This year", cls: "tag-neutral" },
+        { label: "5 stars", cls: "tag-neutral" }, { label: "FDFS", cls: "tag-neutral" }, { label: "Archived", cls: "tag-neutral" },
+      ],
+      formats: [
+        { label: "2D", cls: "tag-neutral" }, { label: "IMAX", cls: "tag-accent" }, { label: "4DX", cls: "tag-neutral" },
+        { label: "70mm", cls: "tag-neutral" }, { label: "Dolby", cls: "tag-neutral" },
+      ],
+      formStars: this.starsFor("4.5"),
+      formTitle: "Halcyon", formYear: "2026", formRuntime: "148", formTheater: "PVR Icon", formScreen: "4", formSeats: "H12, H13", formDate: "12 Apr 2026", formTime: "9:30 PM",
+      tglOn: "width:42px;height:24px;border-radius:999px;background:var(--color-accent);position:relative;flex:none;cursor:pointer",
+      knobOn: "position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#fff",
+      searchScopes: [{ label: "All", cls: "tag-accent" }, { label: "My logs", cls: "tag-neutral" }, { label: "Films", cls: "tag-neutral" }, { label: "People", cls: "tag-neutral" }],
+      searchLogs: withPoster([logs[0], logs[3]]),
+      searchPeople: [
+        { name: "Halcyon Devs", handle: "@halcyon_fc", films: 88, initial: "H", hue: 265 },
+        { name: "Priya", handle: "@priya_watches", films: 214, initial: "P", hue: 330 },
+      ].map((u) => ({ ...u, avatarStyle: this.avatar(u.hue) })),
+      profileStats: [{ n: "142", l: "Films" }, { n: "38", l: "This year" }, { n: "1.2k", l: "Followers" }, { n: "180", l: "Following" }],
+      movieGenres: ["Sci-Fi", "Neo-noir", "Drama"],
+      movieReviews: [
+        { user: "Dev", initial: "D", hue: 210, rating: "4.5", text: "The sound design alone earns the IMAX ticket." },
+        { user: "Meera", initial: "M", hue: 160, rating: "4.0", text: "Slow first hour, devastating finish." },
+        { user: "Kabir", initial: "K", hue: 40, rating: "3.5", text: "Gorgeous but a touch too pleased with itself." },
+      ].map((r) => ({ ...r, avatarStyle: this.avatarSm(r.hue) })),
+      venueRatings: [
+        { k: "Sound", n: "4.6", pct: "92%" }, { k: "Screen", n: "4.4", pct: "88%" },
+        { k: "Seating", n: "4.1", pct: "82%" }, { k: "Value", n: "3.8", pct: "76%" },
+      ],
+      venueLogs: withPoster([logs[0], logs[2], logs[5]]),
+      statCards: [{ n: "38", l: "Films this year" }, { n: "84h", l: "In the dark" }, { n: "12", l: "Theatres" }, { n: "6", l: "FDFS" }],
+      months: [30, 55, 40, 70, 45, 60, 35, 80, 50, 65, 90, 48].map((h, i) => ({ h: h + "%", l: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][i] })),
+      ratingDist: [{ k: "5", n: 8, pct: "40%" }, { k: "4", n: 15, pct: "78%" }, { k: "3", n: 9, pct: "48%" }, { k: "2", n: 3, pct: "18%" }, { k: "1", n: 1, pct: "8%" }],
+      topGenres: [{ k: "Sci-Fi", n: 42 }, { k: "Drama", n: 31 }, { k: "Thriller", n: 24 }, { k: "Action", n: 19 }],
+      settingRows, llmKeys,
+    };
+  }
+}
+</script>
+</body>
+</html>
