@@ -18,7 +18,18 @@
          project builds web via Metro, which has no such step at all — see
          public/manifest.json and public/sw.js for the real equivalents. -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#e50914" />
+    <!-- Static fallback for the instant before ThemeContext's own effect
+         runs (see context/ThemeContext.tsx's injectWebCSSVars) — matches
+         Cinematic's (the default theme's) real accent900, not the old
+         pre-redesign brand red. manifest.json's own theme_color is kept
+         in sync with this same value: it's a static file (no way to make
+         it track the live in-app theme), but Chrome sources the
+         installed-PWA splash/toolbar color from it once a page passes
+         installability checks, so a stale mismatched value there was
+         overriding this live meta tag's per-theme updates entirely on
+         some Chrome versions — same class of bug this tag itself used to
+         have before the dynamic mirror was added. -->
+    <meta name="theme-color" content="#2c1223" />
 
     <!-- Content-Security-Policy — no policy existed before this. style-src
          needs 'unsafe-inline': react-native-web renders this app's own
