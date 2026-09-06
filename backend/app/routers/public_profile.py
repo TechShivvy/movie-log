@@ -80,8 +80,15 @@ async def search_users(
     'the owner\'s up-to-4 Letterboxd-style "Top 4" (see PUT '
     '/movie-logs/{id}/favorite), ordered by slot, gated by the same visibility '
     'rule as `logs` — never includes a `private` favorite regardless of who\'s '
-    'asking, same as `logs`. Public — no sign-in required, but sending a token '
-    "lets the response reflect the caller's own follow/block relationship.",
+    'asking, same as `logs`. `follower_count`/`following_count` are plain '
+    "counts, gated by nothing — visible on a `private` account exactly like "
+    "Instagram shows counts without exposing the full follower/following list "
+    "to a non-follower (GET .../followers` and `.../following` keep their own, "
+    "separate gating on the full list). `caller_follow_status` "
+    "(`none`/`pending`/`accepted`) is `is_blocking`'s follow-state equivalent — "
+    "the caller's own relationship to this account, always `none` with no "
+    "token. Public — no sign-in required, but sending a token lets the "
+    "response reflect the caller's own follow/block relationship.",
     response_description='The profile shell, plus public logs/favorites if the caller can view them.',
     responses=responses['public_profile'],
     operation_id='GetPublicProfile',

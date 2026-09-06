@@ -204,3 +204,20 @@ class PublicProfile(BaseModel):
     avatar_path: Optional[str] = None
     banner_path: Optional[str] = None
     profile_links: List[ProfileLink] = Field(default_factory=list)
+    # follower_count/following_count are plain counts, gated by nothing —
+    # visible on a private account exactly like Instagram shows counts
+    # without exposing the full follower/following list to a non-follower.
+    # caller_follow_status ('none'/'pending'/'accepted') is the caller-
+    # directional signal GET /public/users/{username} was missing an
+    # equivalent of for follow state (is_blocking already covers the
+    # analogous block-state question) — a client-derived guess from
+    # GET .../followers' own list looked fine on a public account but
+    # is fundamentally unusable on a private one: that list is gated to
+    # nobody-but-the-owner there, so a real accepted follower still saw
+    # an empty list, indistinguishable from never having followed at
+    # all. None of the three are populated on GET /public/users/search's
+    # own response (a different, narrower RPC) — Optional here so that's
+    # just an absent field, not a validation error.
+    follower_count: Optional[int] = None
+    following_count: Optional[int] = None
+    caller_follow_status: Optional[Literal['none', 'pending', 'accepted']] = None
