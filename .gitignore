@@ -13,6 +13,9 @@
 # Ignore venv
 .venv/
 
+# Ignore node_modules
+**/node_modules/
+
 # Ignore conda
 .conda/
 

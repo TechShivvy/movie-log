@@ -1,0 +1,22 @@
+-- Prompted directly: users should get to choose whether their provider
+-- API keys are stored server-side (encrypted, 20260813000026) at all, or
+-- kept local-only on their own device. Both paths already fully work
+-- mechanically — PUT /me/llm-keys/{provider} stores, never calling it
+-- and always sending X-LLM-API-Key per request keeps everything local —
+-- what's actually missing is a *remembered* signal of which the user
+-- prefers, so the frontend knows whether to default to "save this key"
+-- UI or treat every key as session-only without re-prompting each time.
+--
+-- Defaults to false (privacy-first: don't store unless explicitly opted
+-- in) rather than true (opt-out) — matches this project's general
+-- posture of not persisting sensitive data by default.
+--
+-- Deliberately does NOT gate PUT/GET/DELETE /me/llm-keys/{provider} —
+-- calling PUT is itself already explicit, one-time consent for that one
+-- key; this column is purely a remembered UI preference, not an
+-- enforcement switch, same as prefill_repeat_visit/preferred_provider
+-- before it (Phase 6 made preferred_provider/model an actual server-
+-- side fallback, but there's no equivalent server-side action for this
+-- one to gate — it only ever affects what the frontend decides to show).
+alter table public.user_settings
+  add column if not exists llm_keys_storage_opt_in boolean not null default false;

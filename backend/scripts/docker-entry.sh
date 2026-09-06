@@ -3,6 +3,9 @@ set -euo pipefail
 # set -x  # Uncomment for verbose output during debugging
 
 # NOTE: This script is not meant to be run directly. It is intended to be used as an ENTRYPOINT in a Dockerfile.
+# No path-resolution needed here (unlike the other scripts in this dir) —
+# Docker's WORKDIR already puts the process cwd exactly where it needs to be
+# before ENTRYPOINT ever runs, so there's no "caller's directory" to guard against.
 
 : '
 Description:

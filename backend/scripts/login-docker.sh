@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # set -x  # Uncomment for verbose output during debugging
-
-# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/login-docker.sh`)
-# DO NOT execute from scripts/ directory.
+# Can be run (sourced) from anywhere — it doesn't touch any backend/-relative
+# files, unlike the other scripts here, so no path resolution is needed. Not
+# `cd`-ing on purpose: this is meant to be `source`d, and a `cd` here would
+# silently change the caller's own shell directory too.
 
 : '
 Description:

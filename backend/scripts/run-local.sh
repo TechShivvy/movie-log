@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # set -x  # Uncomment for verbose output during debugging
-# IMPORTANT: This script must be run from the **backend/** directory (e.g. `./scripts/run-local.sh`)
-# DO NOT execute from scripts/ directory.
+# Can be run from anywhere — resolves backend/ relative to this script's own
+# location (see below), not the caller's working directory.
 
 : '
 Description:
@@ -22,6 +22,11 @@ Prerequisites:
     - The image must be built locally using "./scripts/build.sh" or "docker-compose -f docker-compose.dev.yaml build" before running this.
 '
 
+# Resolve backend/ relative to this script's own location, not $PWD — so
+# --env-file .env and get-version.sh both resolve against backend/.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$BACKEND_DIR"
 
 IFS=' ' read -r app ver < <("../get-version.sh" -q)
 
