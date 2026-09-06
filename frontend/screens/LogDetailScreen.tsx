@@ -666,10 +666,40 @@ export function LogDetailScreen() {
   const { isMobile } = useBreakpoint();
   // Web → CSS family stack; native → the registered TTF family (e.g. Sora_700Bold)
   const headingFamily = fontFamily(fontConfig, "heading", 700);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `from` is an explicit breadcrumb, not something read from history —
+  // see goBack's own comment below for why it exists at all.
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const navigateOnce = useNavigateOnce();
   const { user } = useAuth();
+
+  // router.back()/canGoBack() trust the browser/native history stack to
+  // reflect where the user actually came from — true for same-tab
+  // navigation (Library → one of its own logs), but not when the log
+  // being opened lives in a *different* tab's own nested Stack than
+  // wherever the link was tapped from (Notifications is under the
+  // Profile tab; every log lives under the Library tab). expo-router's
+  // <Tabs> resolves that kind of cross-tab push by switching the active
+  // tab and REPLACING history for it, not pushing a new entry — so
+  // there's nothing for router.back() to land on but wherever came
+  // before the origin screen ever loaded (confirmed live: tapping a
+  // notification then pressing back lands on the Library tab's own
+  // index, not back on Notifications). This affects every cross-tab
+  // link to a log (Feed, Search, PublicProfile, Notifications all push
+  // here from their own tabs) — fixing it for real (so a native swipe-
+  // back/hardware-back gesture works too, not just this in-app button)
+  // needs log/[id] moved out of the Library tab's own Stack into a root-
+  // level one shared by every tab, a bigger restructuring than this pass
+  // takes on. This is the narrower, still-real fix: an explicit `?from=`
+  // query param set only by cross-tab entry points that know they need
+  // it (Notifications, so far), read back here to route the in-app
+  // "Back" button (the one every user actually taps, not just the OS
+  // gesture) to the real origin directly instead of trusting history.
+  const goBack = () => {
+    if (from === "notifications") { router.replace("/(app)/notifications" as any); return; }
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
 
   const { data: log, isLoading, error } = useMovieLog(id ?? "");
   const archiveLog = useArchiveLog();
@@ -695,7 +725,7 @@ export function LogDetailScreen() {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.bg, padding: 40 }}>
         <Text style={{ fontSize: fontSizes.lg, color: theme.text }}>Log not found.</Text>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}>
+        <Pressable onPress={goBack} style={{ marginTop: 16 }}>
           <Text style={{ color: theme.accent, fontSize: fontSizes.md }}>← Go back</Text>
         </Pressable>
       </View>
@@ -728,11 +758,6 @@ export function LogDetailScreen() {
       }
     );
   };
-  // router.back() alone strands a user with nowhere to go if this screen
-  // was opened directly (a deep link, a shared URL, a fresh tab) rather
-  // than navigated to from within the app — there's no history to go back
-  // to. canGoBack() is the documented way to tell the two cases apart.
-  const goBackOrHome = () => (router.canGoBack() ? router.back() : router.replace("/"));
   // No confirmation dialog existed anywhere for Delete — it wasn't even
   // reachable in the UI before this pass despite DELETE /movie-logs/{id}
   // being a real, working endpoint. Both platforms now go through the
@@ -763,7 +788,7 @@ export function LogDetailScreen() {
     try {
       await deleteLog.mutateAsync(log.id);
       showToast("Log deleted");
-      goBackOrHome();
+      goBack();
     } catch (e: any) {
       setConfirmingDelete(false);
       showToast(e?.detail ?? e?.message ?? "Couldn't delete — try again", "error");
@@ -847,7 +872,7 @@ export function LogDetailScreen() {
     return (
       <ScrollView style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 32, paddingBottom: 40 }} contentInsetAdjustmentBehavior="automatic">
         <View style={{ maxWidth: 980, width: "100%", alignSelf: "center" }}>
-          <Button variant="ghost" icon="caret-left" label="Back" onPress={() => router.back()} style={{ marginBottom: 20, alignSelf: "flex-start" }} />
+          <Button variant="ghost" icon="caret-left" label="Back" onPress={goBack} style={{ marginBottom: 20, alignSelf: "flex-start" }} />
 
           {deleteDialog}
           {likesModal}
@@ -949,7 +974,7 @@ export function LogDetailScreen() {
             style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "60%" }}
           />
           <Pressable
-            onPress={() => router.back()}
+            onPress={goBack}
             style={{
               position: "absolute", top: 48, left: 16,
               backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8,
