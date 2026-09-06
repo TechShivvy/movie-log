@@ -8,8 +8,9 @@
  * sizes silently drift between the two branches (web: base/sm, native:
  * sm/xs), not a deliberate design choice.
  */
-import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import {
   Heart,
   ChatCircle,
@@ -20,8 +21,12 @@ import {
 } from "phosphor-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "../hooks/useNotifications";
+import { useAcceptFollowRequest, useIgnoreFollowRequest } from "../hooks/useSocial";
 import { Button } from "../components/ui/Button";
-import type { NotificationType } from "../types";
+import { ScreenLoader } from "../components/ui/Spinner";
+import { Icon } from "../components/ui/Icon";
+import type { Notification, NotificationType } from "../types";
 import { type as fontSizes } from "../constants/fonts";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,7 +48,7 @@ function notifIcon(type: NotificationType, color: string) {
   }
 }
 
-function notifText(n: any): string {
+function notifText(n: Notification): string {
   switch (n.type as NotificationType) {
     case "follow_request":
       return `${n.actor_username ?? "Someone"} wants to follow you`;
@@ -80,32 +85,62 @@ function relTime(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Mock notifications for demo — no useNotifications hook exists yet
-// (GET /notifications is unwired here), so this screen is demo-data only
-// for now; the type/field names below at least match the real Notification
-// shape (types/index.ts) so wiring the real hook in later is a drop-in.
-const DEMO_NOTIFS = [
-  { id: "1", type: "follow_request" as NotificationType, actor_username: "cinephile99", read: false, created_at: new Date(Date.now() - 120000).toISOString() },
-  { id: "2", type: "log_like" as NotificationType, actor_username: "sarah_films", movie: "Dune: Part Two", read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: "3", type: "new_comment" as NotificationType, actor_username: "moviejunkie", movie: "Oppenheimer", read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
-  { id: "4", type: "comment_like" as NotificationType, actor_username: "filmcritic", read: true, created_at: new Date(Date.now() - 172800000).toISOString() },
-];
+// Where tapping a notification (not its Accept/Ignore buttons) should
+// go — a log for the content types, the actor's own profile for the
+// follow-related ones (nothing else to show for those). report_resolved
+// has no useful destination (report_id isn't a route anywhere in this
+// app) and auto/batch-extraction ones aren't emitted by the backend at
+// all yet (see NotificationType's own comment in types/index.ts) — all
+// three fall through to no navigation.
+function notifTarget(n: Notification): string | undefined {
+  switch (n.type) {
+    case "follow_request":
+    case "follow_accepted":
+    case "new_follower":
+      return n.actor_username ? `/(app)/profile/${n.actor_username}` : undefined;
+    case "log_like":
+    case "new_comment":
+    case "comment_reply":
+    case "comment_like":
+      // ?from=notifications — a log lives under the Library tab's own
+      // Stack, a different one than this screen (Profile tab); expo-
+      // router's <Tabs> resolves that kind of push by switching tabs and
+      // replacing history for the target tab rather than pushing a new
+      // entry, so router.back() from the log screen has nothing of
+      // Notifications left to land on (confirmed live — it lands on the
+      // Library tab's own index instead). LogDetailScreen reads this
+      // param back and routes its own "Back" button here explicitly
+      // instead of trusting history for it. The follow-related cases
+      // above don't need this — profile/{username} lives in this same
+      // Profile tab's Stack, a normal same-tab push with working history.
+      return n.movie_log_id ? `/(app)/log/${n.movie_log_id}?from=notifications` : undefined;
+    default:
+      return undefined;
+  }
+}
 
 // ─── Notification Row ─────────────────────────────────────────────────────────
 
-function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }) {
+function NotifRow({ notif, theme, onOpen, onAccept, onIgnore, accepting, ignoring }: {
+  notif: Notification; theme: any; onOpen: () => void;
+  onAccept: () => void; onIgnore: () => void;
+  accepting: boolean; ignoring: boolean;
+}) {
   const isFollowRequest = notif.type === "follow_request";
 
   return (
-    <View style={{
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 14,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.divider,
-      opacity: notif.read ? 0.65 : 1,
-    }}>
+    <Pressable
+      onPress={onOpen}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 14,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.divider,
+        opacity: notif.read ? 0.65 : 1,
+      }}
+    >
       {/* Icon box — 40×40, accent-800 bg */}
       <View style={{
         width: 40,
@@ -130,8 +165,8 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
           Pressable on native), so this row needs no branch of its own. */}
       {isFollowRequest && (
         <View style={{ flexDirection: "row", gap: 6 }}>
-          <Button variant="primary" label="Accept" />
-          <Button variant="secondary" label="Ignore" />
+          <Button variant="primary" label="Accept" loading={accepting} onPress={onAccept} />
+          <Button variant="secondary" label="Ignore" loading={ignoring} onPress={onIgnore} />
         </View>
       )}
 
@@ -139,7 +174,7 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
       {!notif.read && (
         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.accent, flexShrink: 0 }} />
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -148,7 +183,32 @@ function NotifRow({ notif, theme }: { notif: typeof DEMO_NOTIFS[0]; theme: any }
 export function NotificationsScreen() {
   const { theme } = useTheme();
   const { isMobile } = useBreakpoint();
-  const notifs = DEMO_NOTIFS;
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const { data: notifs, isLoading, refetch } = useNotifications();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const acceptRequest = useAcceptFollowRequest();
+  const ignoreRequest = useIgnoreFollowRequest();
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  function openNotif(n: Notification) {
+    if (!n.read) markRead.mutate(n.id);
+    const target = notifTarget(n);
+    if (target) router.push(target as any);
+  }
+
+  if (isLoading) return <ScreenLoader />;
+
+  const hasUnread = !!notifs?.some((n) => !n.read);
 
   return (
     <ScrollView
@@ -159,18 +219,47 @@ export function NotificationsScreen() {
         paddingBottom: isMobile ? 100 : 40,
       }}
       contentInsetAdjustmentBehavior="automatic"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.accent} colors={[theme.accent]} />}
     >
       <View style={{ maxWidth: isMobile ? undefined : 660, width: "100%", alignSelf: isMobile ? "stretch" : "center" }}>
-        <Text style={{
-          fontSize: isMobile ? fontSizes.display : fontSizes.h1,
-          fontWeight: isMobile ? "800" : "700",
-          color: theme.text,
-          marginBottom: isMobile ? 16 : 24,
-          letterSpacing: isMobile ? undefined : -0.5,
-        }}>
-          Notifications
-        </Text>
-        {notifs.map((n) => <NotifRow key={n.id} notif={n} theme={theme} />)}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 16 : 24 }}>
+          <Text style={{
+            fontSize: isMobile ? fontSizes.display : fontSizes.h1,
+            fontWeight: isMobile ? "800" : "700",
+            color: theme.text,
+            letterSpacing: isMobile ? undefined : -0.5,
+          }}>
+            Notifications
+          </Text>
+          {hasUnread && (
+            <Button
+              variant="ghost"
+              label="Mark all read"
+              loading={markAllRead.isPending}
+              onPress={() => markAllRead.mutate()}
+            />
+          )}
+        </View>
+
+        {!notifs || notifs.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
+            <Icon name="bell" size={36} color={`${theme.text}33`} />
+            <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>Nothing yet.</Text>
+          </View>
+        ) : (
+          notifs.map((n) => (
+            <NotifRow
+              key={n.id}
+              notif={n}
+              theme={theme}
+              onOpen={() => openNotif(n)}
+              onAccept={() => n.actor_username && acceptRequest.mutate(n.actor_username)}
+              onIgnore={() => n.actor_username && ignoreRequest.mutate(n.actor_username)}
+              accepting={acceptRequest.isPending}
+              ignoring={ignoreRequest.isPending}
+            />
+          ))
+        )}
       </View>
     </ScrollView>
   );

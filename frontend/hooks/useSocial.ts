@@ -513,6 +513,41 @@ export function useFollowUser() {
   });
 }
 
+// Accept/reject an INCOMING follow request — the caller is the followee
+// here, the opposite direction from useFollowUser above (which is always
+// the follower acting on their own outgoing request). Surfaced today only
+// from a follow_request notification row (NotificationsScreen's Accept/
+// Ignore buttons), which is the only current entry point into "who has a
+// pending request against me" (GET /public/follow-requests exists too,
+// but nothing renders a dedicated requests-inbox screen yet).
+export function useAcceptFollowRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (username: string) => {
+      if (DEMO_MODE) return;
+      await api.post(`/public/follows/${username}/accept`);
+    },
+    onSuccess: (_data, username) => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["public-profile", username] });
+    },
+  });
+}
+
+export function useIgnoreFollowRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (username: string) => {
+      if (DEMO_MODE) return;
+      // Same DELETE .../followers/{username} route unfollow-from-the-
+      // other-side and reject-a-pending-request both go through — "same
+      // delete either way" per the route's own description.
+      await api.delete(`/public/follows/followers/${username}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
 export function useBlockUser() {
   const qc = useQueryClient();
   return useMutation({

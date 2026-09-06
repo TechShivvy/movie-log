@@ -37,15 +37,15 @@ import { Avatar } from "../ui/Avatar";
 import { avatarUrl } from "../../lib/storage";
 import { ThemeSwatch } from "../ui/ThemeSwatch";
 import { useNavigateOnce } from "../../hooks/useNavigateOnce";
+import { useUnreadNotificationCount } from "../../hooks/useNotifications";
 import { fontFamily } from "../../constants/fonts";
 import { type as fontSizes } from "../../constants/fonts";
 
 // `badge` was a hardcoded `3` here regardless of any real unread count —
-// every account, forever, saw "3 new notifications." No notifications
-// endpoint is wired anywhere in hooks/ yet (NotificationsScreen renders a
-// fixed DEMO_NOTIFS array), so there's no real count to show. Once that
-// screen gets its own pass, wire a real unread count through here instead
-// of restoring a fixed number.
+// every account, forever, saw "3 new notifications." Now wired to
+// useUnreadNotificationCount() (Sidebar body, below) and merged onto the
+// Notifications entry at render time — the array itself stays static
+// (no live data belongs at module scope), just a placeholder shape.
 const NAV: { icon: IconName; label: string; href: string; badge?: number }[] = [
   { icon: "film-strip",       label: "Library",       href: "/(app)" },
   { icon: "rss",              label: "Feed",          href: "/(app)/feed" },
@@ -85,6 +85,8 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const navigateOnce = useNavigateOnce();
   const pathname = usePathname();
+  const unreadCount = useUnreadNotificationCount();
+  const nav = NAV.map((n) => n.href === "/(app)/notifications" ? { ...n, badge: unreadCount || undefined } : n);
 
   const headingFamily = fontFamily(fontConfig, "heading", 600);
   const muted = `${theme.text}8c`;
@@ -178,7 +180,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Nav items — before the CTA, per the design */}
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const active = isActive(n.href);
             return (
               <div
@@ -343,7 +345,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const active = isActive(n.href);
             return (
               <Pressable
