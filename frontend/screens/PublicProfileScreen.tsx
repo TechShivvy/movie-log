@@ -195,47 +195,52 @@ export function PublicProfileScreen() {
         </View>
 
         <View style={{ paddingHorizontal: pad }}>
-          {/* Avatar + name row — flexWrap so the button group drops to its
-              own line rather than colliding with a long name at narrow
-              widths; numberOfLines so an oversized display name truncates
-              instead of overflowing past the Follow/Block buttons. */}
-          <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 16 }}>
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, minWidth: 0, flex: 1 }}>
-              <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
-                <Avatar name={displayName} uri={avatar} size="xl" />
-              </Pressable>
-              <View style={{ marginBottom: 4, minWidth: 0, flexShrink: 1 }}>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
-                  {displayName}
-                </Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
-                  @{profile.username}
-                </Text>
-              </View>
+          {/* Avatar + name — its own row, full width, no longer sharing
+              space with the Follow/Block buttons at all. That used to be
+              one flexWrap row with the buttons: wrapping only kicks in
+              once a row's children can't fit at their own min-content
+              width, but the name column's minWidth:0 let it shrink (and
+              numberOfLines={1} truncate) arbitrarily far first — so on a
+              real phone width the display name/username were routinely
+              ellipsized well before the row ever wrapped, even though
+              there was no real space problem once the buttons had their
+              own line. A guaranteed second row is simpler and more
+              predictable than relying on flex-wrap timing here. */}
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, marginTop: -40, marginBottom: isOwnProfile ? 16 : 10 }}>
+            <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
+              <Avatar name={displayName} uri={avatar} size="xl" />
+            </Pressable>
+            <View style={{ marginBottom: 4, minWidth: 0, flex: 1 }}>
+              <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
+                {displayName}
+              </Text>
+              <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
+                @{profile.username}
+              </Text>
             </View>
-            {!isOwnProfile && (
-              <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
-                <Button
-                  variant={followStatus === "none" ? "primary" : "secondary"}
-                  icon={followStatus === "accepted" ? "user-check" : followStatus === "pending" ? "clock" : "user-plus"}
-                  label={followStatus === "accepted" ? "Following" : followStatus === "pending" ? "Requested" : "Follow"}
-                  accessibilityLabel={
-                    followStatus === "accepted" ? `Unfollow @${profile.username}`
-                    : followStatus === "pending" ? `Cancel follow request to @${profile.username}`
-                    : `Follow @${profile.username}`
-                  }
-                  onPress={toggleFollow}
-                />
-                <Button
-                  variant="icon"
-                  icon="prohibit"
-                  color={isBlocking ? theme.error : undefined}
-                  accessibilityLabel={isBlocking ? `Unblock @${profile.username}` : `Block @${profile.username}`}
-                  onPress={toggleBlock}
-                />
-              </View>
-            )}
           </View>
+          {!isOwnProfile && (
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+              <Button
+                variant={followStatus === "none" ? "primary" : "secondary"}
+                icon={followStatus === "accepted" ? "user-check" : followStatus === "pending" ? "clock" : "user-plus"}
+                label={followStatus === "accepted" ? "Following" : followStatus === "pending" ? "Requested" : "Follow"}
+                accessibilityLabel={
+                  followStatus === "accepted" ? `Unfollow @${profile.username}`
+                  : followStatus === "pending" ? `Cancel follow request to @${profile.username}`
+                  : `Follow @${profile.username}`
+                }
+                onPress={toggleFollow}
+              />
+              <Button
+                variant="icon"
+                icon="prohibit"
+                color={isBlocking ? theme.error : undefined}
+                accessibilityLabel={isBlocking ? `Unblock @${profile.username}` : `Block @${profile.username}`}
+                onPress={toggleBlock}
+              />
+            </View>
+          )}
 
           {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 12 }}>{profile.bio}</Text>}
 

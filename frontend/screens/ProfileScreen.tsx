@@ -206,73 +206,74 @@ export function ProfileScreen() {
 
   const content = (
     <View style={{ paddingHorizontal: isMobile ? 16 : 32, paddingBottom: isMobile ? 100 : 40 }}>
-      {/* Avatar + name row — flexWrap so the button group drops to its own
-          line rather than colliding with a long name at narrow widths;
-          minWidth:0 + numberOfLines on the name so an oversized fallback
-          name (the raw email-local-part, easily 20-30+ chars) truncates
-          instead of overflowing past the buttons or off the screen. */}
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: -40, marginBottom: 12, opacity: isProfileLoading ? 0.6 : 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, minWidth: 0, flex: 1 }}>
-          <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
-            <Avatar name={displayName} uri={avatar} size="xl" />
-          </Pressable>
-          <View style={{ marginBottom: 4, minWidth: 0, flexShrink: 1 }}>
-            {/* While the profile fetch is still in flight, show a plain
-                "Loading…" instead of the un-annotated email-handle
-                fallback — that fallback is only a correct final answer
-                once we actually know there's no real display_name/
-                username to show, not before. */}
-            <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
-              {isProfileLoading ? "Loading…" : displayName}
-            </Text>
-            <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
-              {isProfileLoading ? "" : `@${username}`}
-            </Text>
-            {/* Deliberate "View as" escape hatch (same idea as Slack's) —
-                landing on your own /profile/{username} any other way (a
-                typed URL, an old link, finding yourself in People
-                search) redirects straight back here instead, so this
-                link is the one intentional door into seeing your own
-                profile the way a stranger/follower would. */}
-            {!isProfileLoading && profile?.username && (
-              <Pressable onPress={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)} style={{ marginTop: 2, alignSelf: "flex-start" }}>
-                <Text style={{ fontSize: fontSizes.xs, color: theme.accent }}>Preview as others see it</Text>
-              </Pressable>
-            )}
-          </View>
+      {/* Avatar + name — its own row, full width, no longer sharing space
+          with the Edit/Settings buttons at all (same restructuring as
+          PublicProfileScreen's identical row, see that file's own note
+          on why: a shared flexWrap row let the name column's minWidth:0
+          shrink — and numberOfLines={1} truncate — arbitrarily far
+          before wrapping ever kicked in, even once there was no real
+          space problem left to solve by wrapping). */}
+      <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 16, marginTop: -40, marginBottom: 10, opacity: isProfileLoading ? 0.6 : 1 }}>
+        <Pressable onPress={avatar ? () => setLightbox(avatar) : undefined} disabled={!avatar}>
+          <Avatar name={displayName} uri={avatar} size="xl" />
+        </Pressable>
+        <View style={{ marginBottom: 4, minWidth: 0, flex: 1 }}>
+          {/* While the profile fetch is still in flight, show a plain
+              "Loading…" instead of the un-annotated email-handle
+              fallback — that fallback is only a correct final answer
+              once we actually know there's no real display_name/
+              username to show, not before. */}
+          <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: isMobile ? fontSizes.xl : fontSizes.xxl, fontWeight: "700", color: theme.text }}>
+            {isProfileLoading ? "Loading…" : displayName}
+          </Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: fontSizes.sm, color: `${theme.text}55`, marginTop: 2 }}>
+            {isProfileLoading ? "" : `@${username}`}
+          </Text>
         </View>
-        {/* Icon-only action pair on both platforms — was a text-labeled
-            .btn-secondary duo on web and this same icon-only square pair
-            on native; adopted native's version everywhere. Two matching
-            icons read unambiguous visually, but neither had an actual
-            accessible name. accessibilityLabel on the Pressable gives
-            the real screen-reader name; `title` on the raw phosphor icon
-            (imported directly, not through this app's Icon.tsx wrapper),
-            web only, gives a real hover tooltip on web — RNW's
-            Pressable/View has no path to a DOM `title` attribute at all,
-            but phosphor's own SVG <title> child does render one there.
-            Native must never get this prop: phosphor-react-native's
-            IconBase renders `title` as a literal JSX <title> inside its
-            <Svg>, which is fatal on native (confirmed via a real device
-            crash — see Icon.tsx's own note on the same bug).
-            accessibilityLabel on the Pressable already covers native's
-            real screen-reader name. */}
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 4, flexShrink: 0 }}>
-          <Pressable
-            onPress={() => setEditing(true)}
-            accessibilityLabel="Edit profile"
-            style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
-          >
-            <PencilSimple size={16} color={theme.text} title={Platform.OS === "web" ? "Edit profile" : undefined} />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push("/(app)/settings" as any)}
-            accessibilityLabel="Settings"
-            style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
-          >
-            <GearSix size={16} color={theme.text} title={Platform.OS === "web" ? "Settings" : undefined} />
-          </Pressable>
-        </View>
+      </View>
+      {/* Deliberate "View as" escape hatch (same idea as Slack's) —
+          landing on your own /profile/{username} any other way (a typed
+          URL, an old link, finding yourself in People search) redirects
+          straight back here instead, so this link is the one intentional
+          door into seeing your own profile the way a stranger/follower
+          would. Its own row now too, rather than a third line squeezed
+          into the name column above. */}
+      {!isProfileLoading && profile?.username && (
+        <Pressable onPress={() => router.push(`/(app)/profile/${profile.username}?preview=1` as any)} style={{ alignSelf: "flex-start", marginBottom: 10 }}>
+          <Text style={{ fontSize: fontSizes.xs, color: theme.accent }}>Preview as others see it</Text>
+        </Pressable>
+      )}
+      {/* Icon-only action pair on both platforms — was a text-labeled
+          .btn-secondary duo on web and this same icon-only square pair
+          on native; adopted native's version everywhere. Two matching
+          icons read unambiguous visually, but neither had an actual
+          accessible name. accessibilityLabel on the Pressable gives
+          the real screen-reader name; `title` on the raw phosphor icon
+          (imported directly, not through this app's Icon.tsx wrapper),
+          web only, gives a real hover tooltip on web — RNW's
+          Pressable/View has no path to a DOM `title` attribute at all,
+          but phosphor's own SVG <title> child does render one there.
+          Native must never get this prop: phosphor-react-native's
+          IconBase renders `title` as a literal JSX <title> inside its
+          <Svg>, which is fatal on native (confirmed via a real device
+          crash — see Icon.tsx's own note on the same bug).
+          accessibilityLabel on the Pressable already covers native's
+          real screen-reader name. */}
+      <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+        <Pressable
+          onPress={() => setEditing(true)}
+          accessibilityLabel="Edit profile"
+          style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
+        >
+          <PencilSimple size={16} color={theme.text} title={Platform.OS === "web" ? "Edit profile" : undefined} />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push("/(app)/settings" as any)}
+          accessibilityLabel="Settings"
+          style={{ padding: 8, backgroundColor: theme.surface, borderRadius: 8, borderWidth: 1, borderColor: theme.divider }}
+        >
+          <GearSix size={16} color={theme.text} title={Platform.OS === "web" ? "Settings" : undefined} />
+        </Pressable>
       </View>
 
       {bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: isMobile ? 16 : 20 }}>{bio}</Text>}
