@@ -1,0 +1,12 @@
+# EAS Build archives the project by shallow-cloning it into a temp dir and
+# re-materializing every entry there, including symlinks — .agents/skills/*
+# are real NTFS symlinks into .claude/skills/* (Claude Code's own skill
+# tooling, unrelated to the app), and creating a symlink on Windows without
+# Developer Mode enabled fails with EPERM, which aborts the whole upload
+# ("Failed to upload the project tarball to EAS Build"). Neither directory
+# is ever imported by app code — pure dev tooling — so there's no reason
+# for EAS to touch them at all. .easignore (unlike .gitignore) excludes
+# files from the build archive even though they're tracked by git, which
+# is what actually stops EAS from hitting the symlink.
+.agents/
+.claude/

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+         values instead of 0 in standalone PWA mode on iOS — this app already
+         reads those through react-native-safe-area-context's web
+         implementation throughout MobileLayout/LoginScreen's native
+         branches, so this is the one piece those screens actually depend
+         on from the PWA setup, not the other way around. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
+    <title>%WEB_TITLE%</title>
+
+    <!-- ── PWA ──────────────────────────────────────────────────────────────
+         app.json's old web.pwa block never did anything: those fields only
+         ever fed the legacy webpack bundler's auto-manifest step, and this
+         project builds web via Metro, which has no such step at all — see
+         public/manifest.json and public/sw.js for the real equivalents. -->
+    <link rel="manifest" href="/manifest.json" />
+    <!-- Static fallback for the instant before ThemeContext's own effect
+         runs (see context/ThemeContext.tsx's injectWebCSSVars) — matches
+         Cinematic's (the default theme's) real accent900, not the old
+         pre-redesign brand red. manifest.json's own theme_color is kept
+         in sync with this same value: it's a static file (no way to make
+         it track the live in-app theme), but Chrome sources the
+         installed-PWA splash/toolbar color from it once a page passes
+         installability checks, so a stale mismatched value there was
+         overriding this live meta tag's per-theme updates entirely on
+         some Chrome versions — same class of bug this tag itself used to
+         have before the dynamic mirror was added. -->
+    <meta name="theme-color" content="#2c1223" />
+
+    <!-- Content-Security-Policy — no policy existed before this. style-src
+         needs 'unsafe-inline': react-native-web renders this app's own
+         style={{...}} JSX as literal inline style attributes throughout,
+         and injects its own atomic classes via a runtime <style> sheet —
+         both are governed by style-src, and there's no practical way to
+         nonce/hash either one without a much larger change to how this app
+         is built. script-src has no such exception in production (there is
+         no inline script left — see sw-register.js below) EXCEPT in local
+         dev: Metro's HMR client (metro-runtime/HMRClient.js) evaluates
+         incoming update strings, which needs 'unsafe-eval' — a real
+         requirement of the dev server, not something any app code does, and
+         it does not exist in an exported/production bundle at all (dev-only
+         module, stripped by the bundler). Rather than weaken the policy
+         everyone ships with just to unblock a dev-only tool, the policy is
+         injected here at runtime, branching on location.hostname — this
+         inline script itself runs before any CSP is in effect (nothing has
+         been asserted yet when the browser parses the first script in
+         <head>), so it isn't blocked by the policy it's about to set.
+         connect-src covers Supabase (any project), this app's own Render
+         deployments, and localhost for local dev. img-src covers TMDB
+         posters and Supabase Storage. frame-src is scoped to just the
+         Google Maps embed. frame-ancestors is a real, valuable directive
+         (stops this app being embedded in someone else's page) but the CSP
+         spec says browsers must ignore it when delivered via <meta> — it
+         only works as an actual HTTP response header, a hosting/serving-
+         layer config (e.g. Render's static-site headers), not something
+         this file can set; omitted here rather than shipping a directive
+         that silently does nothing. -->
+    <script>
+      (function () {
+        // localhost/127.0.0.1 covers this repo's own established testing
+        // pattern; the private-IP and .local patterns additionally cover
+        // a real device on the same LAN hitting the dev server directly
+        // (Expo's own "open on your phone" flow) — still never matches a
+        // real deployment, which is always a *.onrender.com hostname.
+        var h = window.location.hostname;
+        var isDev = /^(localhost|127\.0\.0\.1)$/.test(h)
+          || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(h)
+          || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
+          || /\.local$/.test(h);
+        var scriptSrc = isDev ? "'self' 'unsafe-eval'" : "'self'";
+        var meta = document.createElement("meta");
+        meta.httpEquiv = "Content-Security-Policy";
+        meta.content =
+          "default-src 'self'; " +
+          "script-src " + scriptSrc + "; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "font-src 'self' https://fonts.gstatic.com; " +
+          "img-src 'self' data: blob: https://image.tmdb.org https://*.supabase.co; " +
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.onrender.com http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; " +
+          "frame-src https://www.google.com; " +
+          "object-src 'none'; " +
+          "base-uri 'self';";
+        document.head.appendChild(meta);
+      })();
+    </script>
+
+    <!-- iOS Safari discovers PWAs through these specific tags, not the
+         manifest the way Chrome/Edge do — manifest icons are ignored for
+         the actual home-screen glyph; apple-touch-icon is the only thing
+         that controls it. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CineLog" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Feature-detected and deferred to window.load so it never competes
+         with the app's own initial bundle fetch/parse. See public/sw.js for
+         why this is a small hand-written worker rather than a Workbox
+         build step. Moved out of an inline <script> so the CSP above can
+         use a strict script-src with no 'unsafe-inline'. -->
+    <script src="/sw-register.js" defer></script>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Use static rendering with Expo Router to support running without JavaScript. -->
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    <!-- The root element for your Expo app. -->
+    <div id="root"></div>
+  </body>
+</html>

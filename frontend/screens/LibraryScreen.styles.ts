@@ -1,0 +1,63 @@
+import { StyleSheet } from "react-native";
+
+export const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  filmCount: { fontSize: 24, fontWeight: "800" },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  headerActions: { flexDirection: "row", gap: 8 },
+  analyticsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+  },
+  analyticsBtnText: { fontSize: 13, fontWeight: "500" },
+  viewToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterRow: { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipText: { fontSize: 13, fontWeight: "500" },
+  grid: { paddingHorizontal: 20, paddingBottom: 100 },
+  row: { gap: 12, marginBottom: 12 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80 },
+  emptyText: { fontSize: 16 },
+  emptySubText: { fontSize: 13, marginTop: 8 },
+  // List row
+  listRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  listPoster: { width: 48, height: 72, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  listMeta: { flex: 1 },
+  listTitle: { fontSize: 15, fontWeight: "600" },
+  listSub: { fontSize: 13, marginTop: 4 },
+  // Skeleton
+  skeletonCard: { borderRadius: 8, marginBottom: 12 },
+  loader: { flex: 1, alignItems: "center", justifyContent: "center" },
+});

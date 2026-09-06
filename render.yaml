@@ -1,0 +1,52 @@
+# Render Blueprint for the CineLog web build (Expo SDK 54, web.output:
+# "single" — a static SPA export, not a server). This is separate from
+# your native app flow (npx expo start for local dev, EAS/Expo Go for
+# phone testing) and separate from the backend's own Render service
+# (movie-log-backend-*, a Docker web service) — this one just serves the
+# static `frontend/dist` folder `expo export -p web` produces.
+#
+# To use: Render dashboard -> New -> Blueprint -> connect this repo. Render
+# reads this file automatically since it's at the repo root. Adjust
+# `branch` below to whichever branch you want deployed (defaults to main).
+# Google Sign-In / Supabase auth redirect URLs, if any, will need the
+# service's onrender.com URL added once you have it.
+
+services:
+  - type: web
+    runtime: static
+    name: cinelog-web
+    branch: claude/frontend-hardening-react-expo-6l8r1y
+    rootDir: frontend
+    buildCommand: npm install && npm run build:web
+    staticPublishPath: dist
+    # expo-router is client-side routing — a direct load/refresh of e.g.
+    # /log/123 has to serve index.html and let the router take over, not
+    # 404 on a path that doesn't exist as a real file in dist/.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # The PWA service worker (public/sw.js) must never be served from a
+      # stale cache, or a real deploy's changes can get stuck behind an
+      # old worker still intercepting requests on a returning visitor's
+      # device — the one thing that would actually defeat the point of
+      # deploying an update at all.
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+    envVars:
+      # Secrets/URLs — set the real values in the Render dashboard
+      # (Environment tab) after creating the service; sync:false keeps
+      # them out of this checked-in file. Same three vars frontend/.env
+      # already defines for local dev.
+      - key: EXPO_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: EXPO_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: EXPO_PUBLIC_API_URL
+        sync: false
+      # Pins the build's Node version to match local dev (node -v).
+      # Render's default can drift to a newer major version over time.
+      - key: NODE_VERSION
+        value: 22

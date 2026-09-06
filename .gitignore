@@ -34,3 +34,7 @@ coverage.xml
 .mypy_cache/
 .pytest_cache/
 coverage.xml
+
+**/node_modules
+**/.temp/
+**/frontend/android/
