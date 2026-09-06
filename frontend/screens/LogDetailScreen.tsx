@@ -22,8 +22,9 @@
  * layouts call, extending the pattern CommentItem already correctly
  * used (a single implementation, shared, since it was written).
  */
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  findNodeHandle,
   Image,
   Platform,
   Pressable,
@@ -143,10 +144,20 @@ function visColor(v: string) {
 // ─── CommentItem — already the reference pattern this whole file follows now ──
 
 function CommentItem({
-  comment, logId, depth = 0, onReply,
+  comment, logId, depth = 0, onReply, highlightId, scrollRef,
 }: {
   comment: Comment; logId: string; depth?: number;
   onReply: (username: string, commentId: string) => void;
+  // Set only when this screen was opened from a comment-related
+  // notification (see notifTarget in NotificationsScreen.tsx) — scrolls
+  // this one comment into view and gives it a brief tinted flash once,
+  // the same "arrive already pointed at the specific thing, not just the
+  // screen it lives on" idea the log page itself already gets from a
+  // notification (it opens the exact log, not a list you'd have to find
+  // it in) — a comment buried deep in a long thread deserved the same
+  // treatment rather than leaving a scroll-and-hunt as the only way in.
+  highlightId?: string;
+  scrollRef?: React.RefObject<ScrollView | null>;
 }) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -171,9 +182,56 @@ function CommentItem({
   const isDeleted = !!comment.deleted_at;
   const goToProfile = () => comment.username && router.push(`/(app)/profile/${comment.username}` as any);
 
+  const isTarget = !!highlightId && comment.id === highlightId;
+  const bubbleRef = useRef<View>(null);
+  // Starts true (not false-then-true) so the tint is there on first
+  // paint, not popped in a beat after — scrolling to something that
+  // simultaneously flashes into color reads as one motion instead of
+  // two separate events.
+  const [flashed, setFlashed] = useState(isTarget);
+  useEffect(() => {
+    if (!isTarget) return;
+    // One tick so the comment list has actually laid out before
+    // measuring against it — measureLayout against a still-empty
+    // ScrollView content size reliably returns 0 the first frame.
+    const t = setTimeout(() => {
+      // findNodeHandle is a real device crash on web, not just a no-op —
+      // react-native-web throws unconditionally ("findNodeHandle is not
+      // supported on web. Use the ref property on the component
+      // instead."), confirmed live: it took the whole log page down
+      // behind an error boundary the instant a comment notification was
+      // opened. On web, bubbleRef.current already IS the real DOM node
+      // (that's what a View ref forwards to there), so it has a genuine
+      // native scrollIntoView of its own — simpler and more reliable
+      // than replicating measureLayout's relative-position math by hand.
+      if (Platform.OS === "web") {
+        (bubbleRef.current as any)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        return;
+      }
+      const scrollNode = scrollRef?.current ? findNodeHandle(scrollRef.current) : null;
+      if (scrollNode && bubbleRef.current) {
+        (bubbleRef.current as any).measureLayout?.(
+          scrollNode,
+          (_x: number, y: number) => scrollRef?.current?.scrollTo({ y: Math.max(0, y - 80), animated: true }),
+          () => {},
+        );
+      }
+    }, 150);
+    const fade = setTimeout(() => setFlashed(false), 2600);
+    return () => { clearTimeout(t); clearTimeout(fade); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTarget]);
+
   return (
     <View style={depth > 0 ? { marginLeft: 28, marginTop: 6 } : undefined}>
-      <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 12, marginBottom: 10 }}>
+      <View
+        ref={bubbleRef}
+        style={{
+          backgroundColor: flashed ? `${theme.accent}22` : theme.surface,
+          borderRadius: 12, padding: 12, marginBottom: 10,
+          borderWidth: isTarget ? 1 : 0, borderColor: theme.accent,
+        }}
+      >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
           {/* Was username-only (no display_name/avatar_path on Comment at
               all — the backend's own comments view never joined them,
@@ -259,7 +317,7 @@ function CommentItem({
         )}
       </View>
       {(comment.replies ?? []).map((r) => (
-        <CommentItem key={r.id} comment={r} logId={logId} depth={1} onReply={onReply} />
+        <CommentItem key={r.id} comment={r} logId={logId} depth={1} onReply={onReply} highlightId={highlightId} scrollRef={scrollRef} />
       ))}
       <ConfirmDialog
         visible={confirmingDelete}
@@ -580,12 +638,14 @@ function ManageButtons({ log, theme, onEdit, onArchive, onDelete }: {
 function CommentsSection({
   theme, headingFamily, comments, isCommentsLoading, commentText, setCommentText,
   replyTo, setReplyTo, onSend, hasMoreComments, isFetchingComments, loadMoreComments, logId, onReply,
+  highlightId, scrollRef,
 }: {
   theme: any; headingFamily?: string; comments: Comment[]; isCommentsLoading: boolean;
   commentText: string; setCommentText: (t: string) => void;
   replyTo: { username: string; commentId: string } | null; setReplyTo: (r: null) => void;
   onSend: () => void; hasMoreComments: boolean; isFetchingComments: boolean; loadMoreComments: () => void;
   logId: string; onReply: (username: string, commentId: string) => void;
+  highlightId?: string; scrollRef?: React.RefObject<ScrollView | null>;
 }) {
   // Border-color-on-focus, not the app's global box-shadow ring — same
   // fix and same reasoning as SearchScreen's own search field (see that
@@ -630,7 +690,7 @@ function CommentsSection({
       )}
 
       {comments.map((c) => (
-        <CommentItem key={c.id} comment={c} logId={logId} onReply={onReply} />
+        <CommentItem key={c.id} comment={c} logId={logId} onReply={onReply} highlightId={highlightId} scrollRef={scrollRef} />
       ))}
       {comments.length === 0 && (
         <Text style={{ color: theme.text, opacity: 0.4, fontSize: fontSizes.base, textAlign: "center", paddingVertical: 24 }}>
@@ -667,11 +727,21 @@ export function LogDetailScreen() {
   // Web → CSS family stack; native → the registered TTF family (e.g. Sora_700Bold)
   const headingFamily = fontFamily(fontConfig, "heading", 700);
   // `from` is an explicit breadcrumb, not something read from history —
-  // see goBack's own comment below for why it exists at all.
-  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
+  // see goBack's own comment below for why it exists at all. `comment`
+  // is the analogous one for arriving at a specific comment (a comment-
+  // related notification — see notifTarget in NotificationsScreen.tsx) —
+  // scrolls straight to it instead of leaving a scroll-and-hunt as the
+  // only way in, same idea as this whole screen already being the exact
+  // log rather than a list you'd have to find it in.
+  const { id, from, comment: highlightCommentId } = useLocalSearchParams<{ id: string; from?: string; comment?: string }>();
   const router = useRouter();
   const navigateOnce = useNavigateOnce();
   const { user } = useAuth();
+  // Shared by both the desktop and mobile ScrollView branches below —
+  // only one is ever actually mounted at a time (isMobile), so one ref
+  // safely serves whichever is active; CommentItem's own scroll-into-
+  // view effect (see its comment) measures against it.
+  const scrollRef = useRef<ScrollView>(null);
 
   // router.back()/canGoBack() trust the browser/native history stack to
   // reflect where the user actually came from — true for same-tab
@@ -864,13 +934,15 @@ export function LogDetailScreen() {
       loadMoreComments={loadMoreComments}
       logId={id ?? ""}
       onReply={handleReply}
+      highlightId={highlightCommentId}
+      scrollRef={scrollRef}
     />
   );
 
   // ── Desktop/tablet: two-column, poster beside content ──────────────────────
   if (!isMobile) {
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 32, paddingBottom: 40 }} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView ref={scrollRef} style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingTop: 24, paddingHorizontal: 32, paddingBottom: 40 }} contentInsetAdjustmentBehavior="automatic">
         <View style={{ maxWidth: 980, width: "100%", alignSelf: "center" }}>
           <Button variant="ghost" icon="caret-left" label="Back" onPress={goBack} style={{ marginBottom: 20, alignSelf: "flex-start" }} />
 
@@ -952,7 +1024,7 @@ export function LogDetailScreen() {
     <>
       {deleteDialog}
       {likesModal}
-      <ScrollView style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingBottom: 80 }} contentInsetAdjustmentBehavior="automatic">
+      <ScrollView ref={scrollRef} style={{ flex: 1, backgroundColor: theme.bg, scrollbarGutter: "stable" } as any} contentContainerStyle={{ paddingBottom: 80 }} contentInsetAdjustmentBehavior="automatic">
         {/* Hero poster — 340px */}
         <View style={{ width: "100%", height: 340, position: "relative" }}>
           {posterUrl ? (

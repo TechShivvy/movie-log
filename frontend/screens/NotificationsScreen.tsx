@@ -102,7 +102,8 @@ function notifTarget(n: Notification): string | undefined {
     case "log_like":
     case "new_comment":
     case "comment_reply":
-    case "comment_like":
+    case "comment_like": {
+      if (!n.movie_log_id) return undefined;
       // ?from=notifications — a log lives under the Library tab's own
       // Stack, a different one than this screen (Profile tab); expo-
       // router's <Tabs> resolves that kind of push by switching tabs and
@@ -114,7 +115,15 @@ function notifTarget(n: Notification): string | undefined {
       // instead of trusting history for it. The follow-related cases
       // above don't need this — profile/{username} lives in this same
       // Profile tab's Stack, a normal same-tab push with working history.
-      return n.movie_log_id ? `/(app)/log/${n.movie_log_id}?from=notifications` : undefined;
+      const base = `/(app)/log/${n.movie_log_id}?from=notifications`;
+      // ?comment= only for the comment-shaped types (log_like has no
+      // comment_id — it's a like on the log itself) — LogDetailScreen
+      // scrolls straight to that one comment and flashes it once instead
+      // of leaving a scroll-and-hunt through the whole thread as the
+      // only way in, same idea as this notification already opening the
+      // exact log rather than a list you'd have to find it in.
+      return n.comment_id ? `${base}&comment=${n.comment_id}` : base;
+    }
     default:
       return undefined;
   }
