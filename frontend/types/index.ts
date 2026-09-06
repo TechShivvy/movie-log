@@ -1,13 +1,10 @@
 // ─── Auth / Public Profile ──────────────────────────────────────────────────
 //
-// GET /public/users/{username} returns { profile, logs, favorites } — not a
-// flat user-with-stats object. The backend does NOT expose follower/
-// following/log counts as fields anywhere (confirmed against
-// schemas/public_profile.py + services/supabase_rest.py's
-// get_public_profile_by_username) — a count has to be derived client-side
-// from GET /public/users/{username}/followers|following's list length,
-// which is a page size, not a true total. Treated as best-effort below,
-// not a real total — flagging rather than silently pretending otherwise.
+// GET /public/users/{username} returns { profile, logs, favorites } — not
+// a flat user-with-stats object. profile.follower_count/following_count
+// are real backend counts (get_public_profile_by_username); there's still
+// no equivalent for a LOG count — that has to be derived client-side from
+// `logs.length` (only ever the visible/gated subset, not a true total).
 
 export type AccountVisibility = "public" | "followers_only" | "private";
 
@@ -31,16 +28,19 @@ export interface PublicProfile {
   // blocked — that's deliberate, see PublicProfileScreen.tsx.
   is_blocking: boolean;
   can_view_content: boolean;
-  // NOT YET returned by GET /public/users/{username} as of this writing —
-  // the profile RPC (get_public_profile_by_username) has no equivalent of
-  // is_blocking for follow state, so there's no backend signal for "I have
-  // a pending request to this private account" on a fresh page load today.
-  // useFollowUser already tracks this client-side (from the POST/DELETE
-  // response's own `status`, cached per-session) as a stopgap — this field
-  // is typed now so PublicProfileScreen picks it up for real the moment
-  // the backend adds it, with the client-side value as fallback until
-  // then. See the backend handoff note in useFollowUser (hooks/useSocial.ts).
+  // Real, backend-computed signals (get_public_profile_by_username) —
+  // caller_follow_status is is_blocking's follow-state equivalent
+  // (caller-directional, always 'none' with no token); follower_count/
+  // following_count are plain counts gated by nothing, visible on a
+  // private account the same way Instagram shows counts without
+  // exposing the full follower/following list to a non-follower (GET
+  // .../followers and .../following keep their own separate gating on
+  // the full list). useFollowUser still tracks an optimistic override
+  // client-side for the brief window between a follow/unfollow request
+  // and this field actually refetching — see its own comment.
   caller_follow_status?: "none" | "pending" | "accepted";
+  follower_count?: number;
+  following_count?: number;
 }
 
 // GET /public/blocks — the caller's own blocked accounts. Only the

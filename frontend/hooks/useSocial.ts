@@ -410,6 +410,36 @@ function followStatusOverrideKey(username: string) {
   return ["follow-status-override", username] as const;
 }
 
+function writeFollowStatusOverride(
+  qc: ReturnType<typeof useQueryClient>,
+  username: string,
+  status: PublicProfile["caller_follow_status"],
+) {
+  qc.setQueryData(followStatusOverrideKey(username), { status, setAt: Date.now() });
+}
+
+// Stored with a timestamp, not a bare status — this override exists to
+// survive ONE specific race (the immediate post-mutation refetch, see
+// above), not to stand in for a real backend field forever. It has no
+// way to learn about a follow relationship changing through anyone
+// ELSE's action — the other side accepting or rejecting a request from
+// their own session, say — since that happens over on their client, not
+// this one. Confirmed live: A requests to follow B (private), B accepts
+// from B's own session, and A's browser — which never re-derives
+// anything, it just keeps trusting the 'pending' it wrote at request
+// time — still shows "Requested" indefinitely, or worse, "Follow" again
+// if A had unfollowed-then-refollowed earlier and the override still
+// held that stale guess. Expiring it after a couple minutes means a
+// revisit (or just time passing) falls back to what the follower list
+// can actually prove, rather than trusting an increasingly-likely-wrong
+// guess forever.
+const OVERRIDE_TTL_MS = 2 * 60 * 1000;
+
+interface FollowStatusOverrideEntry {
+  status: PublicProfile["caller_follow_status"];
+  setAt: number;
+}
+
 // A real useQuery, not a one-off getQueryData() read — this is what
 // makes it reactive: setQueryData() for this exact key (in useFollowUser
 // below) notifies every active observer, including this one, the same
@@ -419,11 +449,12 @@ function followStatusOverrideKey(username: string) {
 export function useFollowStatusOverride(username: string | undefined) {
   const { data } = useQuery({
     queryKey: followStatusOverrideKey(username ?? "__none__"),
-    queryFn: () => null as PublicProfile["caller_follow_status"] | null,
+    queryFn: () => null as FollowStatusOverrideEntry | null,
     enabled: false,
     staleTime: Infinity,
   });
-  return data ?? undefined;
+  if (!data || Date.now() - data.setAt > OVERRIDE_TTL_MS) return undefined;
+  return data.status;
 }
 
 export function useFollowUser() {
@@ -485,7 +516,7 @@ export function useFollowUser() {
       await qc.cancelQueries({ queryKey: followersKey });
       const profileSnapshot = qc.getQueryData<PublicProfileResponse>(profileKey);
       const followersSnapshot = qc.getQueriesData<FollowerEntry[]>({ queryKey: followersKey });
-      const overrideSnapshot = qc.getQueryData<PublicProfile["caller_follow_status"]>(overrideKey);
+      const overrideSnapshot = qc.getQueryData<FollowStatusOverrideEntry>(overrideKey);
       const myId = session?.user?.id;
 
       // following:true means "tear down whatever exists" → always lands
@@ -499,7 +530,7 @@ export function useFollowUser() {
         ? "accepted"
         : "pending";
 
-      qc.setQueryData(overrideKey, optimisticStatus);
+      writeFollowStatusOverride(qc, username, optimisticStatus);
       if (myId) {
         qc.setQueriesData<FollowerEntry[]>({ queryKey: followersKey }, (prev = []) => {
           const withoutMe = prev.filter((f) => f.user_id !== myId);
@@ -510,7 +541,7 @@ export function useFollowUser() {
       }
       return { overrideSnapshot, followersSnapshot, overrideKey, followersKey };
     },
-    onError: (err, _vars, context) => {
+    onError: (err, { username }, context) => {
       if (!context) return;
       // ALREADY_FOLLOWING means the caller's own outgoing request already
       // exists server-side (pending or accepted) — reached specifically
@@ -528,7 +559,7 @@ export function useFollowUser() {
       // would never have been reached at all. Any other error (a real
       // network failure, etc.) still rolls back to the exact snapshot.
       if (err instanceof ApiError && err.code === "ALREADY_FOLLOWING") {
-        qc.setQueryData(context.overrideKey, "pending");
+        writeFollowStatusOverride(qc, username, "pending");
         return;
       }
       qc.setQueryData(context.overrideKey, context.overrideSnapshot);
@@ -541,7 +572,7 @@ export function useFollowUser() {
     // action can affect (follower counts, etc.) — safe to do now that the
     // status itself lives on a key that invalidate doesn't touch.
     onSuccess: (data, { username }) => {
-      if (data?.status) qc.setQueryData(followStatusOverrideKey(username), data.status);
+      if (data?.status) writeFollowStatusOverride(qc, username, data.status);
       qc.invalidateQueries({ queryKey: ["public-profile", username] });
     },
   });
