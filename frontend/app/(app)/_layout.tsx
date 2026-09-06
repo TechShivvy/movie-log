@@ -85,18 +85,19 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   // Real device insets (notch/status bar height, gesture-nav/home-indicator
   // height) — see app/_layout.tsx's SafeAreaProvider comment. `insets.top`
-  // pads every screen below the status bar/notch instead of them starting
-  // right under it. `insets.bottom` used to be applied here too, wrapping
-  // a hand-placed <TabBar/> — now that TabBar is rendered internally by
-  // <Tabs> itself (via its `tabBar` render prop, passed BottomTabBarProps
-  // including `insets`), TabBar applies its own bottom inset directly; see
-  // its own file for why. The old zIndex-stacking fix for the FAB dome
-  // poking up out of the bar (documented at length in TabBar.tsx's own
-  // header comment) doesn't apply here any more either — the bar is no
-  // longer a hand-placed sibling of this screen-content View fighting it
-  // for paint order, it's laid out internally by Tabs' own BottomTabView,
-  // which already paints the tab bar after (i.e. above) the active
-  // screen. Re-verify the dome's overlap if this ever regresses.
+  // now pads the TopBar row itself (below) rather than the screen content
+  // directly, since TopBar sits above it and needs to clear the notch/
+  // status bar on its own. `insets.bottom` used to be applied here too,
+  // wrapping a hand-placed <TabBar/> — now that TabBar is rendered
+  // internally by <Tabs> itself (via its `tabBar` render prop, passed
+  // BottomTabBarProps including `insets`), TabBar applies its own bottom
+  // inset directly; see its own file for why. The old zIndex-stacking fix
+  // for the FAB dome poking up out of the bar (documented at length in
+  // TabBar.tsx's own header comment) doesn't apply here any more either —
+  // the bar is no longer a hand-placed sibling of this screen-content View
+  // fighting it for paint order, it's laid out internally by Tabs' own
+  // BottomTabView, which already paints the tab bar after (i.e. above) the
+  // active screen. Re-verify the dome's overlap if this ever regresses.
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.mobileRoot, { backgroundColor: theme.bg }]}>
@@ -105,7 +106,20 @@ function MobileLayout({ children }: { children: React.ReactNode }) {
           header's 280px band, so rendering it here tinted every screen. */}
       <FilmGrain />
 
-      <View style={[styles.mobileContent, { paddingTop: insets.top }]}>{children}</View>
+      {/* TopBar's own compact native-styled branch (search-tap + bell) was
+          built for exactly this spot — its own header comment already
+          called it "a compact fallback" for mobile — but nothing ever
+          actually mounted it here, so the notifications bell (TopBar's
+          only home) never rendered on native or mobile-width web/PWA at
+          all, on any screen. paddingTop:insets.top clears the notch/
+          status bar for the bar itself now, not the screen content below
+          it (which no longer needs its own top inset — TopBar's own
+          height already pushes it clear). */}
+      <View style={{ paddingTop: insets.top }}>
+        <TopBar />
+      </View>
+
+      <View style={styles.mobileContent}>{children}</View>
     </View>
   );
 }

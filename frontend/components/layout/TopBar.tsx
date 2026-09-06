@@ -12,18 +12,32 @@
  *       btn-secondary  ph-download-simple  "Install app"
  *       btn-icon btn-secondary  ph-bell @18px + 7px accent dot at top:7 right:8
  *
- * Mobile uses TabBar instead; the native branch here is a compact fallback.
+ * Mobile (native, and mobile-WIDTH web/PWA) renders the compact native-
+ * styled branch below instead — this bar is now actually mounted there
+ * too (app/(app)/_layout.tsx's MobileLayout), which is the one thing
+ * that kept this "fallback" branch dead code for however long: bare
+ * `Platform.OS === "web"` doesn't exclude a phone-width browser tab, so
+ * without the `!isMobile` check below, a PWA/mobile-web session would
+ * have still gotten the desktop-sized bar (full search field + "Install
+ * app" button) rather than this compact one, and the notifications bell
+ * had nowhere to render at all before TopBar was mounted in
+ * MobileLayout in the first place — see this session's own
+ * run-frontend skill note on this exact bug class.
  */
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../hooks/useTheme";
+import { useBreakpoint } from "../../hooks/useBreakpoint";
+import { useUnreadNotificationCount } from "../../hooks/useNotifications";
 import { Icon } from "../ui/Icon";
 import { type as fontSizes } from "../../constants/fonts";
 
 export function TopBar() {
   const { theme } = useTheme();
   const router = useRouter();
+  const { isMobile } = useBreakpoint();
+  const unreadCount = useUnreadNotificationCount();
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
@@ -40,7 +54,7 @@ export function TopBar() {
     setInstallPrompt(null);
   }
 
-  if (Platform.OS === "web") {
+  if (Platform.OS === "web" && !isMobile) {
     return (
       // className="topbar" (not inline styles) is what actually lets
       // designCss.ts's `@media (max-width: 1119px) { .topbar { padding:
@@ -91,8 +105,9 @@ export function TopBar() {
             </button>
           )}
           {/* The unread dot used to render unconditionally — see the same
-              note on Sidebar.tsx's NAV `badge`. No unread-notifications data
-              source exists yet, so show none rather than a fake one. */}
+              note on Sidebar.tsx's NAV `badge`, now resolved the same way:
+              useUnreadNotificationCount() is a real derived value (GET
+              /notifications?unread_only=true's list length), not a guess. */}
           <button
             className="btn btn-icon btn-secondary"
             style={{ position: "relative" } as React.CSSProperties}
@@ -101,6 +116,12 @@ export function TopBar() {
             aria-label="Notifications"
           >
             <Icon name="bell" size={18} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: "absolute", top: 7, right: 8, width: 7, height: 7,
+                borderRadius: 4, background: theme.accent,
+              } as React.CSSProperties} />
+            )}
           </button>
         </div>
       </div>
@@ -123,6 +144,7 @@ export function TopBar() {
         accessibilityLabel="Notifications"
       >
         <Icon name="bell" size={20} color={theme.text} />
+        {unreadCount > 0 && <View style={[styles.unreadDot, { backgroundColor: theme.accent }]} />}
       </Pressable>
     </View>
   );
@@ -135,4 +157,5 @@ const styles = StyleSheet.create({
     minHeight: 36, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1,
   },
   bellBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  unreadDot: { position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: 4 },
 });
