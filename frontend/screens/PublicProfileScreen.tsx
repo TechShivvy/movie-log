@@ -23,7 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useAuth } from "../hooks/useAuth";
-import { usePublicProfile, useFollowers, useFollowUser, useBlockUser } from "../hooks/useSocial";
+import { usePublicProfile, useFollowers, useFollowing, useFollowUser, useFollowStatusOverride, useBlockUser } from "../hooks/useSocial";
 import { Avatar } from "../components/ui/Avatar";
 import { Button } from "../components/ui/Button";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
@@ -51,6 +51,7 @@ export function PublicProfileScreen() {
 
   const { data, isLoading, refetch } = usePublicProfile(username);
   const { data: followers } = useFollowers(username);
+  const followingCount = useFollowing(username).data?.length;
   const followUser = useFollowUser();
   const blockUser = useBlockUser();
   const [refreshing, setRefreshing] = useState(false);
@@ -60,17 +61,21 @@ export function PublicProfileScreen() {
 
   const profile = data?.profile;
   const logs = data?.logs ?? [];
-  // caller_follow_status is the real tri-state signal (see its own type
-  // comment in types/index.ts and useFollowUser's) — falls back to the
-  // old accepted-followers-list-membership check only for the window
-  // before that field exists on a fresh page load with nothing in cache
-  // yet (it can only ever resolve to 'accepted' or 'none' that way, never
-  // 'pending' — a private/followers_only account you've already requested
-  // still shows a plain "Follow" until you tap it again, at which point
-  // the 409 the backend already returns for a duplicate request makes
-  // useFollowUser's own onError put it right).
+  // Three layers, most-trustworthy first: the client-known override
+  // (set by useFollowUser itself the moment a follow/unfollow actually
+  // succeeds or 409s — see its own long comment on why this can't just
+  // live on the profile cache), then caller_follow_status if the backend
+  // ever starts returning it, then the old accepted-followers-list-
+  // membership check as a last resort for a truly fresh session with
+  // neither (it can only ever resolve to 'accepted' or 'none' that way,
+  // never 'pending' — a private/followers_only account you've already
+  // requested still shows a plain "Follow" on first load, until you tap
+  // it again and the 409 the backend already returns for a duplicate
+  // request makes useFollowUser's own onError put it right, or until the
+  // backend adds real support for this).
+  const followStatusOverride = useFollowStatusOverride(username);
   const followStatus: NonNullable<typeof profile>["caller_follow_status"] =
-    profile?.caller_follow_status ?? (followers?.some((f) => f.user_id === user?.id) ? "accepted" : "none");
+    followStatusOverride ?? profile?.caller_follow_status ?? (followers?.some((f) => f.user_id === user?.id) ? "accepted" : "none");
   const isOwnProfile = !!profile && profile.user_id === user?.id;
   const isPreviewingSelf = isOwnProfile && !!preview;
   // is_blocking is caller-directional (see types/index.ts) — this is only
@@ -233,7 +238,26 @@ export function PublicProfileScreen() {
             )}
           </View>
 
-          {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: isMobile ? 16 : 20 }}>{profile.bio}</Text>}
+          {profile.bio && <Text style={{ fontSize: fontSizes.base, color: `${theme.text}99`, lineHeight: 20, marginBottom: 12 }}>{profile.bio}</Text>}
+
+          {/* Followers/Following — counts existed here already (useFollowers,
+              above, already fetches this exact list purely to derive
+              followStatus) but nothing was ever tappable; this screen had no
+              way at all to actually see who follows someone or who they
+              follow, unlike ProfileScreen's own (now also tappable) stat
+              cards for the signed-in user's own profile. */}
+          <View style={{ flexDirection: "row", gap: 16, marginBottom: isMobile ? 16 : 20 }}>
+            <Pressable onPress={() => router.push(`/(app)/follows?username=${profile.username}&tab=following` as any)}>
+              <Text style={{ fontSize: fontSizes.sm, color: theme.text }}>
+                <Text style={{ fontWeight: "700" }}>{followingCount ?? "—"}</Text> Following
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push(`/(app)/follows?username=${profile.username}&tab=followers` as any)}>
+              <Text style={{ fontSize: fontSizes.sm, color: theme.text }}>
+                <Text style={{ fontWeight: "700" }}>{followers?.length ?? "—"}</Text> Followers
+              </Text>
+            </Pressable>
+          </View>
 
           {!profile.can_view_content ? (
             <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>

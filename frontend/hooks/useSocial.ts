@@ -47,11 +47,14 @@ export function useSearchUsers(query: string) {
  * now). Used to decide the Follow/Following button's initial state on
  * PublicProfileScreen.
  */
-export function useFollowers(username: string | undefined) {
+// `limit` defaults to the stat-card use (just needs a count, the
+// backend's own default of 20 is plenty) — FollowListScreen passes 100
+// (the route's own le=100 cap) since it actually renders the list.
+export function useFollowers(username: string | undefined, limit = 20) {
   return useQuery({
-    queryKey: ["public-profile", username, "followers"],
+    queryKey: ["public-profile", username, "followers", limit],
     queryFn: async () => {
-      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/followers`);
+      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/followers`, { params: { limit } });
       return data;
     },
     enabled: !DEMO_MODE && !!username,
@@ -63,11 +66,11 @@ export function useFollowers(username: string | undefined) {
 // (own or public); list length is the count, same derive-from-list-
 // length reasoning as the followers count (no dedicated count field
 // exists anywhere on PublicProfile).
-export function useFollowing(username: string | undefined) {
+export function useFollowing(username: string | undefined, limit = 20) {
   return useQuery({
-    queryKey: ["public-profile", username, "following"],
+    queryKey: ["public-profile", username, "following", limit],
     queryFn: async () => {
-      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/following`);
+      const { data } = await api.get<FollowerEntry[]>(`/public/users/${username}/following`, { params: { limit } });
       return data;
     },
     enabled: !DEMO_MODE && !!username,
@@ -388,6 +391,41 @@ interface FollowRow {
   status: "pending" | "accepted";
 }
 
+// A separate, tiny cache entry per username holding the last *client-
+// known* follow status — not the backend's, since it doesn't have one
+// (see caller_follow_status's own type comment). This exists because
+// writing the optimistic/reconciled status directly onto the
+// PublicProfileResponse cache (the first version of this fix) was
+// silently undone almost immediately: onSuccess below already
+// invalidates ["public-profile", username] to catch up on everything
+// ELSE a follow action can change, and the resulting refetch's real
+// response has no caller_follow_status field at all — React Query's
+// refetch replaces the whole cached object, wiping the just-set status
+// out from under it within a second or two of the button ever showing
+// 'Requested' (confirmed live: it visibly reverted to 'Follow' right
+// after a successful request). Keeping this on its own key means the
+// profile query is free to refetch/replace itself normally without
+// touching it.
+function followStatusOverrideKey(username: string) {
+  return ["follow-status-override", username] as const;
+}
+
+// A real useQuery, not a one-off getQueryData() read — this is what
+// makes it reactive: setQueryData() for this exact key (in useFollowUser
+// below) notifies every active observer, including this one, the same
+// way it would for a normal fetched query. enabled:false means it never
+// actually fetches anything itself; the only way this ever holds a value
+// is useFollowUser writing one in.
+export function useFollowStatusOverride(username: string | undefined) {
+  const { data } = useQuery({
+    queryKey: followStatusOverrideKey(username ?? "__none__"),
+    queryFn: () => null as PublicProfile["caller_follow_status"] | null,
+    enabled: false,
+    staleTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
 export function useFollowUser() {
   const qc = useQueryClient();
   const { session } = useAuth();
@@ -418,28 +456,36 @@ export function useFollowUser() {
     // Real optimistic update, same onMutate/onError shape useLikeLog
     // above already establishes — the Follow button used to only flip
     // after the full round-trip landed. Two things get patched:
-    //   1. caller_follow_status on the cached PublicProfileResponse's
-    //      `profile` — this is what the button's label/variant ('Follow'/
-    //      'Requested'/'Following') actually reads. The backend's own
-    //      profile RPC (get_public_profile_by_username) doesn't return
-    //      this field yet (no equivalent of is_blocking for follow state
-    //      — see the type comment on PublicProfile.caller_follow_status),
-    //      so this optimistic write plus onSuccess's reconciliation
-    //      against the real POST response is the only source of truth
-    //      this button has *at all* right now, not just an optimistic
-    //      head start — it doesn't get corrected by a refetch the way
-    //      onSuccess's invalidate below quietly assumes for is_blocking.
+    //   1. The follow-status-override cache slot (see its own comment
+    //      above) — this, not the PublicProfileResponse cache, is what
+    //      the button's label/variant ('Follow'/'Requested'/'Following')
+    //      actually reads (PublicProfileScreen checks the override
+    //      first). An earlier version of this patched
+    //      caller_follow_status directly onto the profile cache instead
+    //      — it worked for about a second, until onSuccess's own
+    //      invalidate below refetched the profile and silently wiped it
+    //      back out (the real response has no such field), reverting a
+    //      just-confirmed 'Requested' back to 'Follow' with no error and
+    //      no visible cause. The override's own key is never touched by
+    //      that refetch, so it survives it.
     //   2. useFollowers's own accepted-followers list — only touched when
     //      the relationship is (or becomes) 'accepted'; a 'pending'
     //      request deliberately never appears there, matching what that
     //      list actually represents server-side.
     onMutate: async ({ username, following }) => {
       const profileKey = ["public-profile", username];
+      // Prefix, not an exact key — useFollowers now takes a `limit` (the
+      // stat card's default 20 vs. FollowListScreen's 100), which lives
+      // as a 4th element on the real cache key. Matching just the
+      // 3-element prefix here, via setQueriesData/getQueriesData below,
+      // reaches every variant that's actually mounted instead of writing
+      // to a key no query is listening on.
       const followersKey = ["public-profile", username, "followers"];
-      await qc.cancelQueries({ queryKey: profileKey });
+      const overrideKey = followStatusOverrideKey(username);
       await qc.cancelQueries({ queryKey: followersKey });
       const profileSnapshot = qc.getQueryData<PublicProfileResponse>(profileKey);
-      const followersSnapshot = qc.getQueryData<FollowerEntry[]>(followersKey);
+      const followersSnapshot = qc.getQueriesData<FollowerEntry[]>({ queryKey: followersKey });
+      const overrideSnapshot = qc.getQueryData<PublicProfile["caller_follow_status"]>(overrideKey);
       const myId = session?.user?.id;
 
       // following:true means "tear down whatever exists" → always lands
@@ -453,21 +499,16 @@ export function useFollowUser() {
         ? "accepted"
         : "pending";
 
-      if (profileSnapshot) {
-        qc.setQueryData<PublicProfileResponse>(profileKey, {
-          ...profileSnapshot,
-          profile: { ...profileSnapshot.profile, caller_follow_status: optimisticStatus },
-        });
-      }
+      qc.setQueryData(overrideKey, optimisticStatus);
       if (myId) {
-        qc.setQueryData<FollowerEntry[]>(followersKey, (prev = []) => {
+        qc.setQueriesData<FollowerEntry[]>({ queryKey: followersKey }, (prev = []) => {
           const withoutMe = prev.filter((f) => f.user_id !== myId);
           return optimisticStatus === "accepted"
             ? [...withoutMe, { user_id: myId, followed_at: new Date().toISOString() }]
             : withoutMe;
         });
       }
-      return { profileSnapshot, followersSnapshot, profileKey, followersKey };
+      return { overrideSnapshot, followersSnapshot, overrideKey, followersKey };
     },
     onError: (err, _vars, context) => {
       if (!context) return;
@@ -486,28 +527,21 @@ export function useFollowUser() {
       // fallback would already have shown 'Following' and this branch
       // would never have been reached at all. Any other error (a real
       // network failure, etc.) still rolls back to the exact snapshot.
-      if (err instanceof ApiError && err.code === "ALREADY_FOLLOWING" && context.profileSnapshot) {
-        qc.setQueryData<PublicProfileResponse>(context.profileKey, {
-          ...context.profileSnapshot,
-          profile: { ...context.profileSnapshot.profile, caller_follow_status: "pending" },
-        });
+      if (err instanceof ApiError && err.code === "ALREADY_FOLLOWING") {
+        qc.setQueryData(context.overrideKey, "pending");
         return;
       }
-      if (context.profileSnapshot) qc.setQueryData(context.profileKey, context.profileSnapshot);
-      qc.setQueryData(context.followersKey, context.followersSnapshot);
+      qc.setQueryData(context.overrideKey, context.overrideSnapshot);
+      context.followersSnapshot.forEach(([key, data]) => qc.setQueryData(key, data));
     },
     // Reconciles the optimistic guess with the real `status` the POST
-    // returned (a DELETE has no body — undefined here just means "none",
-    // already set correctly in onMutate). Falls through to the same
-    // invalidate as before either way, so any other derived state
-    // (follower counts, etc.) still catches up from the server.
+    // returned (a DELETE has no body — following:true's branch already
+    // set the override to 'none' in onMutate, nothing left to reconcile).
+    // Still invalidates the profile query for everything else a follow
+    // action can affect (follower counts, etc.) — safe to do now that the
+    // status itself lives on a key that invalidate doesn't touch.
     onSuccess: (data, { username }) => {
-      if (data?.status) {
-        const profileKey = ["public-profile", username];
-        qc.setQueryData<PublicProfileResponse>(profileKey, (prev) =>
-          prev ? { ...prev, profile: { ...prev.profile, caller_follow_status: data.status } } : prev
-        );
-      }
+      if (data?.status) qc.setQueryData(followStatusOverrideKey(username), data.status);
       qc.invalidateQueries({ queryKey: ["public-profile", username] });
     },
   });

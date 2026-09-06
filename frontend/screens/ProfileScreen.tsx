@@ -100,13 +100,27 @@ function groupTheatres(logs: MovieLog[]): VisitedTheatre[] {
 // don't know yet" and "the answer is zero" read identically without
 // this, and the flash from placeholder-0 to a real number the moment
 // each query resolves looked like the page silently reloaded itself).
-function StatCard({ value, label, theme, isLoading }: { value: string | number; label: string; theme: any; isLoading?: boolean }) {
+function StatCard({ value, label, theme, isLoading, onPress }: { value: string | number; label: string; theme: any; isLoading?: boolean; onPress?: () => void }) {
   const display = isLoading ? "…" : value;
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
+  const content = (
+    <>
       <Text style={{ fontSize: fontSizes.xxl, fontWeight: "700", color: theme.accent, opacity: isLoading ? 0.5 : 1 }}>{display}</Text>
       <Text style={{ fontSize: fontSizes.xs, color: `${theme.text}66`, marginTop: 2 }}>{label}</Text>
-    </View>
+    </>
+  );
+  // Films/★avg have no list screen to open — only Following/Followers
+  // pass onPress, so this stays a plain, non-interactive View for those.
+  if (!onPress) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, backgroundColor: theme.surface, borderRadius: 10, padding: 12, alignItems: "center" }}>
+      {content}
+    </Pressable>
   );
 }
 
@@ -266,8 +280,14 @@ export function ProfileScreen() {
       {/* Stats row */}
       <View style={{ flexDirection: "row", gap: 10, marginBottom: isMobile ? 24 : 28 }}>
         <StatCard value={count} label="Films" theme={theme} isLoading={isLoading} />
-        <StatCard value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading} />
-        <StatCard value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading} />
+        <StatCard
+          value={following?.length ?? 0} label="Following" theme={theme} isLoading={isProfileLoading || isFollowingLoading}
+          onPress={profile?.username ? () => router.push(`/(app)/follows?username=${profile.username}&tab=following` as any) : undefined}
+        />
+        <StatCard
+          value={followers?.length ?? 0} label="Followers" theme={theme} isLoading={isProfileLoading || isFollowersLoading}
+          onPress={profile?.username ? () => router.push(`/(app)/follows?username=${profile.username}&tab=followers` as any) : undefined}
+        />
         <StatCard value={avgRating} label={isMobile ? "★ avg" : "★ avg rating"} theme={theme} isLoading={isLoading} />
       </View>
 
