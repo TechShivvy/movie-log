@@ -23,6 +23,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useBreakpoint } from "../hooks/useBreakpoint";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "../hooks/useNotifications";
 import { useAcceptFollowRequest, useIgnoreFollowRequest } from "../hooks/useSocial";
+import { useToast } from "../context/ToastContext";
 import { Button } from "../components/ui/Button";
 import { ScreenLoader } from "../components/ui/Spinner";
 import { Icon } from "../components/ui/Icon";
@@ -119,6 +120,30 @@ function notifTarget(n: Notification): string | undefined {
   }
 }
 
+// A follow_request notification goes stale the moment the underlying
+// `follows` row it was about is gone — canceled, ignored, or superseded
+// by a newer request from the same person — but nothing server-side
+// deletes or resolves it when that happens (the DB trigger that writes
+// these only ever handles the follow row's own INSERT and its pending→
+// accepted UPDATE, never a DELETE — see the migration's own comment:
+// "a block-severed DELETE never reaches this", same reasoning applies to
+// a plain unfollow/reject). Someone who requests, gets ignored, and
+// requests again ends up with two "X wants to follow you" rows forever,
+// the older one now pointing at a follow relationship that no longer
+// exists (tapping its own Accept 404s). Only one `follows` row can ever
+// exist for a given pair at a time, so at most the MOST RECENT
+// follow_request per actor can still be real — this hides the rest
+// client-side rather than leaving them sitting there as dead clutter
+// (or worse, live-looking buttons that quietly fail).
+function dedupeStaleFollowRequests(notifs: Notification[]): Notification[] {
+  const latestFollowRequestId = new Map<string, string>(); // actor_id -> newest notif id
+  for (const n of notifs) {
+    if (n.type !== "follow_request" || !n.actor_id) continue;
+    if (!latestFollowRequestId.has(n.actor_id)) latestFollowRequestId.set(n.actor_id, n.id);
+  }
+  return notifs.filter((n) => n.type !== "follow_request" || !n.actor_id || latestFollowRequestId.get(n.actor_id) === n.id);
+}
+
 // ─── Notification Row ─────────────────────────────────────────────────────────
 
 function NotifRow({ notif, theme, onOpen, onAccept, onIgnore, accepting, ignoring }: {
@@ -188,8 +213,15 @@ export function NotificationsScreen() {
   const { data: notifs, isLoading, refetch } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const { showToast } = useToast();
+  // dedupeStaleFollowRequests (below) hides the common case of a stale
+  // duplicate, but not every one — a single request that was ignored and
+  // never re-sent still shows, now pointing at a follow row that's
+  // already gone. Accepting/ignoring it 404s server-side; this is just
+  // the difference between that failing silently and saying so.
   const acceptRequest = useAcceptFollowRequest();
   const ignoreRequest = useIgnoreFollowRequest();
+  const onMutationError = (e: any) => showToast(e?.detail ?? e?.message ?? "That request isn't available anymore", "error");
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -208,7 +240,8 @@ export function NotificationsScreen() {
 
   if (isLoading) return <ScreenLoader />;
 
-  const hasUnread = !!notifs?.some((n) => !n.read);
+  const visibleNotifs = notifs ? dedupeStaleFollowRequests(notifs) : notifs;
+  const hasUnread = !!visibleNotifs?.some((n) => !n.read);
 
   return (
     <ScrollView
@@ -241,20 +274,20 @@ export function NotificationsScreen() {
           )}
         </View>
 
-        {!notifs || notifs.length === 0 ? (
+        {!visibleNotifs || visibleNotifs.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 60, gap: 8 }}>
             <Icon name="bell" size={36} color={`${theme.text}33`} />
             <Text style={{ color: `${theme.text}44`, fontSize: fontSizes.base }}>Nothing yet.</Text>
           </View>
         ) : (
-          notifs.map((n) => (
+          visibleNotifs.map((n) => (
             <NotifRow
               key={n.id}
               notif={n}
               theme={theme}
               onOpen={() => openNotif(n)}
-              onAccept={() => n.actor_username && acceptRequest.mutate(n.actor_username)}
-              onIgnore={() => n.actor_username && ignoreRequest.mutate(n.actor_username)}
+              onAccept={() => n.actor_username && acceptRequest.mutate(n.actor_username, { onError: onMutationError })}
+              onIgnore={() => n.actor_username && ignoreRequest.mutate(n.actor_username, { onError: onMutationError })}
               accepting={acceptRequest.isPending}
               ignoring={ignoreRequest.isPending}
             />
