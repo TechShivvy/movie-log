@@ -296,6 +296,29 @@ function MovieSuggestionRow({ m, onPress, theme }: { m: MovieSearchResult; onPre
   );
 }
 
+// Web only — every in-flow suggestions dropdown below (movie/venue/
+// screen) closes itself via a delayed onBlur (setTimeout(…, 150)) on the
+// field it belongs to, so a tap on a row still has a moment to land
+// before the field's blur hides the list out from under it. On desktop,
+// a mouse's mousedown→blur→mouseup→click cycle comfortably finishes
+// inside that 150ms window; on a real phone (native app's own web view
+// included, and mobile PWA/browser), a touch tap that also has to
+// dismiss the on-screen keyboard routinely takes longer than that,
+// closing the dropdown before the row's own onPress ever fires — the row
+// just "goes away" with nothing picked, unlike desktop. Spread onto each
+// dropdown's outer container: preventDefault() on the very first press
+// event stops the browser from shifting focus off the field at all, so
+// there's no blur to race against in the first place — this is the same
+// onMouseDown trick the pre-unification WebForm implementation used
+// (removed when the web/native trees merged, on the reasoning that
+// "native never needed it" — true for native, but that merge also
+// silently removed it from web, mobile-width web included, which very
+// much still does). Harmless spread on native (RN's Pressable/View
+// simply have no such DOM props to receive).
+const suppressBlurOnWeb: any = Platform.OS === "web"
+  ? { onMouseDown: (e: any) => e.preventDefault(), onTouchStart: (e: any) => e.preventDefault() }
+  : {};
+
 function DropdownRow({ title, subtitle, onPress, theme }: { title: string; subtitle?: string; onPress: () => void; theme: any }) {
   return (
     <Pressable onPress={onPress} style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.divider }}>
@@ -820,7 +843,15 @@ export function LogFormScreen() {
       </View>
     </View>
   ) : (
-    <>
+    // suppressBlurOnWeb goes here, not on the outer venueDropdownBody
+    // wrapper — the manual-add branch above has its own real text inputs
+    // that genuinely need to receive focus on tap, which
+    // preventDefault()-on-press would block right along with the venue
+    // field's blur it's actually meant to suppress. Scoped to just the
+    // search-results view (rows + sticky footer), none of which are
+    // focusable themselves, this only ever blocks the one focus-shift
+    // that was never wanted anyway.
+    <View {...suppressBlurOnWeb}>
       {/* Scrolls independently once local matches + Places results run
           past ~5 rows — the sticky footer below stays put rather than
           being one more thing to scroll past. */}
@@ -851,7 +882,7 @@ export function LogFormScreen() {
       <Pressable onPress={() => setShowManualAdd(true)} style={{ padding: 10, borderTopWidth: 1, borderTopColor: theme.divider }}>
         <Text style={{ color: theme.text, opacity: 0.7, fontSize: fontSizes.sm, fontWeight: "600" }}>Can't find it? Add manually</Text>
       </Pressable>
-    </>
+    </View>
   );
 
   const fields = (
@@ -868,7 +899,7 @@ export function LogFormScreen() {
           error={errors.movieTitle}
         />
         {movieDropdownOpen && (
-          <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
+          <View {...suppressBlurOnWeb} style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
             {(movieSuggestions ?? []).map((m) => (
               <MovieSuggestionRow key={m.tmdb_id} m={m} onPress={() => pickMovie(m)} theme={theme} />
             ))}
@@ -974,7 +1005,7 @@ export function LogFormScreen() {
             placeholder="e.g. 3"
           />
           {screenDropdownOpen && (
-            <View style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
+            <View {...suppressBlurOnWeb} style={{ backgroundColor: theme.surface, borderRadius: 8, marginTop: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.divider }}>
               {theatreScreens!.map((s) => (
                 <DropdownRow
                   key={s.id}
